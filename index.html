@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方界深空 · VOXEL HORIZON</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="hud-top">
+      <div id="compass-wrap"><canvas id="compass" width="640" height="52"></canvas></div>
+      <div id="hud-corner">
+        <div id="hud-units"><span class="u-sym">◈</span><span id="units-val">0</span></div>
+        <div id="hud-planet">—</div>
+        <div id="hud-env"><span id="env-icon">☀</span><span id="env-label">白昼</span></div>
+      </div>
+    </div>
+
+    <div id="alert-center" class="hidden"><span class="alert-icon">⚠</span><span id="alert-text"></span></div>
+
+    <div id="crosshair">
+      <svg id="mine-ring" width="56" height="56" viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="24"/><circle id="mine-ring-fg" class="ring-fg" cx="28" cy="28" r="24"/></svg>
+      <div id="ch-dot"></div>
+      <div id="heat-wrap"><div id="heat-bar"></div></div>
+      <div id="jet-wrap"><div id="jet-bar"></div></div>
+    </div>
+
+    <div id="interact-hint" class="hidden">
+      <svg id="hold-ring" width="44" height="44" viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle id="hold-ring-fg" class="ring-fg" cx="22" cy="22" r="18"/></svg>
+      <span class="kbd" id="hint-key">E</span><span id="hint-text"></span>
+    </div>
+
+    <div id="stats-left">
+      <div class="stat-row" id="shield-row"><span class="stat-ico">⬡</span><div class="bar"><div id="shield-fill" class="bar-fill shield"></div></div></div>
+      <div class="stat-row"><span class="stat-ico">✚</span><div id="hp-segs"></div></div>
+    </div>
+
+    <div id="stats-right">
+      <div class="stat-row"><div class="bar rtl"><div id="haz-fill" class="bar-fill haz"></div></div><span class="stat-ico" id="haz-ico">☢</span></div>
+      <div class="stat-row"><div class="bar rtl"><div id="ls-fill" class="bar-fill ls"></div></div><span class="stat-ico">❍</span></div>
+    </div>
+
+    <div id="hotbar"></div>
+    <div id="toasts"></div>
+
+    <div id="mission-card" class="hidden">
+      <div id="mission-kind">任务</div>
+      <div id="mission-title"></div>
+      <div id="mission-desc"></div>
+      <div id="mission-prog-wrap"><div class="bar slim"><div id="mission-prog" class="bar-fill acc"></div></div><span id="mission-count"></span></div>
+    </div>
+    <div id="notify-stack"></div>
+
+    <div id="marker-layer"></div>
+
+    <div id="flight-hud" class="hidden">
+      <div id="flight-reticle"><div class="fr-c"></div><div class="fr-l"></div><div class="fr-r"></div></div>
+      <div id="flight-data">
+        <div class="fd-item"><label>速度</label><span id="fd-speed">0</span><em>u/s</em></div>
+        <div class="fd-item"><label>高度</label><span id="fd-alt">0</span><em>m</em></div>
+        <div class="fd-item"><label>跃迁电池</label><span id="fd-warp">0</span><em>枚</em></div>
+      </div>
+      <div id="flight-tips">鼠标 转向 · W/S 油门 · 空格 加力 · E 降落 · J 跃迁</div>
+    </div>
+
+    <div id="visor-overlay" class="hidden">
+      <div class="visor-ring r1"></div><div class="visor-ring r2"></div>
+      <div class="visor-corner tl"></div><div class="visor-corner tr"></div><div class="visor-corner bl"></div><div class="visor-corner br"></div>
+      <div class="visor-scanline"></div>
+      <div id="visor-side">分析目镜 // ANALYSIS<br><span id="visor-clock"></span></div>
+      <div id="visor-info" class="hidden">
+        <div id="vi-name"></div><div id="vi-type"></div><div id="vi-extra"></div>
+        <div id="vi-hint">按住 <span class="kbd sm">左键</span> 分析</div>
+      </div>
+    </div>
+
+    <div id="milestone-pop" class="hidden">
+      <div class="ms-line"></div>
+      <div class="ms-kicker" id="ms-kicker">里程碑达成</div>
+      <div class="ms-title" id="ms-title"></div>
+      <div class="ms-sub" id="ms-sub"></div>
+      <div class="ms-line"></div>
+    </div>
+  </div>
+
+  <div id="planet-card" class="hidden">
+    <div class="pc-inner panel">
+      <div class="pc-kicker">行星探测数据 // PLANETARY SCAN</div>
+      <div class="pc-name" id="pc-name"></div>
+      <div class="pc-grid">
+        <div class="pc-item"><label>气候</label><span id="pc-climate"></span></div>
+        <div class="pc-item"><label>植物</label><span id="pc-flora"></span></div>
+        <div class="pc-item"><label>动物</label><span id="pc-fauna"></span></div>
+        <div class="pc-item"><label>风暴</label><span id="pc-storm"></span></div>
+      </div>
+      <div class="pc-res" id="pc-res"></div>
+    </div>
+  </div>
+
+  <div id="inv-screen" class="screen hidden">
+    <div class="inv-frame panel">
+      <div class="inv-tabs">
+        <div class="inv-tab active" data-tab="items">物品 <em>INVENTORY</em></div>
+        <div class="inv-tab" data-tab="craft">合成 <em>CRAFTING</em></div>
+        <div class="inv-tab" data-tab="disc">发现 <em>DISCOVERIES</em></div>
+        <div class="inv-close">Tab / Esc 关闭</div>
+      </div>
+      <div class="inv-body" id="inv-body-items">
+        <div class="inv-left">
+          <div class="inv-sec-title">远行者装备舱 <em>EXOSUIT</em></div>
+          <div id="inv-grid" class="grid"></div>
+          <div class="inv-sec-title">快捷栏 <em>QUICK ACCESS</em></div>
+          <div id="inv-hotbar" class="grid"></div>
+        </div>
+        <div class="inv-right">
+          <div id="item-detail" class="detail-empty">选择一件物品查看详情</div>
+        </div>
+      </div>
+      <div class="inv-body hidden" id="inv-body-craft">
+        <div class="inv-left"><div id="recipe-list"></div></div>
+        <div class="inv-right"><div id="recipe-detail" class="detail-empty">选择一个配方</div></div>
+      </div>
+      <div class="inv-body hidden" id="inv-body-disc">
+        <div class="inv-left"><div class="inv-sec-title">已发现星球</div><div id="disc-planets"></div>
+        <div class="inv-sec-title">旅程里程碑</div><div id="disc-miles"></div></div>
+        <div class="inv-right"><div class="inv-sec-title">已分析物种 / 植物</div><div id="disc-species"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ship-screen" class="screen hidden">
+    <div class="ship-frame panel">
+      <div class="ship-head"><span>星舰 · 「拂晓之羽」</span><em>STARSHIP SYSTEMS</em><div class="inv-close">Esc 关闭</div></div>
+      <div id="ship-comps"></div>
+      <div class="ship-fuel-row">
+        <label>启动燃料</label>
+        <div class="bar big"><div id="ship-fuel-fill" class="bar-fill fuel"></div></div>
+        <span id="ship-fuel-txt">0%</span>
+        <button class="btn sm" id="btn-refuel">加注燃料</button>
+      </div>
+      <div class="ship-actions"><button class="btn primary" id="btn-launch">起飞 // LAUNCH</button></div>
+    </div>
+  </div>
+
+  <div id="title-screen">
+    <canvas id="title-stars"></canvas>
+    <div class="title-planet"></div>
+    <div class="title-haze"></div>
+    <div class="title-content">
+      <div class="t-kicker">远征协议 0x2F // EXPEDITION</div>
+      <h1>方界<span>深空</span></h1>
+      <div class="t-sub">VOXEL HORIZON — 体素星球 · 无尽苍穹</div>
+      <div class="t-menu">
+        <button class="btn t-btn" id="btn-new">新的旅程</button>
+        <button class="btn t-btn hidden" id="btn-continue">继续旅程</button>
+        <button class="btn t-btn" id="btn-help">操作手册</button>
+        <button class="btn t-btn" id="btn-settings">系统设置</button>
+      </div>
+      <div class="t-seed"><label>星球种子(可选)</label><input id="seed-input" maxlength="16" placeholder="随机"></div>
+      <div class="t-foot">v1.0 · WebGL · 建议使用 Chrome/Edge · 全程序化生成的原创致敬之作</div>
+    </div>
+  </div>
+
+  <div id="loading-screen" class="hidden">
+    <div class="load-box">
+      <div class="pc-kicker">正在进入行星大气层</div>
+      <div class="load-name" id="load-name">—</div>
+      <div class="load-sub" id="load-sub">构建体素地貌…</div>
+      <div class="bar big"><div id="load-fill" class="bar-fill acc"></div></div>
+    </div>
+  </div>
+
+  <div id="intro-screen" class="hidden"><div id="intro-lines"></div><div class="intro-skip">单击跳过</div></div>
+
+  <div id="pause-screen" class="screen hidden">
+    <div class="pause-box panel">
+      <div class="p-kicker">系统暂停 // STANDBY</div>
+      <button class="btn t-btn" id="btn-resume">继续探索</button>
+      <button class="btn t-btn" id="btn-save">保存进度</button>
+      <button class="btn t-btn" id="btn-help2">操作手册</button>
+      <button class="btn t-btn" id="btn-settings2">系统设置</button>
+      <button class="btn t-btn" id="btn-quit">返回标题</button>
+      <div id="pause-stats"></div>
+    </div>
+  </div>
+
+  <div id="settings-screen" class="screen hidden">
+    <div class="set-box panel">
+      <div class="p-kicker">系统设置 // OPTIONS</div>
+      <div class="set-row"><label>总音量</label><input type="range" id="set-master" min="0" max="100" value="80"><span></span></div>
+      <div class="set-row"><label>音乐音量</label><input type="range" id="set-music" min="0" max="100" value="60"><span></span></div>
+      <div class="set-row"><label>音效音量</label><input type="range" id="set-sfx" min="0" max="100" value="90"><span></span></div>
+      <div class="set-row"><label>鼠标灵敏度</label><input type="range" id="set-sens" min="20" max="200" value="100"><span></span></div>
+      <div class="set-row"><label>视野 FOV</label><input type="range" id="set-fov" min="60" max="100" value="78"><span></span></div>
+      <div class="set-row"><label>渲染距离</label>
+        <select id="set-dist"><option value="3">近 (流畅)</option><option value="4" selected>中 (推荐)</option><option value="5">远</option><option value="6">极远 (高配)</option></select><span></span>
+      </div>
+      <div class="set-row"><label>飞行反转Y轴</label><input type="checkbox" id="set-invert"><span></span></div>
+      <div class="set-actions"><button class="btn sm danger" id="btn-wipe">清除存档</button><button class="btn sm" id="btn-set-back">返回</button></div>
+    </div>
+  </div>
+
+  <div id="help-screen" class="screen hidden">
+    <div class="help-box panel">
+      <div class="p-kicker">操作手册 // MANUAL</div>
+      <div class="help-grid">
+        <div><span class="kbd">W A S D</span> 移动</div><div><span class="kbd">Shift</span> 冲刺</div>
+        <div><span class="kbd">空格</span> 跳跃 / 按住喷气背包</div><div><span class="kbd">鼠标左键</span> 激光采集 / 攻击</div>
+        <div><span class="kbd">鼠标右键</span> 放置方块 / 使用物品</div><div><span class="kbd">1-9 / 滚轮</span> 快捷栏</div>
+        <div><span class="kbd">E</span> 交互 / 进入飞船</div><div><span class="kbd">Tab</span> 背包 · 合成 · 发现</div>
+        <div><span class="kbd">C</span> 扫描脉冲(标记资源)</div><div><span class="kbd">F</span> 分析目镜</div>
+        <div><span class="kbd">Z</span> 补充生命维持(消耗氧)</div><div><span class="kbd">X</span> 补充危险防护(消耗钠)</div>
+        <div><span class="kbd">T</span> 手电</div><div><span class="kbd">Esc</span> 暂停</div>
+        <div class="help-wide">飞行模式：鼠标转向 · <span class="kbd">W/S</span> 油门 · <span class="kbd">空格</span> 加力 · <span class="kbd">E</span> 降落 · <span class="kbd">J</span> 跃迁(需跃迁电池)</div>
+      </div>
+      <div class="help-flow">旅程指引：补充防护(钠·黄色荧光植物) → 校准工具(铁尘·岩石) → 生命维持(氧·红色呼吸花) → 合成金属镀层修复推进器 → 碳纳米管修复脉冲引擎 → 双氢合成启动燃料 → 起飞 → 建造庇护所 · 扫描生物 · 合成跃迁电池 → 跃迁新星球</div>
+      <div class="set-actions"><button class="btn sm" id="btn-help-back">返回</button></div>
+    </div>
+  </div>
+
+  <div id="death-screen" class="screen hidden">
+    <div class="death-box">
+      <div class="d-title">信号丢失</div>
+      <div class="d-sub">远行者生命体征中断 —— 正在重构…</div>
+      <button class="btn t-btn" id="btn-respawn">重新苏醒</button>
+    </div>
+  </div>
+
+  <div id="warp-overlay" class="hidden"><canvas id="warp-canvas"></canvas><div class="warp-text">超光速跃迁中 // HYPERWARP</div></div>
+
+  <div id="tooltip" class="hidden"></div>
+  <div id="drag-ghost" class="hidden"><img><span></span></div>
+  <div id="vignette"></div>
+  <div id="damage-flash"></div>
+  <div id="storm-tint"></div>
+  <div id="water-tint"></div>
+</div>
+
+<script src="libs/three.min.js"></script>
+<script>if(!window.THREE)document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');</script>
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
+<script src="js/atlas.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/world.js"></script>
+<script src="js/sky.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/ship.js"></script>
+<script src="js/player.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/missions.js"></script>
+<script src="js/save.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
