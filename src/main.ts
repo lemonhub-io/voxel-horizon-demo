@@ -175,11 +175,10 @@ export class Game {
   }
   exitPointerLock(): void { if (document.pointerLockElement) document.exitPointerLock(); }
 
-  newGame(): void {
+  newGame(seedInput?: string): void {
     this.audio.ensure();
     this.audio.initLoops();
-    const s = this.stores;
-    const seedStr = (document.querySelector('.t-seed input') as HTMLInputElement)?.value?.trim() || '';
+    const seedStr = (seedInput || '').trim();
     const seed = seedStr ? U.seedFromString(seedStr) : Math.floor(Math.random() * 1e9);
     this.beginLoad(seed, 0, null);
   }

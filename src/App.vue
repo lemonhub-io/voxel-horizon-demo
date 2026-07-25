@@ -87,7 +87,8 @@ function getEngine() {
 
 function onNewGame() {
   const engine = getEngine();
-  if (engine && typeof engine.newGame === 'function') (engine.newGame as () => void)();
+  const seed = titleRef.value?.seed || '';
+  if (engine && typeof engine.newGame === 'function') (engine.newGame as (s?: string) => void)(seed);
 }
 function onContinue() {
   const engine = getEngine();
