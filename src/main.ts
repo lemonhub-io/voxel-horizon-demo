@@ -1,5 +1,6 @@
 // ============================================================
-// main.ts — Vite entry point: Game class, Input, bootstrap
+// main.ts — Game engine (Three.js + game logic only)
+// All UI is handled by Vue components via Pinia stores
 // ============================================================
 
 import type { InputState, Settings, SaveData, Palette, PlanetInfo, Discoveries } from './types';
@@ -17,6 +18,15 @@ import { Player } from './player';
 import { HUD } from './hud';
 import { Missions, Milestones } from './missions';
 import { Save } from './save';
+
+// Pinia stores (accessed lazily after pinia is initialized)
+import { useGameStore } from './stores/gameStore';
+import { usePlayerStore } from './stores/playerStore';
+import { useInventoryStore } from './stores/inventoryStore';
+import { useShipStore } from './stores/shipStore';
+import { useHudStore } from './stores/hudStore';
+import { useMissionsStore } from './stores/missionsStore';
+import { useMilestonesStore } from './stores/milestonesStore';
 
 // --- Input singleton ---
 
@@ -49,7 +59,7 @@ export const Input: InputState = {
   }
 };
 
-// --- Game class ---
+// --- Game class (engine only, no DOM UI) ---
 
 export class Game {
   state: string;
@@ -86,7 +96,26 @@ export class Game {
   spawnPoint!: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
-  _lastHover?: HTMLElement | null;
+
+  // Pinia store refs (lazy init)
+  private _stores: ReturnType<typeof this._getStores> | null = null;
+
+  private _getStores() {
+    return {
+      game: useGameStore(),
+      player: usePlayerStore(),
+      inventory: useInventoryStore(),
+      ship: useShipStore(),
+      hud: useHudStore(),
+      missions: useMissionsStore(),
+      milestones: useMilestonesStore(),
+    };
+  }
+
+  get stores() {
+    if (!this._stores) this._stores = this._getStores();
+    return this._stores;
+  }
 
   constructor() {
     this.state = 'title';
@@ -102,8 +131,6 @@ export class Game {
     this.autoSaveT = 0;
     this.input = Input;
     this.initRenderer();
-    this.initTitle();
-    this.bindUI();
     Input.init(this);
     this.loop();
   }
@@ -127,81 +154,6 @@ export class Game {
     this.clock = new THREE.Clock();
   }
 
-  initTitle(): void {
-    const cvs = document.getElementById('title-stars') as HTMLCanvasElement;
-    cvs.width = innerWidth; cvs.height = innerHeight;
-    const ctx = cvs.getContext('2d')!;
-    const stars: { x: number; y: number; r: number; p: number; s: number }[] = [];
-    for (let i = 0; i < 240; i++) stars.push({ x: Math.random() * cvs.width, y: Math.random() * cvs.height, r: Math.random() * 1.4 + 0.3, p: Math.random() * 6.28, s: 0.5 + Math.random() * 2 });
-    const draw = (): void => {
-      if (this.state !== 'title') return;
-      ctx.clearRect(0, 0, cvs.width, cvs.height);
-      const t = performance.now() / 1000;
-      for (const s of stars) {
-        const a = 0.35 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
-        ctx.fillStyle = `rgba(220,238,248,${a})`;
-        ctx.fillRect(s.x, s.y, s.r, s.r);
-      }
-      requestAnimationFrame(draw);
-    };
-    draw();
-    if (Save.load()) document.getElementById('btn-continue')!.classList.remove('hidden');
-  }
-
-  bindUI(): void {
-    const $ = (id: string): HTMLElement => document.getElementById(id)!;
-    document.addEventListener('mouseover', (e: MouseEvent) => {
-      const b = (e.target as HTMLElement).closest && (e.target as HTMLElement).closest('.btn, .inv-tab, .t-btn') as HTMLElement | null;
-      if (b && b !== this._lastHover) { this._lastHover = b; this.audio.ensure(); this.audio.uiHover(); }
-      if (!b) this._lastHover = null;
-    });
-    const clickable = (): void => { this.audio.ensure(); this.audio.uiClick(); };
-    $('btn-new').addEventListener('click', () => { clickable(); this.newGame(); });
-    $('btn-continue').addEventListener('click', () => { clickable(); this.continueGame(); });
-    $('btn-help').addEventListener('click', () => { clickable(); this.showScreen('help-screen'); });
-    $('btn-settings').addEventListener('click', () => { clickable(); this.openSettings(); });
-    $('btn-help-back').addEventListener('click', () => { clickable(); this.hideScreen('help-screen'); });
-    $('btn-set-back').addEventListener('click', () => { clickable(); this.closeSettings(); });
-    $('btn-resume').addEventListener('click', () => { clickable(); this.togglePause(false); });
-    $('btn-save').addEventListener('click', () => {
-      clickable();
-      if (Save.save(this)) this.hud.notify('进度已保存', 'success');
-      this.togglePause(false);
-    });
-    $('btn-help2').addEventListener('click', () => { clickable(); this.showScreen('help-screen'); });
-    $('btn-settings2').addEventListener('click', () => { clickable(); this.openSettings(); });
-    $('btn-quit').addEventListener('click', () => { clickable(); Save.save(this); location.reload(); });
-    $('btn-respawn').addEventListener('click', () => { clickable(); this.respawn(); });
-    $('btn-wipe').addEventListener('click', () => {
-      clickable();
-      if (confirm('确定清除全部存档？')) { Save.clear(); location.reload(); }
-    });
-    const setBind = (id: string, key: keyof Settings, isCheck?: boolean): void => {
-      const el = $(id) as HTMLInputElement;
-      const span = el.parentElement!.querySelector('span:last-child');
-      const upd = (): void => {
-        if (isCheck) { (this.settings as unknown as Record<string, unknown>)[key] = el.checked; }
-        else { (this.settings as unknown as Record<string, unknown>)[key] = parseFloat(el.value); if (span) span.textContent = el.value; }
-        this.applySettings();
-        Save.saveSettings(this.settings);
-      };
-      if (isCheck) el.checked = this.settings[key] as boolean;
-      else { el.value = String(this.settings[key]); if (span) span.textContent = el.value; }
-      el.addEventListener('input', upd);
-      el.addEventListener('change', upd);
-    };
-    setBind('set-master', 'master');
-    setBind('set-music', 'music');
-    setBind('set-sfx', 'sfx');
-    setBind('set-sens', 'sens');
-    setBind('set-fov', 'fov');
-    setBind('set-dist', 'dist');
-    setBind('set-invert', 'invert', true);
-    document.querySelector('#inv-screen')!.addEventListener('mousedown', ((e: MouseEvent) => {
-      if ((e.target as HTMLElement).id === 'inv-screen') this.inv.toggle(false);
-    }) as EventListener);
-  }
-
   applySettings(): void {
     this.audio.setVol('master', this.settings.master / 100);
     this.audio.setVol('music', this.settings.music / 100);
@@ -213,13 +165,9 @@ export class Game {
     }
   }
 
-  showScreen(id: string): void { document.getElementById(id)!.classList.remove('hidden'); }
-  hideScreen(id: string): void { document.getElementById(id)!.classList.add('hidden'); }
-  openSettings(): void { this.showScreen('settings-screen'); }
-  closeSettings(): void { this.hideScreen('settings-screen'); }
-
   uiOpen(): boolean {
-    return (this.inv && this.inv.open) || (this.ship && this.ship.open) || this.state === 'pause' || this.state === 'dead';
+    const s = this.stores;
+    return (s.inventory.open) || (s.ship.open) || this.state === 'pause' || this.state === 'dead';
   }
 
   requestPointerLock(): void {
@@ -230,7 +178,8 @@ export class Game {
   newGame(): void {
     this.audio.ensure();
     this.audio.initLoops();
-    const seedStr = (document.getElementById('seed-input') as HTMLInputElement).value.trim();
+    const s = this.stores;
+    const seedStr = (document.querySelector('.t-seed input') as HTMLInputElement)?.value?.trim() || '';
     const seed = seedStr ? U.seedFromString(seedStr) : Math.floor(Math.random() * 1e9);
     this.beginLoad(seed, 0, null);
   }
@@ -245,15 +194,17 @@ export class Game {
 
   beginLoad(seed: number, palIdx: number, saveData: SaveData | null): void {
     this.state = 'loading';
-    this.hideScreen('title-screen');
-    this.showScreen('loading-screen');
+    const s = this.stores;
+    s.game.state = 'loading';
     this.seed = seed;
     this.palIdx = palIdx;
     this.palette = PALETTES[palIdx];
+    s.game.seed = seed;
+    s.game.palIdx = palIdx;
+    s.game.palette = this.palette;
     const rng = U.mulberry32(seed);
     this.planetName = saveData ? saveData.planetName : U.planetName(rng);
-    document.getElementById('load-name')!.textContent = this.planetName;
-    document.getElementById('load-sub')!.textContent = this.palette.climate + ' · 构建体素地貌…';
+    s.game.planetName = this.planetName;
 
     this.atlas.build(this.palette, seed);
     if (!this.world) {
@@ -266,7 +217,6 @@ export class Game {
       this.hud = new HUD(this);
       this.missions = new Missions(this);
       this.milestones = new Milestones(this);
-      this.inv.bindUI();
     }
     this.world.setPlanet(seed, this.palette);
     this.sky.setPalette(this.palette);
@@ -282,8 +232,10 @@ export class Game {
       this.missions.deserialize(saveData.missions);
       this.milestones.deserialize(saveData.milestones);
       this.discoveries = saveData.discoveries || this.discoveries;
+      s.game.discoveries = this.discoveries;
       this.sky.t = saveData.time || 0.3;
       this.playTime = saveData.playTime || 0;
+      s.game.playTime = this.playTime;
     }
 
     const land = this.world.findLand(8, 8);
@@ -298,7 +250,7 @@ export class Game {
       const pz = saveData ? saveData.player.pos[2] : spawnZ;
       this.world.update(px, pz, 24);
       const prog = this.world.pregenProgress(px, pz);
-      (document.getElementById('load-fill') as HTMLElement).style.width = (prog * 100) + '%';
+      s.game.loadProgress = prog * 100;
       frame++;
       if (prog >= 1 || frame > 600) this.finishLoad(saveData);
       else requestAnimationFrame(step);
@@ -307,6 +259,7 @@ export class Game {
   }
 
   finishLoad(saveData: SaveData | null): void {
+    const s = this.stores;
     const sx = this.spawnPoint.x, sz = this.spawnPoint.z;
     if (saveData) {
       this.player.deserialize(saveData.player);
@@ -321,72 +274,68 @@ export class Game {
       this.player.ls = 75;
       this.inv.add('carbon', 10);
       this.discoveries.planets.push({ name: this.planetName, climate: this.palette.climate, visited: 1 });
+      s.game.discoveries = this.discoveries;
     }
     this.fauna.spawnPlanet(this.seed, this.palette);
-    this.hideScreen('loading-screen');
-    this.hud.init();
-    document.getElementById('hud-planet')!.textContent = this.planetName;
-    this.inv.refresh();
+    this.syncPlayerStore();
+    s.game.planetName = this.planetName;
 
     if (!saveData) this.playIntro();
     else this.startPlay();
   }
 
   playIntro(): void {
+    const s = this.stores;
     this.state = 'intro';
-    this.showScreen('intro-screen');
-    const lines: [string, number, string?][] = [
-      ['//: 远征协议 0x2F —— 信号重构中', 0],
-      ['生命维持系统 ………… 在线', 900],
-      ['危险防护模块 ………… 受损', 1800, 'warn'],
-      ['星舰「拂晓之羽」 …… 坠毁信标已激活', 2700, 'warn'],
-      ['坐标锁定：' + this.planetName + ' · ' + this.palette.climate, 3600],
-      ['远行者，醒来。', 4700]
+    s.game.state = 'intro';
+    const lines = [
+      { text: '//: 远征协议 0x2F —— 信号重构中' },
+      { text: '生命维持系统 ………… 在线' },
+      { text: '危险防护模块 ………… 受损', cls: 'warn' },
+      { text: '星舰「拂晓之羽」 …… 坠毁信标已激活', cls: 'warn' },
+      { text: '坐标锁定：' + this.planetName + ' · ' + this.palette.climate },
+      { text: '远行者，醒来。' }
     ];
-    const box = document.getElementById('intro-lines')!;
-    box.innerHTML = '';
+    s.game.introLines = [];
     const timers: ReturnType<typeof setTimeout>[] = [];
-    for (const [text, at, cls] of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       timers.push(setTimeout(() => {
-        const d = document.createElement('div');
-        d.className = 'il' + (cls ? ' ' + cls : '');
-        d.textContent = text;
-        box.appendChild(d);
-        this.audio.notify(cls === 'warn' ? 'danger' : 'info');
-      }, at));
+        s.game.introLines.push(line);
+        this.audio.notify(line.cls === 'warn' ? 'danger' : 'info');
+      }, i * 900));
     }
     const finish = (): void => {
       timers.forEach(clearTimeout);
-      document.getElementById('intro-screen')!.removeEventListener('click', finish);
-      this.hideScreen('intro-screen');
+      s.game.introLines = [];
       this.startPlay();
       setTimeout(() => {
-        this.hud.planetCard(this.planetInfo());
-        this.hud.notify('已抵达 ' + this.planetName, 'info');
+        s.hud.showPlanetCard(this.planetInfo());
+        s.hud.addNotification('已抵达 ' + this.planetName, 'info');
         this.audio.alarm();
       }, 600);
     };
-    document.getElementById('intro-screen')!.addEventListener('click', finish);
+    // Click to skip or auto-advance
+    addEventListener('click', finish, { once: true });
     timers.push(setTimeout(finish, 6400));
   }
 
   planetInfo(): PlanetInfo {
     const pal = this.palette;
-    const res = ['ferrite', 'carbon', 'sodium', 'dihydrogen', 'oxygen', 'copper'];
     return {
       name: this.planetName,
       climate: pal.climate,
       flora: pal.floraLevel,
       fauna: this.fauna.speciesList.length + ' 种',
       storm: pal.stormLevel,
-      res
+      res: ['ferrite', 'carbon', 'sodium', 'dihydrogen', 'oxygen', 'copper']
     };
   }
 
   startPlay(): void {
+    const s = this.stores;
     this.state = 'play';
-    this.showScreen('hud');
-    document.getElementById('hud')!.classList.remove('hidden');
+    s.game.state = 'play';
     this.audio.ensure();
     this.audio.initLoops();
     this.audio.setLoop('wind', true, 0.35, 2);
@@ -402,23 +351,16 @@ export class Game {
 
   togglePause(on?: boolean): void {
     if (this.state !== 'play' && this.state !== 'pause') return;
+    const s = this.stores;
     const want = on !== undefined ? on : this.state === 'play';
     if (want) {
       this.state = 'pause';
+      s.game.state = 'pause';
       this.exitPointerLock();
-      this.showScreen('pause-screen');
-      const st = this.milestones.stats;
-      document.getElementById('pause-stats')!.innerHTML =
-        `星球：${this.planetName} · ${this.palette.climate}<br>` +
-        `游玩时长：${U.fmtTime(this.playTime)} · 行走 ${Math.round(st.walk)}m<br>` +
-        `采集 ${st.mined} · 建造 ${st.placed} · 分析 ${st.scans} · 跃迁 ${st.warps}<br>` +
-        `记录点数：◈ ${this.inv.units}`;
       this.audio.uiOpen();
     } else {
       this.state = 'play';
-      this.hideScreen('pause-screen');
-      this.hideScreen('settings-screen');
-      this.hideScreen('help-screen');
+      s.game.state = 'play';
       this.audio.uiClose();
       this.requestPointerLock();
     }
@@ -426,26 +368,26 @@ export class Game {
 
   onKey(code: string, e: KeyboardEvent): void {
     if (this.state === 'title') return;
+    const s = this.stores;
     if (code === 'Escape') {
-      if (this.inv && this.inv.open) return this.inv.toggle(false);
-      if (this.ship && this.ship.open) { this.ship.closePanel(); this.requestPointerLock(); return; }
-      if (!document.getElementById('settings-screen')!.classList.contains('hidden')) return this.closeSettings();
-      if (!document.getElementById('help-screen')!.classList.contains('hidden')) return this.hideScreen('help-screen');
+      if (s.inventory.open) { s.inventory.open = false; return; }
+      if (s.ship.open) { s.ship.open = false; this.requestPointerLock(); return; }
       if (this.state === 'play' || this.state === 'pause') this.togglePause();
       return;
     }
     if (this.state !== 'play') return;
     if (code === 'Tab') {
       e.preventDefault();
-      if (!this.player.inShip) this.inv.toggle();
+      if (!this.player.inShip) s.inventory.open = !s.inventory.open;
+      if (s.inventory.open) this.exitPointerLock();
+      else this.requestPointerLock();
       return;
     }
     if (this.uiOpen()) return;
     if (code.startsWith('Digit')) {
       const n = parseInt(code.slice(5));
       if (n >= 1 && n <= 9) {
-        this.inv.sel = n - 1;
-        this.inv.refresh();
+        s.inventory.sel = n - 1;
         this.audio.uiHover();
       }
     }
@@ -459,6 +401,7 @@ export class Game {
     if (code === 'KeyT') {
       this.player.flashOn = !this.player.flashOn;
       this.player.flashlight.intensity = this.player.flashOn ? 1.4 : 0;
+      s.player.flashOn = this.player.flashOn;
       this.audio.uiClick();
     }
   }
@@ -474,14 +417,15 @@ export class Game {
 
   onWheel(e: WheelEvent): void {
     if (this.state !== 'play' || this.uiOpen() || this.player.inShip) return;
+    const s = this.stores;
     const dir = e.deltaY > 0 ? 1 : -1;
-    this.inv.sel = (this.inv.sel + dir + 9) % 9;
-    this.inv.refresh();
+    s.inventory.sel = (s.inventory.sel + dir + 9) % 9;
     this.audio.uiHover();
   }
 
   updateStorm(dt: number): void {
     const pal = this.palette;
+    const s = this.stores;
     if (this.stormActive) {
       this.stormFactor = Math.min(1, this.stormFactor + dt / 3);
       this.stormLeft! -= dt;
@@ -492,8 +436,9 @@ export class Game {
       if (Math.random() < dt * 0.05) this.audio.thunder();
       if (this.stormLeft! <= 0) {
         this.stormActive = false;
+        s.game.stormActive = false;
         this.audio.setLoop('storm', false, 0, 2);
-        this.hud.notify('风暴正在消散', 'info');
+        s.hud.addNotification('风暴正在消散', 'info');
         this.stormTimer = U.rand(200, 420);
       }
     } else {
@@ -502,21 +447,24 @@ export class Game {
       if (this.stormTimer <= 0) {
         if (Math.random() < pal.storm.chance) {
           this.stormActive = true;
+          s.game.stormActive = true;
           this.stormLeft = U.rand(45, 80);
-          this.hud.notify('警告：' + pal.storm.label + ' 来袭 —— 寻找掩体！', 'danger');
+          s.hud.addNotification('警告：' + pal.storm.label + ' 来袭 —— 寻找掩体！', 'danger');
           this.audio.alarm();
           this.audio.setLoop('storm', true, 0.8, 3);
         } else this.stormTimer = U.rand(120, 260);
       }
     }
-    (document.getElementById('storm-tint') as HTMLElement).style.opacity = String(this.stormFactor * 0.9);
+    s.game.stormFactor = this.stormFactor;
   }
 
   startWarp(): void {
     const g = this;
+    const s = this.stores;
     this.state = 'warp';
+    s.game.state = 'warp';
     this.audio.warpCharge();
-    this.hud.notify('跃迁引擎充能中…', 'info');
+    s.hud.addNotification('跃迁引擎充能中…', 'info');
     setTimeout(() => {
       g.audio.warpBoom();
       g.fx.startWarp();
@@ -527,16 +475,16 @@ export class Game {
         g.seed = newSeed;
         g.palIdx = newPal;
         g.palette = PALETTES[newPal];
+        s.game.palette = g.palette;
         const rng = U.mulberry32(newSeed);
         g.planetName = U.planetName(rng);
+        s.game.planetName = g.planetName;
         g.atlas.build(g.palette, newSeed);
         g.world.setPlanet(newSeed, g.palette);
         g.sky.setPalette(g.palette);
         g.player.crackMat.map = g.atlas.texture;
         g.player.lastHandItem = null;
-        g.hud.clearMarkers();
         g.atlas.iconCache = {};
-        g.inv.refresh();
         const landW = g.world.findLand(8, 8);
         const sx = landW.x, sz = landW.z;
         g.spawnPoint = { x: sx, z: sz };
@@ -554,15 +502,15 @@ export class Game {
             g.ship.flying = true;
             g.fx.stopWarp();
             g.state = 'play';
+            s.game.state = 'play';
             g.audio.setLoop('ship', true, 0.9, 0.5);
             g.audio.warpBoom();
             g.discoveries.planets.push({ name: g.planetName, climate: g.palette.climate, visited: 1 });
+            s.game.discoveries = g.discoveries;
             g.milestones.addStat('warps', 1);
-            document.getElementById('hud-planet')!.textContent = g.planetName;
-            document.getElementById('haz-ico')!.textContent = HAZ_ICONS[g.palette.hazard.type] || '☢';
             setTimeout(() => {
-              g.hud.planetCard(g.planetInfo());
-              g.hud.notify('抵达新星球：' + g.planetName, 'success');
+              s.hud.showPlanetCard(g.planetInfo());
+              s.hud.addNotification('抵达新星球：' + g.planetName, 'success');
             }, 500);
           } else requestAnimationFrame(pregen);
         };
@@ -572,20 +520,44 @@ export class Game {
   }
 
   onPlayerDeath(cause?: string): void {
+    const s = this.stores;
     this.state = 'dead';
+    s.game.state = 'dead';
     this.exitPointerLock();
-    (document.querySelector('.d-sub') as HTMLElement).textContent = `远行者生命体征中断（${cause || '未知原因'}）—— 正在重构…`;
-    this.showScreen('death-screen');
     this.audio.setLoop('wind', false);
   }
 
   respawn(): void {
-    this.hideScreen('death-screen');
+    const s = this.stores;
     this.player.respawn();
     this.state = 'play';
+    s.game.state = 'play';
+    s.player.dead = false;
     this.audio.setLoop('wind', true, 0.35, 2);
     this.requestPointerLock();
-    this.hud.notify('重构完成 —— 物品完好无损', 'info');
+    s.hud.addNotification('重构完成 —— 物品完好无损', 'info');
+  }
+
+  syncPlayerStore(): void {
+    const s = this.stores;
+    s.player.hp = this.player.hp;
+    s.player.hazard = this.player.hazard;
+    s.player.ls = this.player.ls;
+    s.player.jetFuel = this.player.jetFuel;
+    s.player.inShip = this.player.inShip;
+    s.player.dead = this.player.dead;
+    s.player.heat = this.player.heat;
+    s.player.overheated = this.player.overheated;
+    s.player.mineProgress = this.player.mineProgress;
+    s.player.visor = this.player.visor;
+    s.player.flashOn = this.player.flashOn;
+    s.player.onGround = this.player.onGround;
+    s.player.inWater = this.player.inWater;
+    s.player.headInWater = this.player.headInWater;
+    s.player.sheltered = this.player.sheltered;
+    s.game.playTime = this.playTime;
+    s.game.stormFactor = this.stormFactor;
+    s.game.stormActive = this.stormActive;
   }
 
   loop(): void {
@@ -603,16 +575,19 @@ export class Game {
           const moved = U.dist2(prevPos.x, prevPos.z, this.player.pos.x, this.player.pos.z);
           if (moved < 2) this.milestones.addStat('walk', moved);
         }
-        if (this.player.inShip && this.ship.flying) this.ship.update(dt);
-        else this.ship.update(dt);
+        this.ship.update(dt);
         this.fauna.update(dt);
         this.updateStorm(dt);
         this.milestones.tickTime(dt);
         this.missionT = (this.missionT || 0) - dt;
         if (this.missionT <= 0) { this.missionT = 0.5; this.missions.tick(); }
         this.autoSaveT += dt;
-        if (this.autoSaveT > 60) { this.autoSaveT = 0; Save.save(this); this.hud.notify('自动存档完成', 'info'); }
-        this.hud.update(dt);
+        if (this.autoSaveT > 60) {
+          this.autoSaveT = 0;
+          Save.save(this);
+          this.stores.hud.addNotification('自动存档完成', 'info');
+        }
+        this.syncPlayerStore();
       }
       this.world.update(this.player.pos.x, this.player.pos.z, 6);
       this.sky.update(this.state === 'pause' ? 0 : dt);
@@ -622,17 +597,3 @@ export class Game {
     }
   }
 }
-
-// --- Bootstrap ---
-
-addEventListener('DOMContentLoaded', () => {
-  if (!(window as unknown as Record<string, unknown>).THREE) {
-    document.body.innerHTML = '<div style="color:#fff;font-family:sans-serif;padding:60px;text-align:center">无法加载 3D 引擎（three.js）。<br>请确认 libs/three.min.js 存在，或联网后刷新。</div>';
-    return;
-  }
-  (window as unknown as Record<string, unknown>).game = new Game();
-  addEventListener('beforeunload', () => {
-    const w = window as unknown as Record<string, Game>;
-    if (w.game && w.game.state === 'play') Save.save(w.game);
-  });
-});

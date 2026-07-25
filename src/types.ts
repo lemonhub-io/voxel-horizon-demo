@@ -426,15 +426,8 @@ export interface Game {
   spawnPoint: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
-  _lastHover?: HTMLElement | null;
   initRenderer(): void;
-  initTitle(): void;
-  bindUI(): void;
   applySettings(): void;
-  showScreen(id: string): void;
-  hideScreen(id: string): void;
-  openSettings(): void;
-  closeSettings(): void;
   uiOpen(): boolean;
   requestPointerLock(): void;
   exitPointerLock(): void;
@@ -453,6 +446,7 @@ export interface Game {
   startWarp(): void;
   onPlayerDeath(cause?: string): void;
   respawn(): void;
+  syncPlayerStore(): void;
   loop(): void;
 }
 
