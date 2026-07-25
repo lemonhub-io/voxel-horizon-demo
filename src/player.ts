@@ -1,5 +1,57 @@
-class Player {
-  constructor(game) {
+// ============================================================
+// player.ts — First-person player controller
+// ============================================================
+
+import { U } from './utils';
+import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
+import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
+
+export class Player {
+  g: Game;
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  yaw: number;
+  pitch: number;
+  onGround: boolean;
+  hp: number;
+  hazard: number;
+  ls: number;
+  jetFuel: number;
+  inShip: boolean;
+  dead: boolean;
+  heat: number;
+  overheated: number;
+  mining: string | null;
+  mineProgress: number;
+  stepT: number;
+  headInWater: boolean;
+  inWater: boolean;
+  sheltered: boolean;
+  visor: boolean;
+  analyzeT: number;
+  holdE: number;
+  lowBeepT: number;
+  fallVy: number;
+  flashlight!: THREE.SpotLight;
+  scanCd: number;
+  vm!: THREE.Group;
+  vmTip!: THREE.Mesh;
+  blockInHand!: THREE.Mesh;
+  highlight!: THREE.LineSegments;
+  crackMat!: THREE.MeshBasicMaterial;
+  crack!: THREE.Mesh;
+  target!: RaycastResult | null;
+  lastHandItem!: string | null;
+  flashOn!: boolean;
+  sfxT?: number;
+  dmgT?: number;
+  zT?: number;
+  xT?: number;
+  zWarned?: boolean;
+  xWarned?: boolean;
+  dfT?: ReturnType<typeof setTimeout>;
+
+  constructor(game: Game) {
     this.g = game;
     this.pos = new THREE.Vector3(8, 40, 8);
     this.vel = new THREE.Vector3();
@@ -25,7 +77,6 @@ class Player {
     this.holdE = 0;
     this.lowBeepT = 0;
     this.fallVy = 0;
-    this.flashlight = null;
     this.scanCd = 0;
     this.buildViewmodel();
     this.highlight = new THREE.LineSegments(
@@ -41,7 +92,7 @@ class Player {
     game.scene.add(this.crack);
   }
 
-  buildViewmodel() {
+  buildViewmodel(): void {
     const g = this.g;
     this.vm = new THREE.Group();
     const dark = new THREE.MeshLambertMaterial({ color: '#2e333c' });
@@ -78,8 +129,8 @@ class Player {
     this.flashOn = false;
   }
 
-  eyePos() { return new THREE.Vector3(this.pos.x, this.pos.y + 1.62, this.pos.z); }
-  lookDir() {
+  eyePos(): THREE.Vector3 { return new THREE.Vector3(this.pos.x, this.pos.y + 1.62, this.pos.z); }
+  lookDir(): THREE.Vector3 {
     return new THREE.Vector3(
       -Math.sin(this.yaw) * Math.cos(this.pitch),
       Math.sin(this.pitch),
@@ -87,7 +138,7 @@ class Player {
     );
   }
 
-  update(dt) {
+  update(dt: number): void {
     const g = this.g;
     if (this.dead) return;
     if (this.inShip) {
@@ -117,7 +168,7 @@ class Player {
     this.inWater = feet === B.WATER;
     this.headInWater = this.g.world.isWater(this.pos.x, this.pos.y + 1.62, this.pos.z);
     if (this.inWater && !wasInWater && this.vel.y < -3) g.audio.splash();
-    document.getElementById('water-tint').style.opacity = this.headInWater ? 1 : 0;
+    (document.getElementById('water-tint') as HTMLElement).style.opacity = this.headInWater ? '1' : '0';
 
     let speed = sprint ? 6.6 : 4.35;
     if (this.inWater) speed *= 0.55;
@@ -175,9 +226,9 @@ class Player {
     const selItem = g.inv.selected();
     const isBlock = selItem && ITEMS[selItem.id].place !== undefined;
     this.blockInHand.visible = !!isBlock;
-    if (isBlock && this.lastHandItem !== selItem.id) {
-      this.lastHandItem = selItem.id;
-      this.blockInHand.material.color.set(this.blockColor(ITEMS[selItem.id].place));
+    if (isBlock && this.lastHandItem !== selItem!.id) {
+      this.lastHandItem = selItem!.id;
+      (this.blockInHand.material as THREE.MeshLambertMaterial).color.set(this.blockColor(ITEMS[selItem!.id].place!));
     }
 
     this.updateTargeting(dt);
@@ -188,13 +239,13 @@ class Player {
     if (this.scanCd > 0) this.scanCd -= dt;
   }
 
-  moveCollide(dt) {
+  moveCollide(dt: number): void {
     const w = 0.3, h = 1.8;
     const world = this.g.world;
     const p = this.pos;
     this.vel.y = Math.max(this.vel.y, -46);
-    const collide = () => world.collides(p.x - w, p.y, p.z - w, p.x + w, p.y + h - 0.001, p.z + w);
-    const move = (axis, amt) => {
+    const collide = (): boolean => world.collides(p.x - w, p.y, p.z - w, p.x + w, p.y + h - 0.001, p.z + w);
+    const move = (axis: 'x' | 'y' | 'z', amt: number): void => {
       if (Math.abs(amt) < 1e-8) return;
       const dirS = Math.sign(amt);
       let rem = Math.abs(amt);
@@ -238,7 +289,7 @@ class Player {
     }
   }
 
-  updateTargeting() {
+  updateTargeting(dt?: number): void {
     const g = this.g;
     const hit = g.world.raycast(this.eyePos(), this.lookDir(), CFG.REACH);
     this.target = hit;
@@ -248,7 +299,7 @@ class Player {
     } else this.highlight.visible = false;
   }
 
-  updateMining(dt) {
+  updateMining(dt: number): void {
     const g = this.g;
     const input = g.input;
     if (this.overheated > 0) {
@@ -292,7 +343,7 @@ class Player {
       }
       const key = t.x + ',' + t.y + ',' + t.z;
       if (this.mining !== key) { this.mining = key; this.mineProgress = 0; }
-      this.mineProgress += dt / def.hard;
+      this.mineProgress += dt / def.hard!;
       const tip = this.vmTipWorld();
       const hitP = new THREE.Vector3(t.x + 0.5 + t.nx * 0.52, t.y + 0.5 + t.ny * 0.52, t.z + 0.5 + t.nz * 0.52);
       g.fx.laserShow(tip, hitP, '#ff7a3c');
@@ -319,7 +370,7 @@ class Player {
     }
   }
 
-  heatUp(dt) {
+  heatUp(dt: number): void {
     this.heat += dt / 3.2;
     this.g.hud.setHeat(this.heat, false);
     if (this.heat >= 1) {
@@ -329,9 +380,9 @@ class Player {
     }
   }
 
-  applyCrackUV(uv) {
+  applyCrackUV(uv: [number, number, number, number]): void {
     const [u0, v0, u1, v1] = uv;
-    const attr = this.crack.geometry.attributes.uv;
+    const attr = this.crack.geometry.attributes.uv as THREE.BufferAttribute;
     for (let i = 0; i < attr.count; i += 4) {
       attr.setXY(i, u0, v1);
       attr.setXY(i + 1, u1, v1);
@@ -341,7 +392,7 @@ class Player {
     attr.needsUpdate = true;
   }
 
-  stopMining(keepLaser) {
+  stopMining(keepLaser?: boolean): void {
     if (!keepLaser) {
       this.g.fx.laserHide();
       this.g.audio.setLoop('laser', false);
@@ -352,13 +403,13 @@ class Player {
     this.g.hud.setMineProgress(0);
   }
 
-  blockColor(id) {
+  blockColor(id: number): string {
     const def = BLOCK_DEF[id];
     const t = def.tiles ? (def.tiles.all !== undefined ? def.tiles.all : def.tiles.side) : T.STONE;
-    return this.g.atlas.tileAvg(t, 1);
+    return this.g.atlas.tileAvg(t!, 1);
   }
 
-  breakBlock(t) {
+  breakBlock(t: RaycastResult): void {
     const g = this.g;
     const def = BLOCK_DEF[t.id];
     g.world.setBlock(t.x, t.y, t.z, B.AIR);
@@ -378,17 +429,17 @@ class Player {
       }
     }
     g.milestones.addStat('mined', 1);
-    g.missions.onEvent('mine', t.id);
+    g.missions.onEvent('mine', String(t.id));
     this.stopMining(true);
   }
 
-  vmTipWorld() {
+  vmTipWorld(): THREE.Vector3 {
     const v = new THREE.Vector3();
     this.vmTip.getWorldPosition(v);
     return v;
   }
 
-  placeBlock() {
+  placeBlock(): void {
     const g = this.g;
     const sel = g.inv.selected();
     if (!sel) return;
@@ -397,7 +448,7 @@ class Player {
     if (def.place === undefined) return;
     const t = this.target;
     if (!t) return;
-    let px, py, pz;
+    let px: number, py: number, pz: number;
     const tDef = BLOCK_DEF[t.id];
     if (tDef.cross) { px = t.x; py = t.y; pz = t.z; }
     else { px = t.x + t.nx; py = t.y + t.ny; pz = t.z + t.nz; }
@@ -417,7 +468,7 @@ class Player {
     }
   }
 
-  statsTick(dt, inShip) {
+  statsTick(dt: number, inShip: boolean): void {
     const g = this.g;
     const pal = g.palette;
     const night = g.sky.dayMix < 0.35;
@@ -444,7 +495,7 @@ class Player {
     }
   }
 
-  checkShelter() {
+  checkShelter(): boolean {
     const w = this.g.world;
     const x = Math.floor(this.pos.x), z = Math.floor(this.pos.z);
     for (let y = Math.floor(this.pos.y + 2); y < Math.min(CFG.WORLD_H, this.pos.y + 10); y++) {
@@ -454,14 +505,14 @@ class Player {
     return false;
   }
 
-  damage(amt, cause, silent) {
+  damage(amt: number, cause?: string, silent?: boolean): void {
     if (this.dead) return;
     this.hp -= amt;
     if (!silent) {
       this.g.audio.hurt();
       this.g.fx.shake(0.25);
     }
-    const df = document.getElementById('damage-flash');
+    const df = document.getElementById('damage-flash')!;
     df.classList.add('hit');
     clearTimeout(this.dfT);
     this.dfT = setTimeout(() => df.classList.remove('hit'), 130);
@@ -471,7 +522,7 @@ class Player {
     }
   }
 
-  die(cause) {
+  die(cause?: string): void {
     if (this.dead) return;
     this.dead = true;
     this.g.audio.death();
@@ -480,7 +531,7 @@ class Player {
     this.g.onPlayerDeath(cause);
   }
 
-  respawn() {
+  respawn(): void {
     const g = this.g;
     const sp = g.ship.group.position;
     this.pos.set(sp.x + 4, g.world.topSolidY(Math.floor(sp.x + 4), Math.floor(sp.z)) + 1.2, sp.z);
@@ -492,14 +543,14 @@ class Player {
     g.audio.respawn();
   }
 
-  updateInteract(dt) {
+  updateInteract(dt: number): void {
     const g = this.g;
     const input = g.input;
-    let prompt = null;
+    let prompt: InteractPrompt | null = null;
     if (!this.inShip) {
       const shipD = this.pos.distanceTo(g.ship.group.position);
       if (shipD < 5) {
-        prompt = { key: 'E', text: g.ship.canLaunch() ? '进入飞船 · 起飞' : '检查飞船（修复 / 加注）', hold: 0.5, action: () => g.ship.canLaunch() ? g.ship.openPanel() : g.ship.openPanel() };
+        prompt = { key: 'E', text: g.ship.canLaunch() ? '进入飞船 · 起飞' : '检查飞船（修复 / 加注）', hold: 0.5, action: () => g.ship.openPanel() };
       }
     }
     if (input.keys['KeyZ'] && this.ls < 99) {
@@ -535,7 +586,7 @@ class Player {
         if (this.holdE >= prompt.hold) {
           this.holdE = 0;
           input.keys['KeyE'] = false;
-          prompt.action();
+          prompt.action!();
         }
       } else this.holdE = 0;
       g.hud.showPrompt(prompt.key, prompt.text, prompt.hold > 0 ? this.holdE / prompt.hold : (prompt.progress || 0));
@@ -547,7 +598,7 @@ class Player {
     }
   }
 
-  doScan() {
+  doScan(): void {
     const g = this.g;
     if (this.scanCd > 0) return;
     if (!g.missions.scannerUnlocked) {
@@ -567,7 +618,7 @@ class Player {
     g.missions.onEvent('scan_pulse');
   }
 
-  toggleVisor(force) {
+  toggleVisor(force?: boolean): void {
     const g = this.g;
     const want = force !== undefined ? force : !this.visor;
     if (want && !g.missions.scannerUnlocked) {
@@ -575,11 +626,11 @@ class Player {
       return;
     }
     this.visor = want;
-    document.getElementById('visor-overlay').classList.toggle('hidden', !want);
+    document.getElementById('visor-overlay')!.classList.toggle('hidden', !want);
     g.audio[want ? 'uiOpen' : 'uiClose']();
   }
 
-  updateVisor(dt) {
+  updateVisor(dt: number): void {
     const g = this.g;
     if (!this.visor) {
       g.camera.fov = U.lerp(g.camera.fov, g.settings.fov, dt * 8);
@@ -588,56 +639,56 @@ class Player {
     }
     g.camera.fov = U.lerp(g.camera.fov, g.settings.fov - 22, dt * 8);
     g.camera.updateProjectionMatrix();
-    document.getElementById('visor-clock').textContent = 'T+' + Math.floor(g.playTime) + 's // ' + Math.round(this.pos.x) + ',' + Math.round(this.pos.z);
+    document.getElementById('visor-clock')!.textContent = 'T+' + Math.floor(g.playTime) + 's // ' + Math.round(this.pos.x) + ',' + Math.round(this.pos.z);
 
     const cHit = g.fauna.raycastCreature(this.eyePos(), this.lookDir(), 40);
-    const info = document.getElementById('visor-info');
-    let subject = null;
+    const info = document.getElementById('visor-info')!;
+    let subject: VisorSubject | null = null;
     if (cHit) {
       subject = { kind: 'creature', c: cHit.creature };
       info.classList.remove('hidden');
-      document.getElementById('vi-name').textContent = cHit.creature.sp.name;
-      document.getElementById('vi-type').textContent = '生物 // FAUNA' + (this.isDiscovered('c' + cHit.creature.sp.seed) ? ' · 已记录' : '');
-      document.getElementById('vi-extra').textContent = `体型 ${cHit.creature.sp.size.toFixed(1)}m · 性情温和 · 群居`;
+      document.getElementById('vi-name')!.textContent = cHit.creature.sp.name;
+      document.getElementById('vi-type')!.textContent = '生物 // FAUNA' + (this.isDiscovered('c' + cHit.creature.sp.seed) ? ' · 已记录' : '');
+      document.getElementById('vi-extra')!.textContent = `体型 ${cHit.creature.sp.size.toFixed(1)}m · 性情温和 · 群居`;
     } else if (this.target && (BLOCK_DEF[this.target.id].flora || BLOCK_DEF[this.target.id].scan)) {
       subject = { kind: 'block', id: this.target.id };
       const def = BLOCK_DEF[this.target.id];
       info.classList.remove('hidden');
-      document.getElementById('vi-name').textContent = def.name;
-      document.getElementById('vi-type').textContent = (def.flora ? '植物 // FLORA' : '矿物 // MINERAL') + (this.isDiscovered('b' + this.target.id) ? ' · 已记录' : '');
+      document.getElementById('vi-name')!.textContent = def.name;
+      document.getElementById('vi-type')!.textContent = (def.flora ? '植物 // FLORA' : '矿物 // MINERAL') + (this.isDiscovered('b' + this.target.id) ? ' · 已记录' : '');
       const drops = (def.drops || []).map(d => ITEMS[d.id].name).join('、');
-      document.getElementById('vi-extra').textContent = '可采集：' + (drops || '未知');
+      document.getElementById('vi-extra')!.textContent = '可采集：' + (drops || '未知');
     } else {
       info.classList.add('hidden');
     }
 
     if (subject && g.input.buttons[0]) {
-      const key = subject.kind === 'creature' ? 'c' + subject.c.sp.seed : 'b' + subject.id;
-      if (!this.isDiscovered(key)) {
+      const key = subject.kind === 'creature' ? 'c' + subject.c!.sp.seed : 'b' + subject.id;
+      if (!this.isDiscovered(key!)) {
         this.analyzeT += dt;
         if (Math.floor(this.analyzeT * 8) !== Math.floor((this.analyzeT - dt) * 8)) g.audio.analyzeTick(this.analyzeT / 1.1);
-        document.getElementById('vi-hint').innerHTML = `分析中… ${Math.round(Math.min(1, this.analyzeT / 1.1) * 100)}%`;
+        document.getElementById('vi-hint')!.innerHTML = `分析中… ${Math.round(Math.min(1, this.analyzeT / 1.1) * 100)}%`;
         if (this.analyzeT >= 1.1) {
           this.analyzeT = 0;
           this.discover(subject);
         }
-      } else document.getElementById('vi-hint').innerHTML = '档案已存在';
+      } else document.getElementById('vi-hint')!.innerHTML = '档案已存在';
     } else {
       this.analyzeT = 0;
-      if (subject) document.getElementById('vi-hint').innerHTML = '按住 <span class="kbd sm">左键</span> 分析';
+      if (subject) document.getElementById('vi-hint')!.innerHTML = '按住 <span class="kbd sm">左键</span> 分析';
     }
   }
 
-  isDiscovered(key) { return this.g.discoveries.entries.some(e => e.key === key); }
+  isDiscovered(key: string): boolean { return this.g.discoveries.entries.some(e => e.key === key); }
 
-  discover(subject) {
+  discover(subject: VisorSubject): void {
     const g = this.g;
-    let entry;
+    let entry: Discovery;
     if (subject.kind === 'creature') {
-      const sp = subject.c.sp;
+      const sp = subject.c!.sp;
       entry = { key: 'c' + sp.seed, name: sp.name, kind: '生物', planet: g.planetName, units: 275 };
     } else {
-      const def = BLOCK_DEF[subject.id];
+      const def = BLOCK_DEF[subject.id!];
       entry = { key: 'b' + subject.id, name: def.name, kind: def.flora ? '植物' : '矿物', planet: g.planetName, units: def.flora ? 55 : 85 };
     }
     g.discoveries.entries.push(entry);
@@ -649,7 +700,7 @@ class Player {
     g.missions.onEvent('analyze');
   }
 
-  exitShip() {
+  exitShip(): void {
     const g = this.g;
     this.inShip = false;
     const sp = g.ship.group.position;
@@ -662,10 +713,10 @@ class Player {
     g.missions.onEvent('land');
   }
 
-  serialize() {
+  serialize(): PlayerSaveData {
     return { pos: this.pos.toArray(), yaw: this.yaw, pitch: this.pitch, hp: this.hp, hazard: this.hazard, ls: this.ls, flash: this.flashOn };
   }
-  deserialize(d) {
+  deserialize(d: PlayerSaveData | undefined): void {
     if (!d) return;
     this.pos.fromArray(d.pos);
     this.yaw = d.yaw; this.pitch = d.pitch;

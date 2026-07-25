@@ -1,5 +1,22 @@
-class Missions {
-  constructor(game) {
+// ============================================================
+// missions.ts — Mission system + Milestones
+// ============================================================
+
+import { U } from './utils';
+import { MILESTONE_DEFS } from './config';
+import type { Game, MissionDef, MilestoneDef, MissionsSaveData, MilestonesSaveData } from './types';
+
+export class Missions {
+  g: Game;
+  idx: number;
+  scannerUnlocked: boolean;
+  shelterCount: number;
+  defs: MissionDef[];
+  launched?: boolean;
+  sodiumUsed?: number;
+  oxygenUsed?: number;
+
+  constructor(game: Game) {
     this.g = game;
     this.idx = 0;
     this.scannerUnlocked = false;
@@ -7,7 +24,7 @@ class Missions {
     this.defs = this.buildDefs();
   }
 
-  buildDefs() {
+  buildDefs(): MissionDef[] {
     const g = this.g;
     return [
       {
@@ -21,7 +38,8 @@ class Missions {
         prog: () => [g.inv.count('sodium') + (this.sodiumUsed || 0), 15],
         check: () => (g.inv.count('sodium') + (this.sodiumUsed || 0)) >= 15,
         done: '防护系统重新上线。记住：按 X 充能防护。'
-      },      {
+      },
+      {
         id: 'ferrite', title: '校准多功能工具', desc: '采集 铁尘 ×25：开采灰色岩石或棕色铁屑岩。完成后解锁扫描脉冲 [C] 与分析目镜 [F]。',
         prog: () => [g.inv.count('ferrite'), 25],
         check: () => g.inv.count('ferrite') >= 25,
@@ -73,14 +91,14 @@ class Missions {
     ];
   }
 
-  current() { return this.defs[this.idx]; }
+  current(): MissionDef { return this.defs[this.idx]; }
 
-  onEvent(ev, data) {
+  onEvent(ev: string, data?: string): void {
     if (ev === 'launch') this.launched = true;
     if (ev === 'place') this.shelterCount++;
   }
 
-  tick() {
+  tick(): void {
     const g = this.g;
     const m = this.current();
     if (!m) return;
@@ -96,21 +114,21 @@ class Missions {
     }
   }
 
-  updateCard() {
+  updateCard(): void {
     const m = this.current();
     if (!m) return;
     let cur = 0, max = 0;
     const p = m.prog ? m.prog() : null;
     let desc = m.desc;
     if (m.progText) desc = m.desc + '\n' + m.progText();
-    if (p && typeof p[0] === 'number') { cur = p[0]; max = p[1]; }
+    if (p && typeof p[0] === 'number') { cur = p[0] as number; max = p[1] as number; }
     this.g.hud.setMission('任务 ' + (this.idx + 1) + '/' + this.defs.length + ' · ' + m.title, desc, cur, max);
   }
 
-  serialize() {
+  serialize(): MissionsSaveData {
     return { idx: this.idx, scanner: this.scannerUnlocked, shelter: this.shelterCount, launched: this.launched || false };
   }
-  deserialize(d) {
+  deserialize(d: MissionsSaveData | undefined): void {
     if (!d) return;
     this.idx = d.idx;
     this.scannerUnlocked = d.scanner;
@@ -119,22 +137,26 @@ class Missions {
   }
 }
 
-class Milestones {
-  constructor(game) {
+export class Milestones {
+  g: Game;
+  stats: Record<string, number>;
+  awarded: Record<string, number>;
+
+  constructor(game: Game) {
     this.g = game;
     this.stats = { walk: 0, mined: 0, scans: 0, placed: 0, warps: 0, crafted: 0, survive: 0 };
     this.awarded = {};
   }
-  tier(def, val) {
+  tier(def: MilestoneDef, val: number): number {
     let t = 0;
     for (const th of def.tiers) if (val >= th) t++;
     return t;
   }
-  addStat(key, amt) {
+  addStat(key: string, amt: number): void {
     this.stats[key] = (this.stats[key] || 0) + amt;
     this.checkKey(key);
   }
-  checkKey(key) {
+  checkKey(key: string): void {
     const def = MILESTONE_DEFS.find(d => d.key === key);
     if (!def) return;
     const t = this.tier(def, this.stats[key]);
@@ -147,12 +169,12 @@ class Milestones {
       this.g.inv.refresh();
     }
   }
-  tickTime(dt) {
+  tickTime(dt: number): void {
     this.stats.survive += dt;
     if (Math.floor(this.stats.survive) % 30 === 0) this.checkKey('survive');
   }
-  serialize() { return { stats: this.stats, awarded: this.awarded }; }
-  deserialize(d) {
+  serialize(): MilestonesSaveData { return { stats: this.stats, awarded: this.awarded }; }
+  deserialize(d: MilestonesSaveData | undefined): void {
     if (!d) return;
     this.stats = Object.assign(this.stats, d.stats);
     this.awarded = d.awarded || {};

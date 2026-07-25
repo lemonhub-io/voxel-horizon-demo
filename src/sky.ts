@@ -1,5 +1,35 @@
-class Sky {
-  constructor(game) {
+// ============================================================
+// sky.ts — Sky dome, sun, moon, and atmosphere
+// ============================================================
+
+import { U } from './utils';
+import { CFG } from './config';
+import type { Game, Palette } from './types';
+
+export class Sky {
+  g: Game;
+  group: THREE.Group;
+  uniforms: {
+    topColor: { value: THREE.Color };
+    horColor: { value: THREE.Color };
+    sunDir: { value: THREE.Vector3 };
+    sunColor: { value: THREE.Color };
+    nightMix: { value: number };
+    uTime: { value: number };
+  };
+  dome: THREE.Mesh;
+  sunLight: THREE.DirectionalLight;
+  hemi: THREE.HemisphereLight;
+  celestial: THREE.Group;
+  planetBig: THREE.Mesh;
+  moon: THREE.Mesh;
+  planetGlow: THREE.Sprite;
+  sunSprite: THREE.Sprite;
+  t: number;
+  dayMix: number;
+  pal!: Palette;
+
+  constructor(game: Game) {
     this.g = game;
     this.group = new THREE.Group();
     game.scene.add(this.group);
@@ -47,8 +77,8 @@ class Sky {
         }`
     });
     this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
-    this.dome.frustumCulled = false;
-    this.dome.renderOrder = -10;
+    (this.dome as THREE.Mesh).frustumCulled = false;
+    (this.dome as THREE.Mesh).renderOrder = -10;
     this.group.add(this.dome);
 
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -58,7 +88,7 @@ class Sky {
 
     this.celestial = new THREE.Group();
     this.group.add(this.celestial);
-    const mk = (r, col, emis, x, y, z) => {
+    const mk = (r: number, col: string, emis: string, x: number, y: number, z: number): THREE.Mesh => {
       const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), new THREE.MeshLambertMaterial({ color: col, emissive: emis, fog: false }));
       m.position.set(x, y, z);
       this.celestial.add(m);
@@ -81,10 +111,10 @@ class Sky {
     this.dayMix = 1;
   }
 
-  static makeGlow() {
+  static makeGlow(): THREE.CanvasTexture {
     const c = document.createElement('canvas');
     c.width = c.height = 128;
-    const x = c.getContext('2d');
+    const x = c.getContext('2d')!;
     const g = x.createRadialGradient(64, 64, 4, 64, 64, 64);
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(0.25, 'rgba(255,255,255,0.5)');
@@ -94,17 +124,17 @@ class Sky {
     return new THREE.CanvasTexture(c);
   }
 
-  setPalette(pal) {
+  setPalette(pal: Palette): void {
     this.pal = pal;
     const rng = U.mulberry32(this.g.seed ^ 0x77);
-    this.planetBig.material.color.set(U.mixHex(pal.skyDayTop, '#8a9ab8', 0.5));
+    (this.planetBig.material as THREE.MeshLambertMaterial).color.set(U.mixHex(pal.skyDayTop, '#8a9ab8', 0.5));
     this.planetBig.position.set(300 + rng() * 400, 90 + rng() * 160, -500 + rng() * 300);
     this.planetGlow.position.copy(this.planetBig.position);
-    this.planetGlow.material.color.set(pal.skyDayHor);
+    (this.planetGlow.material as THREE.SpriteMaterial).color.set(pal.skyDayHor);
     this.moon.position.set(-300 - rng() * 300, 150 + rng() * 120, 100 + rng() * 300);
   }
 
-  update(dt) {
+  update(dt: number): void {
     const g = this.g;
     this.t = (this.t + dt / CFG.DAY_LEN) % 1;
     const ang = (this.t - 0.25) * Math.PI * 2;
@@ -134,7 +164,7 @@ class Sky {
     this.hemi.groundColor.set(U.shade(pal.grass, 0.5));
 
     this.sunSprite.position.copy(sunDir).multiplyScalar(650);
-    this.sunSprite.material.opacity = 0.55 + day * 0.4;
+    (this.sunSprite.material as THREE.SpriteMaterial).opacity = 0.55 + day * 0.4;
 
     const storm = g.stormFactor || 0;
     let fogCol = U.mixHex(pal.fogNight, pal.fogDay, day);
@@ -143,9 +173,9 @@ class Sky {
     let fogNear = dist * 0.45, fogFar = dist * 1.05;
     if (storm > 0) { fogNear = U.lerp(fogNear, 8, storm); fogFar = U.lerp(fogFar, dist * 0.55, storm); }
     if (g.player && g.player.headInWater) { fogCol = U.shade(pal.water || '#2e6f9e', 0.7); fogNear = 2; fogFar = 22; }
-    g.scene.fog.color.set(fogCol);
-    g.scene.fog.near = fogNear;
-    g.scene.fog.far = fogFar;
+    (g.scene.fog as THREE.Fog).color.set(fogCol);
+    (g.scene.fog as THREE.Fog).near = fogNear;
+    (g.scene.fog as THREE.Fog).far = fogFar;
     g.renderer.setClearColor(fogCol);
 
     this.group.position.copy(g.camera.position);

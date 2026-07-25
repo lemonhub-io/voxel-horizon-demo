@@ -1,9 +1,12 @@
-const Save = {
-  save(g) {
+import { CFG, DEFAULT_SETTINGS } from './config';
+import type { Game, SaveData, Settings } from './types';
+
+export const Save = {
+  save(g: Game): boolean {
     try {
-      const edits = {};
+      const edits: Record<string, number[]> = {};
       for (const [k, m] of g.world.edits) edits[k] = Array.from(m.entries()).flat();
-      const data = {
+      const data: SaveData = {
         v: 1,
         seed: g.seed,
         palIdx: g.palIdx,
@@ -25,22 +28,22 @@ const Save = {
       return false;
     }
   },
-  load() {
+  load(): SaveData | null {
     try {
       const raw = localStorage.getItem(CFG.SAVE_KEY);
       if (!raw) return null;
-      return JSON.parse(raw);
+      return JSON.parse(raw) as SaveData;
     } catch (e) { return null; }
   },
-  clear() { localStorage.removeItem(CFG.SAVE_KEY); },
-  loadSettings() {
+  clear(): void { localStorage.removeItem(CFG.SAVE_KEY); },
+  loadSettings(): Settings {
     try {
       const raw = localStorage.getItem(CFG.SET_KEY);
       if (!raw) return { ...DEFAULT_SETTINGS };
-      return Object.assign({ ...DEFAULT_SETTINGS }, JSON.parse(raw));
+      return Object.assign({ ...DEFAULT_SETTINGS }, JSON.parse(raw)) as Settings;
     } catch (e) { return { ...DEFAULT_SETTINGS }; }
   },
-  saveSettings(s) {
-    try { localStorage.setItem(CFG.SET_KEY, JSON.stringify(s)); } catch (e) {}
+  saveSettings(s: Settings): void {
+    try { localStorage.setItem(CFG.SET_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ }
   }
 };

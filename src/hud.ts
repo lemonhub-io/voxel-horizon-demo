@@ -1,55 +1,73 @@
-class HUD {
-  constructor(game) {
+// ============================================================
+// hud.ts — HUD, compass, markers, toasts, notifications
+// ============================================================
+
+import { U } from './utils';
+import { B, BLOCK_DEF, ITEMS, HAZ_ICONS, MILESTONE_DEFS } from './config';
+import type { Game, Marker, PlanetInfo } from './types';
+
+export class HUD {
+  g: Game;
+  markers: Marker[];
+  compass: HTMLCanvasElement;
+  cctx: CanvasRenderingContext2D;
+  toastMap: Map<string, { el: HTMLDivElement; n: number; timer: ReturnType<typeof setTimeout> }>;
+  msQueue: { kicker: string; title: string; sub: string }[];
+  msShowing: boolean;
+  alertOn: boolean;
+  pcT?: ReturnType<typeof setTimeout>;
+
+  constructor(game: Game) {
     this.g = game;
     this.markers = [];
-    this.compass = document.getElementById('compass');
-    this.cctx = this.compass.getContext('2d');
+    this.compass = document.getElementById('compass') as HTMLCanvasElement;
+    this.cctx = this.compass.getContext('2d')!;
     this.toastMap = new Map();
     this.msQueue = [];
     this.msShowing = false;
     this.alertOn = false;
   }
 
-  init() {
-    const hp = document.getElementById('hp-segs');
+  init(): void {
+    const hp = document.getElementById('hp-segs')!;
     hp.innerHTML = '';
     for (let i = 0; i < 4; i++) {
       const d = document.createElement('div');
       d.className = 'hp-seg';
       hp.appendChild(d);
     }
-    document.getElementById('haz-ico').textContent = HAZ_ICONS[this.g.palette.hazard.type] || '☢';
+    document.getElementById('haz-ico')!.textContent = HAZ_ICONS[this.g.palette.hazard.type] || '☢';
   }
 
-  update(dt) {
+  update(dt: number): void {
     const g = this.g, p = g.player;
     if (!p) return;
-    const segs = document.querySelectorAll('.hp-seg');
+    const segs = document.querySelectorAll<HTMLElement>('.hp-seg');
     const hpFrac = p.hp / 100;
     segs.forEach((s, i) => {
       const th = (i + 1) / 4;
       s.classList.toggle('off', hpFrac < th - 0.24);
       s.classList.toggle('hurt', hpFrac < 0.3);
     });
-    const sh = document.getElementById('shield-fill');
+    const sh = document.getElementById('shield-fill')!;
     sh.style.width = Math.max(0, Math.min(100, p.hp)) + '%';
-    const haz = document.getElementById('haz-fill');
+    const haz = document.getElementById('haz-fill')!;
     haz.style.width = p.hazard + '%';
     haz.classList.toggle('low', p.hazard < 25);
-    const ls = document.getElementById('ls-fill');
+    const ls = document.getElementById('ls-fill')!;
     ls.style.width = p.ls + '%';
     ls.classList.toggle('low', p.ls < 25);
-    document.getElementById('jet-bar').style.height = p.jetFuel + '%';
+    document.getElementById('jet-bar')!.style.height = p.jetFuel + '%';
 
     const night = g.sky.dayMix < 0.35;
-    document.getElementById('env-icon').textContent = g.stormActive ? '⚠' : night ? '☾' : '☀';
-    document.getElementById('env-label').textContent = g.stormActive ? g.palette.storm.label : night ? '夜晚 · ' + g.palette.hazard.nightLabel : '白昼 · ' + g.palette.hazard.label;
+    document.getElementById('env-icon')!.textContent = g.stormActive ? '⚠' : night ? '☾' : '☀';
+    document.getElementById('env-label')!.textContent = g.stormActive ? g.palette.storm.label : night ? '夜晚 · ' + g.palette.hazard.nightLabel : '白昼 · ' + g.palette.hazard.label;
 
     this.drawCompass();
     this.updateMarkers(dt);
   }
 
-  drawCompass() {
+  drawCompass(): void {
     const g = this.g, ctx = this.cctx;
     const W = this.compass.width, H = this.compass.height;
     ctx.clearRect(0, 0, W, H);
@@ -101,16 +119,16 @@ class HUD {
     }
   }
 
-  addMarker(type, pos, ttl) {
-    const icons = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
+  addMarker(type: string, pos: THREE.Vector3, ttl: number): void {
+    const icons: Record<string, string> = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
     const el = document.createElement('div');
     el.className = 'marker ' + type;
     el.innerHTML = `<div class="m-ico">${icons[type] || '?'}</div><div class="m-dist"></div>`;
-    document.getElementById('marker-layer').appendChild(el);
+    document.getElementById('marker-layer')!.appendChild(el);
     this.markers.push({ el, pos, ttl, type });
   }
 
-  updateMarkers(dt) {
+  updateMarkers(dt: number): void {
     const g = this.g;
     const cam = g.camera;
     const v = new THREE.Vector3();
@@ -126,89 +144,89 @@ class HUD {
       v.copy(m.pos).project(cam);
       const behind = v.z > 1;
       if (behind || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) {
-        m.el.style.opacity = 0;
+        m.el.style.opacity = '0';
         continue;
       }
       const d = m.pos.distanceTo(g.player.pos);
-      m.el.style.opacity = m.ttl < 3 ? m.ttl / 3 : 1;
+      m.el.style.opacity = m.ttl < 3 ? String(m.ttl / 3) : '1';
       m.el.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
       m.el.style.top = ((-v.y + 1) / 2 * innerHeight) + 'px';
-      m.el.querySelector('.m-dist').textContent = U.fmtDist(d);
+      (m.el.querySelector('.m-dist')!).textContent = U.fmtDist(d);
     }
   }
-  clearMarkers() {
+  clearMarkers(): void {
     for (const m of this.markers) m.el.remove();
     this.markers = [];
   }
 
-  scanFlash() {
+  scanFlash(): void {
     const el = document.createElement('div');
     el.style.cssText = 'position:absolute;left:50%;top:50%;width:10px;height:10px;border:2px solid rgba(120,230,245,.8);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:30';
-    document.getElementById('hud').appendChild(el);
+    document.getElementById('hud')!.appendChild(el);
     el.animate([
       { width: '10px', height: '10px', opacity: 1 },
       { width: '160vmax', height: '160vmax', opacity: 0 }
     ], { duration: 900, easing: 'ease-out' }).onfinish = () => el.remove();
   }
 
-  toast(itemId, n) {
+  toast(itemId: string, n: number): void {
     const key = itemId;
     let t = this.toastMap.get(key);
     if (t && document.body.contains(t.el)) {
       t.n += n;
-      t.el.querySelector('.tc').textContent = '+' + t.n;
+      (t.el.querySelector('.tc')!).textContent = '+' + t.n;
       clearTimeout(t.timer);
     } else {
       const el = document.createElement('div');
       el.className = 'toast';
       el.innerHTML = `<img src="${this.g.atlas.icon(itemId)}"><span>${ITEMS[itemId].name}</span><span class="tc">+${n}</span>`;
-      document.getElementById('toasts').appendChild(el);
-      t = { el, n };
+      document.getElementById('toasts')!.appendChild(el);
+      t = { el, n, timer: 0 };
       this.toastMap.set(key, t);
     }
     t.timer = setTimeout(() => {
-      t.el.classList.add('fade');
-      setTimeout(() => t.el.remove(), 500);
+      t!.el.classList.add('fade');
+      setTimeout(() => t!.el.remove(), 500);
       this.toastMap.delete(key);
     }, 1800);
   }
 
-  notify(text, kind) {
+  notify(text: string, kind?: string): void {
     const g = this.g;
     const el = document.createElement('div');
     el.className = 'notice ' + (kind || 'info');
-    const kickers = { info: '信息 // INFO', success: '完成 // DONE', warn: '注意 // CAUTION', danger: '警报 // ALERT' };
-    el.innerHTML = `<span class="n-kicker">${kickers[kind] || kickers.info}</span>${text}`;
-    const stack = document.getElementById('notify-stack');
+    const kickers: Record<string, string> = { info: '信息 // INFO', success: '完成 // DONE', warn: '注意 // CAUTION', danger: '警报 // ALERT' };
+    el.innerHTML = `<span class="n-kicker">${kickers[kind!] || kickers.info}</span>${text}`;
+    const stack = document.getElementById('notify-stack')!;
     stack.appendChild(el);
-    while (stack.children.length > 5) stack.firstChild.remove();
-    g.audio.notify(kind);
+    while (stack.children.length > 5) stack.firstChild!.remove();
+    g.audio.notify(kind!);
     setTimeout(() => {
       el.classList.add('fade');
       setTimeout(() => el.remove(), 450);
     }, 5200);
   }
 
-  alert(text, on) {
-    const el = document.getElementById('alert-center');
+  alert(text: string, on: boolean): void {
+    const el = document.getElementById('alert-center')!;
     if (on && text) {
       el.classList.remove('hidden');
-      document.getElementById('alert-text').textContent = text;
+      document.getElementById('alert-text')!.textContent = text;
     } else el.classList.add('hidden');
   }
 
-  milestone(kicker, title, sub) {
+  milestone(kicker: string, title: string, sub: string): void {
     this.msQueue.push({ kicker, title, sub });
     this.pumpMilestone();
   }
-  pumpMilestone() {
+  pumpMilestone(): void {
     if (this.msShowing || this.msQueue.length === 0) return;
-    const m = this.msQueue.shift();
+    const m = this.msQueue.shift()!;
     this.msShowing = true;
-    const el = document.getElementById('milestone-pop');
-    document.getElementById('ms-kicker').textContent = m.kicker;
-    document.getElementById('ms-title').textContent = m.title;
-    document.getElementById('ms-sub').textContent = m.sub || '';
+    const el = document.getElementById('milestone-pop')!;
+    document.getElementById('ms-kicker')!.textContent = m.kicker;
+    document.getElementById('ms-title')!.textContent = m.title;
+    document.getElementById('ms-sub')!.textContent = m.sub || '';
     el.classList.remove('hidden');
     el.style.animation = 'none';
     void el.offsetWidth;
@@ -221,57 +239,58 @@ class HUD {
     }, 3700);
   }
 
-  setMission(title, desc, cur, max) {
-    const card = document.getElementById('mission-card');
+  setMission(title: string, desc: string, cur: number, max: number): void {
+    const card = document.getElementById('mission-card')!;
     if (!title) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
-    document.getElementById('mission-title').textContent = title;
-    document.getElementById('mission-desc').textContent = desc;
-    const pw = document.getElementById('mission-prog-wrap');
+    document.getElementById('mission-title')!.textContent = title;
+    document.getElementById('mission-desc')!.textContent = desc;
+    const pw = document.getElementById('mission-prog-wrap')!;
     if (max > 0) {
       pw.style.display = 'flex';
-      document.getElementById('mission-prog').style.width = Math.min(100, cur / max * 100) + '%';
-      document.getElementById('mission-count').textContent = `${Math.min(cur, max)} / ${max}`;
+      document.getElementById('mission-prog')!.style.width = Math.min(100, cur / max * 100) + '%';
+      document.getElementById('mission-count')!.textContent = `${Math.min(cur, max)} / ${max}`;
     } else pw.style.display = 'none';
   }
 
-  showPrompt(key, text, prog) {
-    const el = document.getElementById('interact-hint');
+  showPrompt(key: string, text: string, prog: number): void {
+    const el = document.getElementById('interact-hint')!;
     el.classList.remove('hidden');
-    document.getElementById('hint-key').textContent = key;
-    document.getElementById('hint-text').textContent = text;
-    const ring = document.getElementById('hold-ring-fg');
-    ring.style.strokeDashoffset = 113 - 113 * U.clamp(prog, 0, 1);
+    document.getElementById('hint-key')!.textContent = key;
+    document.getElementById('hint-text')!.textContent = text;
+    const ring = document.getElementById('hold-ring-fg') as unknown as SVGElement;
+    ring.style.strokeDashoffset = String(113 - 113 * U.clamp(prog, 0, 1));
   }
-  hidePrompt() { document.getElementById('interact-hint').classList.add('hidden'); }
+  hidePrompt(): void { document.getElementById('interact-hint')!.classList.add('hidden'); }
 
-  setMineProgress(p) {
-    document.getElementById('mine-ring-fg').style.strokeDashoffset = 151 - 151 * U.clamp(p, 0, 1);
+  setMineProgress(p: number): void {
+    const ring = document.getElementById('mine-ring-fg') as unknown as SVGElement;
+    ring.style.strokeDashoffset = String(151 - 151 * U.clamp(p, 0, 1));
   }
-  setHeat(h, hot) {
-    const el = document.getElementById('heat-bar');
+  setHeat(h: number, hot: boolean): void {
+    const el = document.getElementById('heat-bar')!;
     el.style.height = U.clamp(h, 0, 1) * 100 + '%';
     el.style.background = hot ? '#ff3c2c' : '';
   }
 
-  setFlightHud(on) {
-    document.getElementById('flight-hud').classList.toggle('hidden', !on);
-    document.getElementById('crosshair').classList.toggle('hidden', on);
-    document.getElementById('hotbar').classList.toggle('hidden', on);
-    document.getElementById('stats-left').classList.toggle('hidden', on);
-    document.getElementById('stats-right').classList.toggle('hidden', on);
+  setFlightHud(on: boolean): void {
+    document.getElementById('flight-hud')!.classList.toggle('hidden', !on);
+    document.getElementById('crosshair')!.classList.toggle('hidden', on);
+    document.getElementById('hotbar')!.classList.toggle('hidden', on);
+    document.getElementById('stats-left')!.classList.toggle('hidden', on);
+    document.getElementById('stats-right')!.classList.toggle('hidden', on);
   }
 
-  closeShipPanel() { this.g.ship.closePanel(); }
+  closeShipPanel(): void { this.g.ship.closePanel(); }
 
-  planetCard(info) {
-    const el = document.getElementById('planet-card');
-    document.getElementById('pc-name').textContent = info.name;
-    document.getElementById('pc-climate').textContent = info.climate;
-    document.getElementById('pc-flora').textContent = info.flora;
-    document.getElementById('pc-fauna').textContent = info.fauna;
-    document.getElementById('pc-storm').textContent = info.storm;
-    const res = document.getElementById('pc-res');
+  planetCard(info: PlanetInfo): void {
+    const el = document.getElementById('planet-card')!;
+    document.getElementById('pc-name')!.textContent = info.name;
+    document.getElementById('pc-climate')!.textContent = info.climate;
+    document.getElementById('pc-flora')!.textContent = info.flora;
+    document.getElementById('pc-fauna')!.textContent = info.fauna;
+    document.getElementById('pc-storm')!.textContent = info.storm;
+    const res = document.getElementById('pc-res')!;
     res.innerHTML = '';
     for (const r of info.res) {
       const d = document.createElement('div');
@@ -286,9 +305,9 @@ class HUD {
     this.pcT = setTimeout(() => el.classList.add('hidden'), 6000);
   }
 
-  renderDiscoveries() {
+  renderDiscoveries(): void {
     const g = this.g;
-    const pl = document.getElementById('disc-planets');
+    const pl = document.getElementById('disc-planets')!;
     pl.innerHTML = '';
     for (const p of g.discoveries.planets) {
       const d = document.createElement('div');
@@ -296,7 +315,7 @@ class HUD {
       d.innerHTML = `<div class="d-ico">◍</div><div>${p.name}<div style="font-size:11px;opacity:.6">${p.climate}</div></div><div class="d-sub">${p.visited}次着陆</div>`;
       pl.appendChild(d);
     }
-    const sp = document.getElementById('disc-species');
+    const sp = document.getElementById('disc-species')!;
     sp.innerHTML = '';
     if (g.discoveries.entries.length === 0) sp.innerHTML = '<div class="detail-empty">使用分析目镜 [F] 记录生物与植物</div>';
     for (const e of g.discoveries.entries) {
@@ -306,7 +325,7 @@ class HUD {
       d.innerHTML = `<div class="d-ico">${ico}</div><div>${e.name}</div><div class="d-sub">${e.kind} · ${e.planet}<br>+${e.units} ◈</div>`;
       sp.appendChild(d);
     }
-    const mi = document.getElementById('disc-miles');
+    const mi = document.getElementById('disc-miles')!;
     mi.innerHTML = '';
     for (const def of MILESTONE_DEFS) {
       const st = g.milestones.stats[def.key] || 0;

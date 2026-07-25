@@ -1,5 +1,19 @@
-class Fauna {
-  constructor(game) {
+// ============================================================
+// entities.ts — Fauna (creatures)
+// ============================================================
+
+import { U } from './utils';
+import { CFG, B } from './config';
+import type { Game, Palette, CreatureSpec, Creature, CreatureHit } from './types';
+
+export class Fauna {
+  g: Game;
+  creatures: Creature[];
+  group: THREE.Group;
+  speciesList: CreatureSpec[];
+  callTimer: number;
+
+  constructor(game: Game) {
     this.g = game;
     this.creatures = [];
     this.group = new THREE.Group();
@@ -8,7 +22,7 @@ class Fauna {
     this.callTimer = 0;
   }
 
-  spawnPlanet(seed, pal) {
+  spawnPlanet(seed: number, pal: Palette): void {
     this.dispose();
     const rng = U.mulberry32(seed ^ 0xfa17);
     const nSpecies = Math.max(1, pal.fauna - 1 + Math.floor(rng() * 3));
@@ -41,7 +55,7 @@ class Fauna {
     }
   }
 
-  spawnCreature(sp, x, z, rng) {
+  spawnCreature(sp: CreatureSpec, x: number, z: number, rng: () => number): Creature {
     const grp = new THREE.Group();
     const s = sp.size;
     const matBody = new THREE.MeshLambertMaterial({ color: sp.col });
@@ -63,17 +77,17 @@ class Fauna {
       horn.position.set(s * 0.95, s * 1.75, 0);
       grp.add(horn);
     }
-    const legs = [];
+    const legs: THREE.Mesh[] = [];
     const legGeo = new THREE.BoxGeometry(s * 0.2, s * 0.7, s * 0.2);
     legGeo.translate(0, -s * 0.35, 0);
-    const legPos = sp.legs === 4 ? [[0.5, 0.3], [0.5, -0.3], [-0.5, 0.3], [-0.5, -0.3]] : [[0.25, 0.28], [0.25, -0.28]];
+    const legPos: [number, number][] = sp.legs === 4 ? [[0.5, 0.3], [0.5, -0.3], [-0.5, 0.3], [-0.5, -0.3]] : [[0.25, 0.28], [0.25, -0.28]];
     for (const [lx, lz] of legPos) {
       const leg = new THREE.Mesh(legGeo, matAcc);
       leg.position.set(s * lx, s * 0.72, s * lz);
       grp.add(leg);
       legs.push(leg);
     }
-    let tail = null;
+    let tail: THREE.Mesh | null = null;
     if (sp.tail) {
       tail = new THREE.Mesh(new THREE.BoxGeometry(s * 0.7, s * 0.16, s * 0.16), matAcc);
       tail.position.set(-s * 1.05, s * 1.1, 0);
@@ -85,7 +99,7 @@ class Fauna {
     const y = this.g.world.surfaceY(Math.floor(x), Math.floor(z)) + 1;
     grp.position.set(x, y, z);
     this.group.add(grp);
-    const c = {
+    const c: Creature = {
       grp, sp, legs, tail, shadow,
       state: 'idle', stateT: U.rand(1, 4),
       dir: U.rand(0, Math.PI * 2),
@@ -98,7 +112,7 @@ class Fauna {
     return c;
   }
 
-  update(dt) {
+  update(dt: number): void {
     const g = this.g;
     const p = g.player;
     if (!p) return;
@@ -144,8 +158,8 @@ class Fauna {
     }
   }
 
-  raycastCreature(origin, dir, maxDist) {
-    let best = null, bestD = maxDist;
+  raycastCreature(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): CreatureHit | null {
+    let best: Creature | null = null, bestD = maxDist;
     const v = new THREE.Vector3();
     for (const c of this.creatures) {
       v.copy(c.grp.position).sub(origin);
@@ -160,7 +174,7 @@ class Fauna {
     return best ? { creature: best, dist: bestD } : null;
   }
 
-  hit(c, dmg) {
+  hit(c: Creature, dmg: number): boolean {
     c.hp -= dmg;
     c.panic = 4;
     const pos = c.grp.position;
@@ -179,7 +193,7 @@ class Fauna {
     return false;
   }
 
-  dispose() {
+  dispose(): void {
     for (const c of this.creatures) this.group.remove(c.grp);
     this.creatures = [];
   }

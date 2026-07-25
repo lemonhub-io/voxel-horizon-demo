@@ -1,0 +1,28 @@
+{
+  "name": "voxel-horizon-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lemonhub-io/voxel-horizon-demo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lemonhub-io/voxel-horizon-demo/issues"
+  },
+  "homepage": "https://github.com/lemonhub-io/voxel-horizon-demo#readme",
+  "devDependencies": {
+    "@types/three": "^0.128.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
+  }
+}

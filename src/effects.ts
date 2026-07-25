@@ -1,5 +1,26 @@
-class FX {
-  constructor(game) {
+// ============================================================
+// effects.ts — Particle FX, laser, shake, warp
+// ============================================================
+
+import { U } from './utils';
+import { Sky } from './sky';
+import type { Game, SpawnOpts, Particle } from './types';
+
+export class FX {
+  g: Game;
+  max: number;
+  parts: Particle[];
+  posArr: Float32Array;
+  colArr: Float32Array;
+  mat: THREE.PointsMaterial;
+  points: THREE.Points;
+  laser: THREE.Mesh;
+  laserGlow: THREE.Sprite;
+  laserLight: THREE.PointLight;
+  shakeAmp: number;
+  warpAnim: number | null;
+
+  constructor(game: Game) {
     this.g = game;
     this.max = 600;
     this.parts = [];
@@ -32,7 +53,7 @@ class FX {
     this.warpAnim = null;
   }
 
-  spawn(x, y, z, opts) {
+  spawn(x: number, y: number, z: number, opts: SpawnOpts): void {
     const n = opts.n || 6;
     for (let i = 0; i < n; i++) {
       if (this.parts.length >= this.max) this.parts.shift();
@@ -47,7 +68,7 @@ class FX {
     }
   }
 
-  update(dt) {
+  update(dt: number): void {
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i];
       p.life -= dt;
@@ -65,34 +86,34 @@ class FX {
         this.posArr[i * 3 + 1] = -999;
       }
     }
-    this.points.geometry.attributes.position.needsUpdate = true;
-    this.points.geometry.attributes.color.needsUpdate = true;
+    (this.points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    (this.points.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
     this.points.geometry.setDrawRange(0, Math.max(this.parts.length, 1));
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 2.2);
   }
 
-  laserShow(from, to, col) {
+  laserShow(from: THREE.Vector3, to: THREE.Vector3, col?: string): void {
     this.laser.visible = true;
     this.laserGlow.visible = true;
     const len = from.distanceTo(to);
     this.laser.position.copy(from);
     this.laser.scale.set(1, 1, len);
     this.laser.lookAt(to);
-    if (col) this.laser.material.color.set(col);
+    if (col) (this.laser.material as THREE.MeshBasicMaterial).color.set(col);
     this.laserGlow.position.copy(to);
     this.laserGlow.scale.setScalar(0.7 + Math.random() * 0.5);
     this.laserLight.position.copy(to);
     this.laserLight.intensity = 1.6 + Math.random() * 0.8;
   }
-  laserHide() {
+  laserHide(): void {
     this.laser.visible = false;
     this.laserGlow.visible = false;
     this.laserLight.intensity = 0;
   }
 
-  shake(a) { this.shakeAmp = Math.max(this.shakeAmp, a); }
+  shake(a: number): void { this.shakeAmp = Math.max(this.shakeAmp, a); }
 
-  applyShake(camera) {
+  applyShake(camera: THREE.Camera): void {
     if (this.shakeAmp > 0.001) {
       camera.position.x += (Math.random() - 0.5) * this.shakeAmp;
       camera.position.y += (Math.random() - 0.5) * this.shakeAmp;
@@ -100,17 +121,17 @@ class FX {
     }
   }
 
-  startWarp() {
-    const cvs = document.getElementById('warp-canvas');
-    const ovl = document.getElementById('warp-overlay');
+  startWarp(): void {
+    const cvs = document.getElementById('warp-canvas') as HTMLCanvasElement;
+    const ovl = document.getElementById('warp-overlay')!;
     ovl.classList.remove('hidden');
     cvs.width = innerWidth; cvs.height = innerHeight;
-    const ctx = cvs.getContext('2d');
-    const stars = [];
+    const ctx = cvs.getContext('2d')!;
+    const stars: { a: number; r: number; sp: number; hue: number }[] = [];
     for (let i = 0; i < 340; i++) stars.push({ a: Math.random() * Math.PI * 2, r: Math.random() * 0.9 + 0.05, sp: 0.4 + Math.random() * 2.4, hue: Math.random() });
     const cx = cvs.width / 2, cy = cvs.height / 2;
     let last = performance.now();
-    const anim = () => {
+    const anim = (): void => {
       const now = performance.now();
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
@@ -139,8 +160,8 @@ class FX {
     ctx.fillRect(0, 0, cvs.width, cvs.height);
     anim();
   }
-  stopWarp() {
-    cancelAnimationFrame(this.warpAnim);
-    document.getElementById('warp-overlay').classList.add('hidden');
+  stopWarp(): void {
+    cancelAnimationFrame(this.warpAnim!);
+    document.getElementById('warp-overlay')!.classList.add('hidden');
   }
 }

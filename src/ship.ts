@@ -1,5 +1,29 @@
-class Ship {
-  constructor(game) {
+// ============================================================
+// ship.ts — Ship components, flight, landing, warp
+// ============================================================
+
+import { U } from './utils';
+import { CFG, ITEMS } from './config';
+import { Sky } from './sky';
+import type { Game, ShipComponent, ShipSaveData } from './types';
+
+export class Ship {
+  g: Game;
+  group: THREE.Group;
+  comps: Record<string, ShipComponent>;
+  fuel: number;
+  flying: boolean;
+  speed: number;
+  throttle: number;
+  yaw: number;
+  pitch: number;
+  landing: boolean;
+  smokeT: number;
+  open: boolean;
+  engineGlows: THREE.Sprite[];
+  shadow!: THREE.Mesh;
+
+  constructor(game: Game) {
     this.g = game;
     this.group = new THREE.Group();
     game.scene.add(this.group);
@@ -17,9 +41,10 @@ class Ship {
     this.landing = false;
     this.smokeT = 0;
     this.open = false;
+    this.engineGlows = [];
   }
 
-  buildMesh() {
+  buildMesh(): void {
     const grp = this.group;
     while (grp.children.length) grp.remove(grp.children[0]);
     const white = new THREE.MeshLambertMaterial({ color: '#e8e4dc' });
@@ -82,23 +107,23 @@ class Ship {
     this.shadow = shadow;
   }
 
-  repaired() { return !this.comps.thruster.broken && !this.comps.pulse.broken; }
-  canLaunch() { return this.repaired() && this.fuel >= 25; }
+  repaired(): boolean { return !this.comps.thruster.broken && !this.comps.pulse.broken; }
+  canLaunch(): boolean { return this.repaired() && this.fuel >= 25; }
 
-  placeAt(x, z) {
+  placeAt(x: number, z: number): void {
     const y = this.g.world.topSolidY(Math.floor(x), Math.floor(z)) + 1;
     this.group.position.set(x, y, z);
     this.group.rotation.set(0, U.rand(0, 6.28), 0);
     this.updateCrashPose();
   }
 
-  updateCrashPose() {
+  updateCrashPose(): void {
     const broken = !this.repaired();
     this.group.rotation.z = broken ? 0.16 : 0;
     this.group.rotation.x = broken ? -0.06 : 0;
   }
 
-  update(dt) {
+  update(dt: number): void {
     const g = this.g;
     if (!this.flying) {
       if (!this.repaired()) {
@@ -111,7 +136,7 @@ class Ship {
         }
       }
       const glow = this.repaired() ? 0.5 + Math.sin(g.time * 3) * 0.15 : 0;
-      this.engineGlows.forEach(s => { s.material.opacity = glow; });
+      this.engineGlows.forEach(s => { (s.material as THREE.SpriteMaterial).opacity = glow; });
       return;
     }
 
@@ -146,7 +171,7 @@ class Ship {
     this.group.quaternion.slerp(q, dt * 5);
 
     this.engineGlows.forEach(s => {
-      s.material.opacity = 0.5 + this.throttle * 0.5 + boost * 0.4;
+      (s.material as THREE.SpriteMaterial).opacity = 0.5 + this.throttle * 0.5 + boost * 0.4;
       s.scale.setScalar(1.2 + this.throttle * 1.2 + boost * 1 + Math.random() * 0.2);
     });
     if (boost || this.throttle > 0.5) {
@@ -166,12 +191,12 @@ class Ship {
     look.y += 1.5;
     cam.lookAt(look);
 
-    document.getElementById('fd-speed').textContent = Math.round(this.speed);
-    document.getElementById('fd-alt').textContent = Math.max(0, Math.round(pos.y - groundY + 4));
-    document.getElementById('fd-warp').textContent = g.inv.count('warp_cell');
+    document.getElementById('fd-speed')!.textContent = String(Math.round(this.speed));
+    document.getElementById('fd-alt')!.textContent = String(Math.max(0, Math.round(pos.y - groundY + 4)));
+    document.getElementById('fd-warp')!.textContent = String(g.inv.count('warp_cell'));
   }
 
-  enter() {
+  enter(): void {
     const g = this.g;
     if (!this.canLaunch()) { this.openPanel(); return; }
     g.hud.closeShipPanel();
@@ -195,7 +220,7 @@ class Ship {
     g.missions.onEvent('launch');
   }
 
-  tryLand() {
+  tryLand(): void {
     const g = this.g;
     const pos = this.group.position;
     const gy = g.world.topSolidY(Math.floor(pos.x), Math.floor(pos.z)) + 1;
@@ -204,7 +229,7 @@ class Ship {
     this.landing = true;
     g.audio.landing();
     g.audio.setLoop('ship', false, 0, 0.8);
-    const land = () => {
+    const land = (): void => {
       const cur = this.group.position;
       const targetY = g.world.topSolidY(Math.floor(cur.x), Math.floor(cur.z)) + 1;
       if (cur.y > targetY + 0.15) {
@@ -224,7 +249,7 @@ class Ship {
     land();
   }
 
-  tryWarp() {
+  tryWarp(): void {
     const g = this.g;
     if (g.inv.count('warp_cell') < 1) {
       g.hud.notify('需要 跃迁电池 ×1 —— 用铜、碳纳米管与双氢合成', 'warn');
@@ -235,21 +260,21 @@ class Ship {
     g.startWarp();
   }
 
-  openPanel() {
+  openPanel(): void {
     this.open = true;
     this.g.exitPointerLock();
-    document.getElementById('ship-screen').classList.remove('hidden');
+    document.getElementById('ship-screen')!.classList.remove('hidden');
     this.g.audio.uiOpen();
     this.renderPanel();
   }
-  closePanel() {
+  closePanel(): void {
     this.open = false;
-    document.getElementById('ship-screen').classList.add('hidden');
+    document.getElementById('ship-screen')!.classList.add('hidden');
   }
 
-  renderPanel() {
+  renderPanel(): void {
     const g = this.g;
-    const wrap = document.getElementById('ship-comps');
+    const wrap = document.getElementById('ship-comps')!;
     wrap.innerHTML = '';
     for (const key of ['thruster', 'pulse']) {
       const c = this.comps[key];
@@ -269,9 +294,9 @@ class Ship {
         ${c.broken ? `<button class="btn sm ${g.inv.canAfford(c.req) ? 'primary' : 'disabled'}" data-fix="${key}">修复</button>` : ''}`;
       wrap.appendChild(d);
     }
-    wrap.querySelectorAll('[data-fix]').forEach(b => {
+    wrap.querySelectorAll<HTMLElement>('[data-fix]').forEach(b => {
       b.addEventListener('click', () => {
-        const key = b.dataset.fix;
+        const key = b.dataset.fix!;
         const c = this.comps[key];
         if (!g.inv.pay(c.req)) { g.audio.uiDeny(); return; }
         c.broken = false;
@@ -283,9 +308,9 @@ class Ship {
         g.missions.onEvent('repair_' + key);
       });
     });
-    document.getElementById('ship-fuel-fill').style.width = this.fuel + '%';
-    document.getElementById('ship-fuel-txt').textContent = Math.round(this.fuel) + '%';
-    const refuel = document.getElementById('btn-refuel');
+    document.getElementById('ship-fuel-fill')!.style.width = this.fuel + '%';
+    document.getElementById('ship-fuel-txt')!.textContent = Math.round(this.fuel) + '%';
+    const refuel = document.getElementById('btn-refuel')!;
     refuel.classList.toggle('disabled', g.inv.count('launch_fuel') < 1 || this.fuel >= 100);
     refuel.onclick = () => {
       if (g.inv.count('launch_fuel') < 1) { g.audio.uiDeny(); return; }
@@ -296,7 +321,7 @@ class Ship {
       this.renderPanel();
       g.missions.onEvent('refuel');
     };
-    const launch = document.getElementById('btn-launch');
+    const launch = document.getElementById('btn-launch')!;
     launch.classList.toggle('disabled', !this.canLaunch());
     launch.onclick = () => {
       if (!this.canLaunch()) { g.audio.uiDeny(); return; }
@@ -306,7 +331,7 @@ class Ship {
     };
   }
 
-  serialize() {
+  serialize(): ShipSaveData {
     return {
       pos: this.group.position.toArray(),
       rotY: this.group.rotation.y,
@@ -315,7 +340,7 @@ class Ship {
       pulse: this.comps.pulse.broken
     };
   }
-  deserialize(d) {
+  deserialize(d: ShipSaveData | undefined): void {
     if (!d) return;
     this.group.position.fromArray(d.pos);
     this.group.rotation.y = d.rotY;
