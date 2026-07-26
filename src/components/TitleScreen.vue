@@ -14,7 +14,6 @@
         <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       </div>
       <div class="t-seed"><label>星球种子(可选)</label><input v-model="seed" maxlength="16" placeholder="随机"></div>
-      <div class="t-foot">v1.0 · WebGL · 建议使用 Chrome/Edge · 全程序化生成的原创致敬之作</div>
     </div>
   </div>
 </template>

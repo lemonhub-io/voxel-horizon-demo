@@ -166,7 +166,7 @@ export class Milestones {
       const romanT = ['Ⅰ', 'Ⅱ', 'Ⅲ'][t - 1] || t;
       this.g.hud.milestone('旅程里程碑 // JOURNEY', `${def.name} ${romanT}`, def.subs[t - 1]);
       this.g.inv.units += 120 * t;
-      this.g.inv.refresh();
+      this.g.inv.syncStore();
     }
   }
   tickTime(dt: number): void {

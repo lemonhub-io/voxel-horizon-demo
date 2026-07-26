@@ -642,7 +642,6 @@ export interface Inventory {
   tab: string;
   drag: SlotItem | null;
   selRecipe: Recipe | null;
-  selSlot: number | null;
   stackMax(id: string): number;
   add(id: string, n: number): number;
   count(id: string): number;
@@ -650,20 +649,10 @@ export interface Inventory {
   canAfford(req: [string, number][]): boolean;
   pay(req: [string, number][]): boolean;
   selected(): SlotItem | null;
-  bindUI(): void;
-  setTab(tab: string): void;
-  slotClick(arr: (SlotItem | null)[], i: number, e: MouseEvent): void;
-  showGhost(): void;
-  showTip(s: SlotItem | null, e: MouseEvent): void;
-  moveTip(e: MouseEvent): void;
-  hideTip(): void;
-  showDetail(s: SlotItem | null): void;
   useItem(id: string): boolean;
-  refresh(): void;
-  renderRecipes(): void;
-  renderRecipeDetail(): void;
   craft(r: Recipe): void;
   toggle(force?: boolean): void;
+  syncStore(): void;
   serialize(): InventorySaveData;
   deserialize(d: InventorySaveData | undefined): void;
 }
