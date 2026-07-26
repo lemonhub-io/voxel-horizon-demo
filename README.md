@@ -6,9 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org/)
 [![Vue 3](https://img.shields.io/badge/Vue%203-Composition%20API-42b883?logo=vuedotjs)](https://vuejs.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-r185%20WebGPU-049ef4?logo=three.js)](https://threejs.org/)
-[![Tests](https://img.shields.io/badge/Tests-191%20passed-44cc11)](#测试)
-
-**中文** | [English](#english)
+[![Tests](https://img.shields.io/badge/Tests-193%20passed-44cc11)](#测试)
 
 ---
 
@@ -16,7 +14,7 @@
 
 你是一名远行者，在一颗未知的体素星球上苏醒。你的星舰「拂晓之羽」已经坠毁，你需要：
 
-- 🔧 **修复星舰** — 采集资源、合成组件、修复推进器和脉冲引擎
+- 🔧 **修复星舰** — 精炼材料、合成组件、修复推进器和脉冲引擎
 - 🌍 **探索星球** — 每颗星球都有独特的气候、生态和风暴系统
 - ✈️ **起飞与跃迁** — 修复完成后起飞，合成跃迁电池前往新星球
 - 🏗️ **建造庇护所** — 放置方块建造基地，抵御风暴和恶劣环境
@@ -24,22 +22,16 @@
 
 **所有内容均为程序化生成** — 零外部资源文件，纹理、地形、生物、音频全部运行时生成。
 
-## 截图
-
-```
-[待添加游戏截图]
-```
-
 ## 技术栈
 
 | 技术 | 用途 |
 |---|---|
-| **TypeScript 6** (strict) | 全量类型安全，禁止 `any` |
+| **TypeScript** (strict) | 全量类型安全，禁止 `any` |
 | **Vue 3** + Composition API | UI 框架，15 个响应式组件 |
 | **Pinia** | 状态管理，7 个 store |
-| **Three.js r185** + WebGPU | 3D 渲染，自动降级 WebGL2 |
+| **Three.js r185** + WebGPU | 3D 渲染，TSL 着色器，自动降级 WebGL2 |
 | **Vite** | 开发服务器 + HMR + 生产构建 |
-| **Vitest** | 单元/集成测试，191 个用例 |
+| **Vitest** | 单元/集成测试，193 个用例 |
 | **ESLint** + **Prettier** | 代码质量 + 格式化 |
 
 ## 快速开始
@@ -84,7 +76,7 @@ npm run test:coverage # 生成覆盖率报告
 
 | 按键 | 功能 |
 |---|---|
-| `W A S D` | 移动 |
+| `W A S D` | 移动（自动翻越单格方块） |
 | `Shift` | 冲刺 |
 | `空格` | 跳跃 / 按住喷气背包 |
 | `鼠标左键` | 激光采集 / 攻击 |
@@ -116,15 +108,18 @@ src/
 ├── main.ts              # 游戏引擎核心（Three.js 渲染 + 游戏循环）
 ├── vue-main.ts          # Vue 应用入口 + 引擎初始化
 ├── App.vue              # 根组件（屏幕切换管理）
+├── three-setup.ts       # Three.js WebGPU 全局初始化
 ├── types.ts             # 共享类型定义 + THREE.js 声明
 ├── utils.ts             # 数学工具、噪声、名称生成器
 ├── config.ts            # 游戏配置（方块/物品/配方/调色板）
-├── save.ts              # OPFS 存档系统
-├── atlas.ts             # 程序化纹理图集
+├── save.ts              # OPFS 多存档系统
+├── atlas.ts             # 程序化纹理图集（32×32 像素）
 ├── audio.ts             # Web Audio API 程序化音效
 ├── world.ts             # 体素世界/区块系统
-├── sky.ts               # 天空穹顶着色器
+├── sky.ts               # TSL 天空穹顶着色器
+├── starfield.ts         # 2D canvas 星空叠加层
 ├── effects.ts           # 粒子系统、激光、屏幕震动
+├── postfx.ts            # CSS 后处理效果
 ├── entities.ts          # 生物生成与 AI
 ├── inventory.ts         # 背包、合成、快捷栏
 ├── ship.ts              # 星舰系统
@@ -139,53 +134,72 @@ src/
 │   ├── missionsStore.ts # 任务状态
 │   ├── milestonesStore.ts# 里程碑状态
 │   └── hudStore.ts      # HUD 状态
-├── components/          # Vue 组件
+├── components/          # Vue 组件（15 个）
 │   ├── TitleScreen.vue  # 标题画面
 │   ├── LoadingScreen.vue# 加载画面
 │   ├── IntroScreen.vue  # 开场动画
 │   ├── HudOverlay.vue   # 游戏内 HUD
-│   ├── InventoryScreen.vue# 背包界面
+│   ├── InventoryScreen.vue# 背包界面（3 标签页）
 │   ├── ShipPanel.vue    # 飞船面板
 │   ├── PauseScreen.vue  # 暂停菜单
 │   ├── DeathScreen.vue  # 死亡画面
 │   ├── SettingsScreen.vue# 设置界面
 │   ├── HelpScreen.vue   # 帮助手册
 │   └── ...
-└── __tests__/           # 测试文件
-    ├── utils.test.ts    # 工具函数测试
-    ├── config.test.ts   # 配置数据测试
-    ├── stores/          # Store 测试
-    ├── components/      # 组件测试
-    └── helpers/         # 测试辅助（THREE mock）
+├── post-processing.ts  # 后处理管线
+└── __tests__/           # 测试文件（25 个，193 个用例）
 ```
 
 ## 游戏设计
 
-### 星球系统
+### 任务链（无人深空风格）
 
-游戏包含 6 种星球类型，每种有独特的环境：
+| 阶段 | 任务 | 核心体验 |
+|---|---|---|
+| **生存** | 坠毁信号 → 防护系统 → 扫描仪 → 生命维持 | 学会在星球上生存 |
+| **精炼** | 材料精炼 → 修推进器 → 修引擎 | 掌握合成系统 |
+| **起飞** | 加注燃料 → 起飞 | 驾驶飞船 |
+| **开拓** | 天际之后 → 无尽旅程 | 自由探索 |
+
+### 合成体系（15 个配方）
+
+| 层级 | 配方 | 说明 |
+|---|---|---|
+| **原材料→精炼** | 金属镀层、碳纳米管、玻璃板、导线 | 基础材料加工 |
+| **精炼→高级** | 微芯片、能量电池、启动燃料、跃迁电池 | 高级科技产品 |
+| **补给品** | 钠电池、氧气罐、修复凝胶 | 生存保障 |
+| **建材** | 木板、玻璃块、合金块、灯柱 | 建造用 |
+
+### 星球系统（4 种类型）
 
 | 类型 | 气候 | 危险 | 风暴 | 生态 |
 |---|---|---|---|---|
-| 🌿 温和 | 微热 | 灼热/严寒 | 热浪风暴 | 丰饶 |
+| 🌿 温带 | 温和 | 严寒（夜间） | 热浪风暴 | 丰饶 |
 | 🔥 灼热 | 干旱 | 极端高温 | 烈焰风暴 | 稀疏 |
 | ❄️ 冰封 | 严寒 | 极寒 | 暴风雪 | 稀疏 |
 | 💜 异常 | 辐射 | 强辐射 | 辐射风暴 | 奇异 |
-| ☣️ 剧毒 | 孢雾 | 毒雾 | 毒雨风暴 | 疯长 |
-| 🏜️ 荒芜 | 尘暴 | 弱辐射/寒夜 | 尘暴 | 贫瘠 |
+
+### 渲染管线
+
+- **WebGPU 渲染器**（Three.js r185）自动降级 WebGL2
+- **TSL 天空着色器** — Rayleigh 散射、Mie 散射、星空、黄昏光带
+- **PBR 材质** — `MeshStandardMaterial`（粗糙度/金属度）
+- **阴影系统** — 2048² PCFSoftShadowMap
+- **HDR 色调映射** — ACES Filmic，exposure 2.5
+- **CSS 后处理** — 对比度、饱和度、健康晕影
+- **32×32 像素纹理** — Mipmap 远景平滑
 
 ### 存档系统
 
-使用 **OPFS（Origin Private File System）** 存储，比 localStorage 更可靠：
-- 容量无限制（几百 MB）
-- 异步 I/O，不阻塞主线程
-- 自动存档每 60 秒
-- 设置保存在 localStorage
+使用 **OPFS（Origin Private File System）** 支持多存档：
+- 10 个存档槽位
+- 每 60 秒自动存档
+- 存档管理界面
 
 ## 测试
 
 ```bash
-npm run test           # 运行全部 191 个测试
+npm run test           # 运行全部 193 个测试
 npm run test:coverage  # 查看覆盖率
 ```
 
@@ -203,20 +217,3 @@ npm run test:coverage  # 查看覆盖率
 ## 许可证
 
 [MIT License](LICENSE) © 2026 Janex
-
----
-
-<a name="english"></a>
-
-## English
-
-**Voxel Horizon** is a browser-based 3D voxel exploration/survival game inspired by No Man's Sky. Explore procedurally generated planets, mine resources, craft items, repair your starship, and warp to new worlds.
-
-**Key Features:**
-- 100% procedurally generated — zero external assets
-- WebGPU rendering with WebGL2 fallback
-- Vue 3 + Pinia UI with TypeScript strict mode
-- 191 automated tests
-- OPFS-based save system
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
