@@ -98,11 +98,11 @@ export class World {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const map = tex as any;
     this.matOpaque = new THREE.MeshStandardMaterial({
-      map, vertexColors: true, roughness: 0.85, metalness: 0.0
+      map, vertexColors: true, roughness: 0.75, metalness: 0.05
     }) as unknown as THREE.MeshLambertMaterial;
     this.matCutout = new THREE.MeshStandardMaterial({
       map, vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
-      roughness: 0.9, metalness: 0.0
+      roughness: 0.8, metalness: 0.02
     }) as unknown as THREE.MeshLambertMaterial;
     this.matWater = new THREE.MeshStandardMaterial({
       map, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,

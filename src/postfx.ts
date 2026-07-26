@@ -34,9 +34,9 @@ export class PostFX {
 
     // Water tint — blue overlay when submerged
     if (inWater) {
-      this.canvas.style.filter = 'contrast(1.04) saturate(1.08) brightness(0.85) hue-rotate(10deg)';
+      this.canvas.style.filter = 'contrast(1.12) saturate(1.2) brightness(0.85) hue-rotate(10deg)';
     } else {
-      this.canvas.style.filter = 'contrast(1.04) saturate(1.08)';
+      this.canvas.style.filter = 'contrast(1.12) saturate(1.2) brightness(1.02)';
     }
   }
 

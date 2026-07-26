@@ -276,7 +276,7 @@ export class Sky {
     this.hemi.intensity = 0.5 + day * 0.7 + dusk * 0.1;
     this.hemi.color.set(top);
     this.hemi.groundColor.set(U.shade(pal.grass, 0.5 + day * 0.2));
-    this.ambientFill.intensity = 0.25 + (1 - day) * 0.25;
+    this.ambientFill.intensity = 0.35 + (1 - day) * 0.3;
 
     this.sunSprite.position.copy(sunDir).multiplyScalar(650);
     (this.sunSprite.material as THREE.SpriteMaterial).opacity = 0.4 + day * 0.5 + dusk * 0.15;
@@ -286,8 +286,8 @@ export class Sky {
     let fogCol = U.mixHex(pal.fogNight, pal.fogDay, day);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
     const dist = g.settings.dist * 16;
-    let fogNear = dist * 0.45, fogFar = dist * 1.05;
-    if (storm > 0) { fogNear = U.lerp(fogNear, 8, storm); fogFar = U.lerp(fogFar, dist * 0.55, storm); }
+    let fogNear = dist * 0.6, fogFar = dist * 1.5;
+    if (storm > 0) { fogNear = U.lerp(fogNear, 12, storm); fogFar = U.lerp(fogFar, dist * 0.7, storm); }
     if (g.player && g.player.headInWater) { fogCol = U.shade(pal.water || '#2e6f9e', 0.7); fogNear = 2; fogFar = 22; }
     (g.scene.fog as THREE.Fog).color.set(fogCol);
     (g.scene.fog as THREE.Fog).near = fogNear;
