@@ -341,6 +341,15 @@ export interface SaveData {
   edits: Record<string, number[]>;
 }
 
+export interface SaveSlotMeta {
+  id: number;
+  planetName: string;
+  climate: string;
+  playTime: number;
+  timestamp: number;
+  playerHp: number;
+}
+
 export interface PlayerSaveData {
   pos: number[];
   yaw: number;
@@ -836,10 +845,14 @@ export interface U {
 }
 
 export interface Save {
-  save(g: Game): Promise<boolean>;
-  load(): Promise<SaveData | null>;
+  save(g: Game, slot?: number): Promise<boolean>;
+  load(slot?: number): Promise<SaveData | null>;
   hasSave(): Promise<boolean>;
+  listSlots(): Promise<SaveSlotMeta[]>;
+  deleteSlot(slot: number): Promise<void>;
   clear(): Promise<void>;
+  getCurrentSlot(): number;
+  setCurrentSlot(slot: number): void;
   loadSettings(): Settings;
   saveSettings(s: Settings): void;
 }

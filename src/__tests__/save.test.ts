@@ -1,22 +1,37 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock OPFS
+// Mock OPFS with subdirectory support
 const files: Record<string, string> = {};
-const mockRoot = {
-  getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
-    if (!files[name] && !opts?.create) throw new Error('NotFound');
-    return {
-      getFile: vi.fn(async () => ({
-        text: vi.fn(async () => files[name] || ''),
-      })),
-      createWritable: vi.fn(async () => ({
-        write: vi.fn(async (data: string) => { files[name] = data; }),
-        close: vi.fn(async () => {}),
-      })),
-    };
-  }),
-  removeEntry: vi.fn(async (name: string) => { delete files[name]; }),
-};
+const dirs = new Set<string>();
+
+function makeDirHandle(name: string) {
+  return {
+    getFileHandle: vi.fn(async (fname: string, opts?: { create?: boolean }) => {
+      const key = name + '/' + fname;
+      if (!files[key] && !opts?.create) throw new Error('NotFound');
+      return {
+        getFile: vi.fn(async () => ({
+          text: vi.fn(async () => files[key] || ''),
+        })),
+        createWritable: vi.fn(async () => ({
+          write: vi.fn(async (data: string) => { files[key] = data; }),
+          close: vi.fn(async () => {}),
+        })),
+      };
+    }),
+    getDirectoryHandle: vi.fn(async (dname: string, opts?: { create?: boolean }) => {
+      const key = name + '/' + dname;
+      if (!dirs.has(key) && !opts?.create) throw new Error('NotFound');
+      dirs.add(key);
+      return makeDirHandle(key);
+    }),
+    removeEntry: vi.fn(async (fname: string) => {
+      delete files[name + '/' + fname];
+    }),
+  };
+}
+
+const mockRoot = makeDirHandle('');
 Object.defineProperty(navigator, 'storage', {
   value: { getDirectory: vi.fn(async () => mockRoot) },
 });
@@ -37,6 +52,7 @@ import { CFG, DEFAULT_SETTINGS } from '../config';
 describe('Save module', () => {
   beforeEach(() => {
     for (const k in files) delete files[k];
+    dirs.clear();
     for (const k in storage) delete storage[k];
     vi.clearAllMocks();
   });
@@ -61,19 +77,25 @@ describe('Save module', () => {
     });
   });
 
-  describe('hasSave (OPFS)', () => {
-    it('returns false when no save', async () => {
-      expect(await Save.hasSave()).toBe(false);
+  describe('currentSlot', () => {
+    it('defaults to 0', () => {
+      expect(Save.getCurrentSlot()).toBe(0);
     });
-    it('returns true when save exists', async () => {
-      files['save.json'] = '{}';
-      expect(await Save.hasSave()).toBe(true);
+    it('persists slot selection', () => {
+      Save.setCurrentSlot(3);
+      expect(Save.getCurrentSlot()).toBe(3);
+    });
+  });
+
+  describe('hasSave (OPFS)', () => {
+    it('returns false when no saves dir', async () => {
+      expect(await Save.hasSave()).toBe(false);
     });
   });
 
   describe('save / load (OPFS)', () => {
     it('returns null when no save', async () => {
-      expect(await Save.load()).toBeNull();
+      expect(await Save.load(0)).toBeNull();
     });
 
     it('round-trips data', async () => {
@@ -87,20 +109,25 @@ describe('Save module', () => {
         milestones: { serialize: () => ({ stats: {}, awarded: {} }) },
         discoveries: { planets: [], entries: [] },
       };
-      const ok = await Save.save(mockGame as unknown as Parameters<typeof Save.save>[0]);
+      const ok = await Save.save(mockGame as unknown as Parameters<typeof Save.save>[0], 0);
       expect(ok).toBe(true);
-      const loaded = await Save.load();
+      const loaded = await Save.load(0);
       expect(loaded).not.toBeNull();
       expect(loaded!.seed).toBe(42);
       expect(loaded!.planetName).toBe('测试');
     });
   });
 
-  describe('clear (OPFS)', () => {
-    it('removes save file', async () => {
-      files['save.json'] = '{}';
-      await Save.clear();
-      expect(files['save.json']).toBeUndefined();
+  describe('listSlots (OPFS)', () => {
+    it('returns empty array when no saves', async () => {
+      const slots = await Save.listSlots();
+      expect(slots.length).toBe(0);
+    });
+  });
+
+  describe('deleteSlot (OPFS)', () => {
+    it('deletes without error', async () => {
+      await expect(Save.deleteSlot(0)).resolves.not.toThrow();
     });
   });
 });

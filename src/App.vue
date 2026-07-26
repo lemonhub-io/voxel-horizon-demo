@@ -1,12 +1,22 @@
 <template>
   <TitleScreen
-    v-if="game.state === 'title'"
+    v-if="game.state === 'title' && !showSaves"
     ref="titleRef"
     :has-save="hasSave"
     @new-game="onNewGame"
     @continue="onContinue"
+    @saves="showSaves = true"
     @help="showHelp = true"
     @settings="showSettings = true"
+  />
+
+  <SaveSlotScreen
+    v-if="showSaves"
+    :slots="saveSlots"
+    :current-slot="currentSlot"
+    @load="onLoadSlot"
+    @delete="onDeleteSlot"
+    @back="showSaves = false"
   />
 
   <LoadingScreen
@@ -51,6 +61,7 @@ import { useInventoryStore } from './stores/inventoryStore';
 import { useShipStore } from './stores/shipStore';
 import { useHudStore } from './stores/hudStore';
 import { Save } from './save';
+import type { SaveSlotMeta } from './types';
 
 import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
@@ -64,6 +75,7 @@ import SettingsScreen from './components/SettingsScreen.vue';
 import HelpScreen from './components/HelpScreen.vue';
 import PlanetCard from './components/PlanetCard.vue';
 import MilestonePopup from './components/MilestonePopup.vue';
+import SaveSlotScreen from './components/SaveSlotScreen.vue';
 
 const game = useGameStore();
 const player = usePlayerStore();
@@ -74,12 +86,22 @@ const hud = useHudStore();
 const hasSave = ref(false);
 const showSettings = ref(false);
 const showHelp = ref(false);
+const showSaves = ref(false);
 const damageFlash = ref(false);
+const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
+const currentSlot = ref(0);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 
 onMounted(async () => {
   hasSave.value = await Save.hasSave();
+  saveSlots.value = await Save.listSlots();
+  currentSlot.value = Save.getCurrentSlot();
 });
+
+async function refreshSlots() {
+  saveSlots.value = await Save.listSlots();
+  hasSave.value = saveSlots.value.some(s => s !== null);
+}
 
 function getEngine() {
   return (window as unknown as { game: { [k: string]: unknown } }).game;
@@ -94,18 +116,33 @@ function onContinue() {
   const engine = getEngine();
   if (engine && typeof engine.continueGame === 'function') (engine.continueGame as () => Promise<void>)();
 }
+async function onLoadSlot(slot: number) {
+  Save.setCurrentSlot(slot);
+  currentSlot.value = slot;
+  // Check if slot has data
+  const data = await Save.load(slot);
+  if (data) {
+    showSaves.value = false;
+    onContinue();
+  } else {
+    // Empty slot — start new game in this slot
+    showSaves.value = false;
+    onNewGame();
+  }
+}
+async function onDeleteSlot(slot: number) {
+  if (confirm(`确定删除存档 ${slot + 1}？`)) {
+    await Save.deleteSlot(slot);
+    await refreshSlots();
+  }
+}
 function onIntroSkip() {
   const engine = getEngine();
   if (engine && typeof engine.finishLoad === 'function') (engine.finishLoad as (d: null) => void)(null);
 }
 function onCloseInv() { inv.open = false; }
 function onCloseShip() { ship.open = false; }
-function onRepair(key: string) {
-  const engine = getEngine();
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>)[key] === 'object') {
-    // handled by engine
-  }
-}
+function onRepair(_key: string) { /* handled by engine */ }
 function onRefuel() {
   const engine = getEngine();
   if (engine?.ship) {
@@ -126,6 +163,7 @@ function onResume() {
 }
 async function onSave() {
   await Save.save(getEngine() as Parameters<typeof Save.save>[0]);
+  await refreshSlots();
   hud.addNotification('进度已保存', 'success');
   onResume();
 }
