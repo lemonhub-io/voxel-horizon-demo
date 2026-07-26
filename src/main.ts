@@ -151,10 +151,10 @@ export class Game {
     if (WGPU) {
       this.renderer = new WGPU({ canvas, antialias: false }) as unknown as THREE.WebGLRenderer;
       await (this.renderer as unknown as { init: () => Promise<void> }).init();
-      console.log('[VoxelHorizon] WebGPURenderer initialized');
+      console.warn('[VoxelHorizon] WebGPURenderer initialized');
     } else {
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-      console.log('[VoxelHorizon] WebGLRenderer initialized (legacy)');
+      console.warn('[VoxelHorizon] WebGLRenderer initialized (legacy)');
     }
 
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));

@@ -3,7 +3,6 @@
 // ============================================================
 
 import { U } from './utils';
-import { ITEMS } from './config';
 import { Sky } from './sky';
 import type { Game, ShipComponent, ShipSaveData } from './types';
 
@@ -299,73 +298,52 @@ export class Ship {
 
   openPanel(): void {
     this.open = true;
+    this.syncStore();
     this.g.exitPointerLock();
-    document.getElementById('ship-screen')!.classList.remove('hidden');
     this.g.audio.uiOpen();
-    this.renderPanel();
   }
   closePanel(): void {
     this.open = false;
-    document.getElementById('ship-screen')!.classList.add('hidden');
+    this.syncStore();
   }
 
-  renderPanel(): void {
-    const g = this.g;
-    const wrap = document.getElementById('ship-comps')!;
-    wrap.innerHTML = '';
-    for (const key of ['thruster', 'pulse']) {
-      const c = this.comps[key];
-      const d = document.createElement('div');
-      d.className = 'comp-card ' + (c.broken ? 'broken' : 'ok');
-      let req = '';
-      if (c.broken) {
-        req = c.req.map(([id, n]) => {
-          const have = g.inv.count(id);
-          return `<span style="color:${have >= n ? '#9be564' : '#ff5c5c'}"><img src="${g.atlas.icon(id)}" style="width:18px;height:18px;vertical-align:-4px"> ${ITEMS[id].name} ${have}/${n}</span>`;
-        }).join(' · ');
-      }
-      d.innerHTML = `
-        <div class="cc-name">${c.name}</div>
-        <div class="cc-status">${c.broken ? '● 受损 // DAMAGED' : '● 在线 // ONLINE'}</div>
-        <div class="cc-req">${c.broken ? req : c.desc}</div>
-        ${c.broken ? `<button class="btn sm ${g.inv.canAfford(c.req) ? 'primary' : 'disabled'}" data-fix="${key}">修复</button>` : ''}`;
-      wrap.appendChild(d);
-    }
-    wrap.querySelectorAll<HTMLElement>('[data-fix]').forEach(b => {
-      b.addEventListener('click', () => {
-        const key = b.dataset.fix!;
-        const c = this.comps[key];
-        if (!g.inv.pay(c.req)) { g.audio.uiDeny(); return; }
-        c.broken = false;
-        g.audio.craft();
-        g.fx.shake(0.2);
-        g.hud.notify(`${c.name} 修复完成`, 'success');
-        this.updateCrashPose();
-        this.renderPanel();
-        g.missions.onEvent('repair_' + key);
-      });
-    });
-    document.getElementById('ship-fuel-fill')!.style.width = this.fuel + '%';
-    document.getElementById('ship-fuel-txt')!.textContent = Math.round(this.fuel) + '%';
-    const refuel = document.getElementById('btn-refuel')!;
-    refuel.classList.toggle('disabled', g.inv.count('launch_fuel') < 1 || this.fuel >= 100);
-    refuel.onclick = () => {
-      if (g.inv.count('launch_fuel') < 1) { g.audio.uiDeny(); return; }
-      g.inv.consume('launch_fuel', 1);
-      this.fuel = 100;
-      g.audio.recharge();
-      g.hud.notify('燃料舱已加注 100%', 'success');
-      this.renderPanel();
-      g.missions.onEvent('refuel');
-    };
-    const launch = document.getElementById('btn-launch')!;
-    launch.classList.toggle('disabled', !this.canLaunch());
-    launch.onclick = () => {
-      if (!this.canLaunch()) { g.audio.uiDeny(); return; }
-      this.closePanel();
-      g.requestPointerLock();
-      setTimeout(() => this.enter(), 60);
-    };
+  /** Repair a component by key */
+  repair(key: string): boolean {
+    const c = this.comps[key];
+    if (!c || !c.broken) return false;
+    if (!this.g.inv.pay(c.req)) { this.g.audio.uiDeny(); return false; }
+    c.broken = false;
+    this.g.audio.craft();
+    this.g.fx.shake(0.2);
+    this.g.hud.notify(`${c.name} 修复完成`, 'success');
+    this.updateCrashPose();
+    this.syncStore();
+    this.g.missions.onEvent('repair_' + key);
+    return true;
+  }
+
+  /** Refuel the ship */
+  refuel(): boolean {
+    if (this.g.inv.count('launch_fuel') < 1 || this.fuel >= 100) { this.g.audio.uiDeny(); return false; }
+    this.g.inv.consume('launch_fuel', 1);
+    this.fuel = 100;
+    this.g.audio.recharge();
+    this.g.hud.notify('燃料舱已加注 100%', 'success');
+    this.syncStore();
+    this.g.missions.onEvent('refuel');
+    return true;
+  }
+
+  /** Sync ship state to Pinia store */
+  syncStore(): void {
+    const s = (this.g as unknown as { stores: { ship: { comps: Record<string, ShipComponent>; fuel: number; open: boolean; flying: boolean; speed: number; throttle: number } } }).stores;
+    if (!s) return;
+    s.ship.comps = { ...this.comps };
+    s.ship.fuel = this.fuel;
+    s.ship.open = this.open;
+    s.ship.flying = this.flying;
+    s.ship.speed = this.speed;
+    s.ship.throttle = this.throttle;
   }
 
   serialize(): ShipSaveData {

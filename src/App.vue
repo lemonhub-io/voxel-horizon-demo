@@ -155,20 +155,31 @@ function onCraft(recipe: { id: string; req: [string, number][]; out: number }) {
     (engine.inv as { syncStore: () => void }).syncStore();
   }
 }
-function onCloseShip() { ship.open = false; }
-function onRepair(_key: string) { /* handled by engine */ }
+function onCloseShip() {
+  const engine = getEngine();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).closePanel === 'function') {
+    (engine.ship as { closePanel: () => void }).closePanel();
+  }
+}
+function onRepair(key: string) {
+  const engine = getEngine();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).repair === 'function') {
+    (engine.ship as { repair: (k: string) => boolean }).repair(key);
+  }
+}
 function onRefuel() {
   const engine = getEngine();
-  if (engine?.ship) {
-    const s = engine.ship as Record<string, unknown>;
-    if (typeof s.renderPanel === 'function') (s.renderPanel as () => void)();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).refuel === 'function') {
+    (engine.ship as { refuel: () => boolean }).refuel();
   }
 }
 function onLaunch() {
-  ship.open = false;
   const engine = getEngine();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).closePanel === 'function') {
+    (engine.ship as { closePanel: () => void }).closePanel();
+  }
   if (engine?.ship && typeof (engine.ship as Record<string, unknown>).enter === 'function') {
-    ((engine.ship as Record<string, unknown>).enter as () => void)();
+    (engine.ship as { enter: () => void }).enter();
   }
 }
 function onResume() {

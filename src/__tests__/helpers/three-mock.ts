@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+// Minimal THREE.js mock for testing engine classes without WebGL
 
 // Minimal THREE.js mock for testing engine classes without WebGL
 export function createThreeMock() {

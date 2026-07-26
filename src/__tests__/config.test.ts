@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CFG, B, T, BLOCK_DEF, ITEMS, RECIPES, PALETTES, HAZ_ICONS, MILESTONE_DEFS, DEFAULT_SETTINGS } from '../config';
+import { CFG, B, BLOCK_DEF, ITEMS, RECIPES, PALETTES, HAZ_ICONS, MILESTONE_DEFS, DEFAULT_SETTINGS } from '../config';
 
 describe('CFG constants', () => {
   it('has valid chunk size', () => expect(CFG.CHUNK).toBe(16));

@@ -694,7 +694,9 @@ export interface Ship {
   tryWarp(): void;
   openPanel(): void;
   closePanel(): void;
-  renderPanel(): void;
+  repair(key: string): boolean;
+  refuel(): boolean;
+  syncStore(): void;
   serialize(): ShipSaveData;
   deserialize(d: ShipSaveData | undefined): void;
 }

@@ -2,6 +2,8 @@
 // three-webgpu.d.ts — Type declarations for Three.js WebGPU
 // ============================================================
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 declare module 'three/webgpu' {
   import type {
     WebGLRenderer, Scene, Camera, Material, Color, Vector2, Vector3,

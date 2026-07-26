@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // Minimal THREE mock for world tests
 (globalThis as Record<string, unknown>).THREE = {
@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 };
 
 import { CFG, B } from '../config';
-import { U, SimplexNoise } from '../utils';
+import { SimplexNoise } from '../utils';
 
 // We can't fully instantiate World without THREE renderer, but we can test helper logic
 describe('World generation helpers', () => {
