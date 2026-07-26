@@ -57,6 +57,7 @@ export class Player {
   private _jumpTime = 0;
   private _landImpact = 0;
   private _stepUpTarget = 0;
+  private _stepUpFrom = 0;
   private _stepUpProgress = 0;
   private _fwd = new THREE.Vector3();
   private _right = new THREE.Vector3();
@@ -238,15 +239,13 @@ export class Player {
 
     // Smooth step-up interpolation
     if (this._stepUpTarget > 0 && this._stepUpProgress < 1) {
-      this._stepUpProgress += dt * 7; // ~0.14s to complete
+      this._stepUpProgress = Math.min(1, this._stepUpProgress + dt * 7);
+      // Ease-out curve for natural feel
+      const t = 1 - Math.pow(1 - this._stepUpProgress, 2);
+      this.pos.y = this._stepUpFrom + (this._stepUpTarget - this._stepUpFrom) * t;
       if (this._stepUpProgress >= 1) {
         this.pos.y = this._stepUpTarget;
         this._stepUpTarget = 0;
-        this._stepUpProgress = 0;
-      } else {
-        // Smooth ease-out interpolation
-        const t = 1 - Math.pow(1 - this._stepUpProgress, 2);
-        this.pos.y = this.pos.y + (this._stepUpTarget - this.pos.y) * t * 0.3;
       }
     }
 
@@ -318,6 +317,7 @@ export class Player {
             // Smooth step-up: interpolate over ~0.15s instead of instant
             const stepHeight = p.y - oy;
             if (stepHeight > 0.1) {
+              this._stepUpFrom = oy;
               this._stepUpTarget = p.y;
               p.y = oy; // Keep current position, will interpolate in update
               this._stepUpProgress = 0;
