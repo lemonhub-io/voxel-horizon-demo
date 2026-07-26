@@ -139,7 +139,7 @@ export class FX {
   shake(a: number): void { this.shakeAmp = Math.max(this.shakeAmp, a); }
 
   applyShake(camera: THREE.Camera): void {
-    if (this.shakeAmp > 0.001) {
+    if (this.shakeAmp > 0.01) {
       camera.position.x += (Math.random() - 0.5) * this.shakeAmp;
       camera.position.y += (Math.random() - 0.5) * this.shakeAmp;
       camera.position.z += (Math.random() - 0.5) * this.shakeAmp;

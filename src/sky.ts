@@ -31,6 +31,8 @@ export class Sky {
   dayMix: number;
   pal!: Palette;
   private _sunDir = new THREE.Vector3();
+  private _shadowTargetX = 0;
+  private _shadowTargetZ = 0;
 
   constructor(game: Game) {
     this.g = game;
@@ -222,14 +224,19 @@ export class Sky {
     // Sun light — HDR values (tone-mapped by renderer)
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
 
-    // Shadow camera follows player, snapped to texel grid to prevent jitter
+    // Shadow camera follows player, but only snaps to new grid cell
+    // to prevent per-frame jitter from shadow map texel misalignment
     if (g.player) {
       const p = g.player.pos;
-      const texelSize = 160 / 2048; // shadow frustum / map resolution
-      const snapX = Math.round(p.x / texelSize) * texelSize;
-      const snapZ = Math.round(p.z / texelSize) * texelSize;
-      this.sunLight.target.position.set(snapX, p.y, snapZ);
-      this.sunLight.target.updateMatrixWorld();
+      const cellSize = 4; // snap to 4-unit grid cells
+      const snapX = Math.round(p.x / cellSize) * cellSize;
+      const snapZ = Math.round(p.z / cellSize) * cellSize;
+      if (snapX !== this._shadowTargetX || snapZ !== this._shadowTargetZ) {
+        this._shadowTargetX = snapX;
+        this._shadowTargetZ = snapZ;
+        this.sunLight.target.position.set(snapX, p.y, snapZ);
+        this.sunLight.target.updateMatrixWorld();
+      }
     }
     const sunInt = 0.3 + day * 2.0 + dusk * 0.2;
     this.sunLight.intensity = sunInt;
