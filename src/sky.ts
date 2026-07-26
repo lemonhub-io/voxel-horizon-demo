@@ -18,13 +18,14 @@ function getMeshBasicNodeMaterial(): new () => MeshBasicNodeMaterial {
 export class Sky {
   g: Game;
   group: THREE.Group;
-  uTopColor: THREE.Color;
-  uHorColor: THREE.Color;
-  uSunDir: THREE.Vector3;
-  uSunColor: THREE.Color;
-  uNightMix: number;
-  uTime: number;
-  uStarBright: number;
+  // TSL uniform value holders (reassigned each frame to trigger node updates)
+  private _uTopVal!: { value: unknown };
+  private _uHorVal!: { value: unknown };
+  private _uSunVal!: { value: unknown };
+  private _uSunColVal!: { value: unknown };
+  private _uNightVal!: { value: unknown };
+  private _uTimeVal!: { value: unknown };
+  private _uStarVal!: { value: unknown };
   dome!: THREE.Mesh;
   sunLight!: THREE.DirectionalLight;
   hemi!: THREE.HemisphereLight;
@@ -46,13 +47,6 @@ export class Sky {
     this.group = new THREE.Group();
     game.scene.add(this.group);
 
-    this.uTopColor = new THREE.Color('#3a8fd4');
-    this.uHorColor = new THREE.Color('#bfe4ee');
-    this.uSunDir = new THREE.Vector3(0, 1, 0);
-    this.uSunColor = new THREE.Color('#fff2d0');
-    this.uNightMix = 0;
-    this.uTime = 0;
-    this.uStarBright = 0;
     this.t = 0.28;
     this.dayMix = 1;
 
@@ -65,14 +59,22 @@ export class Sky {
     const t = getTSL();
     const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn } = t;
 
-    // TSL uniforms
-    const uTop = uniform('vec3'); uTop.value = this.uTopColor;
-    const uHor = uniform('vec3'); uHor.value = this.uHorColor;
-    const uSun = uniform('vec3'); uSun.value = this.uSunDir;
-    const uSunCol = uniform('vec3'); uSunCol.value = this.uSunColor;
-    const uNight = uniform('float'); uNight.value = this.uNightMix;
-    const uTimeU = uniform('float'); uTimeU.value = this.uTime;
-    const uStar = uniform('float'); uStar.value = this.uStarBright;
+    // TSL uniforms — stored for per-frame value updates
+    const uTop = uniform('vec3'); uTop.value = new THREE.Color('#3a8fd4');
+    const uHor = uniform('vec3'); uHor.value = new THREE.Color('#bfe4ee');
+    const uSun = uniform('vec3'); uSun.value = new THREE.Vector3(0, 1, 0);
+    const uSunCol = uniform('vec3'); uSunCol.value = new THREE.Color('#fff2d0');
+    const uNight = uniform('float'); uNight.value = 0;
+    const uTimeU = uniform('float'); uTimeU.value = 0;
+    const uStar = uniform('float'); uStar.value = 0;
+
+    this._uTopVal = uTop;
+    this._uHorVal = uHor;
+    this._uSunVal = uSun;
+    this._uSunColVal = uSunCol;
+    this._uNightVal = uNight;
+    this._uTimeVal = uTimeU;
+    this._uStarVal = uStar;
 
     // Hash function for stars
     const hash3 = Fn((args?: TSLNode[]) => {
@@ -221,17 +223,17 @@ export class Sky {
     const dusk = U.clamp(1 - Math.abs(sunY) * 3.5, 0, 1) * (day > 0.03 ? 1 : 0.3);
     const pal = this.pal;
 
-    // Update TSL uniform values
+    // Update TSL uniform values — reassign .value to trigger node update
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-    this.uTopColor.set(top);
-    this.uHorColor.set(hor);
-    this.uSunColor.set(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
-    this.uSunDir.copy(sunDir);
-    this.uNightMix = 1 - day;
-    this.uStarBright = Math.max(0, 1 - day * 3) * 0.85;
-    this.uTime = g.timeUniform.value;
+    this._uTopVal.value = new THREE.Color(top);
+    this._uHorVal.value = new THREE.Color(hor);
+    this._uSunColVal.value = new THREE.Color(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
+    this._uSunVal.value = new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z);
+    this._uNightVal.value = 1 - day;
+    this._uTimeVal.value = g.timeUniform.value;
+    this._uStarVal.value = Math.max(0, 1 - day * 3) * 0.85;
 
     // Sun light
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
