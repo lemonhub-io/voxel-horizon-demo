@@ -2,6 +2,7 @@
 // Vue 3 + Pinia entry point — bootstraps Vue and game engine
 // ============================================================
 
+import './three-setup'; // Must be first — sets window.THREE
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
