@@ -6,9 +6,6 @@ import { U } from './utils';
 import { CFG } from './config';
 import { Starfield } from './starfield';
 import type { Game, Palette } from './types';
-import { MeshBasicNodeMaterial } from 'three/webgpu';
-import { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } from 'three/tsl';
-import type { TSLNode } from 'three/tsl';
 
 export class Sky {
   g: Game;
@@ -22,21 +19,25 @@ export class Sky {
   moon!: THREE.Mesh;
   planetGlow!: THREE.Sprite;
   sunSprite!: THREE.Sprite;
-  starfield: Starfield;
+  starfield!: Starfield;
   t: number;
   dayMix: number;
   pal!: Palette;
   private _sunDir = new THREE.Vector3();
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
-
-  // TSL uniform nodes
-  private _uTop!: { value: unknown };
-  private _uHor!: { value: unknown };
-  private _uSun!: { value: unknown };
-  private _uSunCol!: { value: unknown };
-  private _uNight!: { value: unknown };
-  private _uStar!: { value: unknown };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uTop: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uHor: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uSun: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uSunCol: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uNight: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uStar: any;
 
   constructor(game: Game) {
     this.g = game;
@@ -52,7 +53,12 @@ export class Sky {
   }
 
   private _buildSkyDome(): void {
-    // TSL uniforms
+    // TSL functions from the global THREE (WebGPU build)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const T = (THREE as any);
+    const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } = T;
+
+    // Uniforms
     const uTop = uniform('vec3'); uTop.value = new THREE.Color('#3a8fd4');
     const uHor = uniform('vec3'); uHor.value = new THREE.Color('#bfe4ee');
     const uSun = uniform('vec3'); uSun.value = new THREE.Vector3(0, 1, 0);
@@ -87,7 +93,7 @@ export class Sky {
     const horizonBoost = float(1).sub(abs(d.y));
     const mie = pow(s, 8).mul(0.15).mul(horizonBoost);
 
-    let skyColor: TSLNode = withGround;
+    let skyColor = withGround;
     skyColor = skyColor.add(uSunCol.mul(pow(s, 900)).mul(5));
     skyColor = skyColor.add(uSunCol.mul(pow(s, 24)).mul(0.8));
     skyColor = skyColor.add(uSunCol.mul(pow(s, 5)).mul(0.3).mul(horizonBoost));
@@ -99,8 +105,7 @@ export class Sky {
     skyColor = skyColor.add(duskCol.mul(duskBand).mul(max(uSun.y.add(0.2), 0)));
 
     // Stars
-    const hash3 = Fn((args?: TSLNode[]) => {
-      const p = args![0];
+    const hash3 = Fn((p: unknown) => {
       return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
     });
     const cell = floor(d.mul(280));
@@ -115,7 +120,9 @@ export class Sky {
     const nightGlow = float(1).sub(h).mul(uNight).mul(0.1);
     skyColor = skyColor.add(vec3(0.04, 0.06, 0.14).mul(nightGlow));
 
-    // Create TSL node material
+    // Create node material (MeshBasicNodeMaterial is from the WebGPU build)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const MeshBasicNodeMaterial = (THREE as any).MeshBasicNodeMaterial;
     const mat = new MeshBasicNodeMaterial();
     mat.colorNode = skyColor;
     mat.side = THREE.BackSide;
@@ -263,7 +270,6 @@ export class Sky {
     if (g.audio.ok) g.audio.nightMix = 1 - day;
 
     // Star field
-    const cam = g.camera;
-    this.starfield.update(g.time, cam.rotation.y, cam.rotation.x, 1 - day);
+    this.starfield.update(g.time, g.camera.rotation.y, g.camera.rotation.x, 1 - day);
   }
 }
