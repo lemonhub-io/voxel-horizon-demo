@@ -930,6 +930,8 @@ namespace THREE {
     setClearColor(color: string | number): void;
     render(scene: Scene, camera: Camera): void;
     outputColorSpace: string;
+    toneMapping: number;
+    toneMappingExposure: number;
   }
   class Fog { constructor(color: string, near: number, far: number); color: Color; near: number; far: number; }
   class BufferGeometry {
@@ -1075,5 +1077,9 @@ namespace THREE {
   const NearestFilter: number;
   const ClampToEdgeWrapping: number;
   const SRGBColorSpace: string;
+  const ACESFilmicToneMapping: number;
+  const AgXToneMapping: number;
+  const NeutralToneMapping: number;
+  const NoToneMapping: number;
 }
 } // declare global

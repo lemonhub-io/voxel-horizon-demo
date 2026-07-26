@@ -150,6 +150,8 @@ export function createThreeMock() {
 
   class WebGLRenderer {
     outputColorSpace = 'srgb';
+    toneMapping = 0;
+    toneMappingExposure = 1;
     setPixelRatio() {}
     setSize() {}
     setClearColor() {}
@@ -168,6 +170,7 @@ export function createThreeMock() {
     Texture, CanvasTexture, Mesh, Points, LineSegments, Sprite, Group,
     Light, DirectionalLight, HemisphereLight, PointLight, SpotLight,
     AdditiveBlending: 2, BackSide: 1, DoubleSide: 2, NearestFilter: 0, ClampToEdgeWrapping: 0, SRGBColorSpace: 'srgb',
+    ACESFilmicToneMapping: 4, AgXToneMapping: 6, NeutralToneMapping: 7, NoToneMapping: 0,
     ShaderMaterial: Material,
   };
 
