@@ -232,8 +232,13 @@ export class Player {
 
     const cam = g.camera;
     cam.position.copy(this.eyePos());
-    const bob = this.onGround && wish.lengthSq() > 0 ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
-    cam.position.y += bob;
+    const moving = wish.lengthSq() > 0;
+    const bob = this.onGround && moving ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
+    // Idle sway — subtle breathing motion when standing still
+    const idleSwayX = this.onGround && !moving ? Math.sin(g.time * 1.1) * 0.008 : 0;
+    const idleSwayY = this.onGround && !moving ? Math.sin(g.time * 0.7) * 0.005 : 0;
+    cam.position.y += bob + idleSwayY;
+    cam.position.x += idleSwayX;
     cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
 
     this.vm.position.y = -0.3 + bob * 0.6 + (this.mining ? Math.sin(g.time * 40) * 0.006 : 0);
@@ -271,7 +276,7 @@ export class Player {
         if (!collide()) continue;
         if (axis !== 'y' && (this.onGround || this.inWater)) {
           const oy = p.y;
-          p.y += 0.62;
+          p.y += 1.05; // Auto-jump: step up over single blocks
           if (!collide()) {
             while (p.y > oy) {
               p.y -= 0.05;
