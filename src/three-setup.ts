@@ -3,16 +3,28 @@
 // ============================================================
 
 import * as THREEModule from 'three';
-
-// WebGPU modules loaded via dynamic import (not in @types/three)
-const webgpu = await import('three/webgpu' as string) as any;
+import {
+  WebGPURenderer,
+  MeshBasicNodeMaterial,
+  MeshStandardNodeMaterial,
+  TSL,
+} from 'three/webgpu';
+import type { TSL as TSLType } from 'three/webgpu';
 
 // Attach to window for non-module code access
-(window as any).THREE = {
+interface GameGlobals {
+  THREE: typeof THREEModule & {
+    WebGPURenderer: typeof WebGPURenderer;
+    MeshBasicNodeMaterial: typeof MeshBasicNodeMaterial;
+    MeshStandardNodeMaterial: typeof MeshStandardNodeMaterial;
+    TSL: TSLType;
+  };
+}
+
+(window as unknown as GameGlobals).THREE = {
   ...THREEModule,
-  WebGPURenderer: webgpu.WebGPURenderer,
-  MeshBasicNodeMaterial: webgpu.MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial: webgpu.MeshStandardNodeMaterial,
-  TSL: webgpu.TSL,
-  PostProcessing: webgpu.PostProcessing,
+  WebGPURenderer,
+  MeshBasicNodeMaterial,
+  MeshStandardNodeMaterial,
+  TSL,
 };

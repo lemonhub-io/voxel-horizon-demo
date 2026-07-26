@@ -51,6 +51,7 @@ export class World {
   matOpaque!: THREE.MeshLambertMaterial;
   matCutout!: THREE.MeshLambertMaterial;
   matWater!: THREE.MeshLambertMaterial;
+  private _waterTSLMat: THREE.Material | null = null;
   waterCamPos: THREE.Vector3 | null = null;
   cullFrame: number;
 
@@ -114,20 +115,20 @@ export class World {
 
   private _applyWaterTSL(): void {
     try {
-      const TSL = (window as any).THREE.TSL;
-      const MeshStandardNodeMaterial = (window as any).THREE.MeshStandardNodeMaterial;
-      if (!TSL || !MeshStandardNodeMaterial) return;
+      const g = window as unknown as { THREE: { TSL: import('three/webgpu').TSL; MeshStandardNodeMaterial: new () => import('three/webgpu').MeshStandardNodeMaterial } };
+      const TSL = g.THREE.TSL;
+      const MatClass = g.THREE.MeshStandardNodeMaterial;
+      if (!TSL || !MatClass) return;
 
       const { float, vec3, mix, pow, max, dot, normalize, positionWorld, cameraPosition, Fn } = TSL;
 
       // Fresnel: more reflective at grazing angles
       const fresnelNode = Fn(() => {
         const viewDir = normalize(cameraPosition.sub(positionWorld));
-        const fresnel = pow(float(1).sub(max(dot(viewDir, vec3(0, 1, 0)), 0)), 3);
-        return fresnel;
+        return pow(float(1).sub(max(dot(viewDir, vec3(0, 1, 0)), 0)), 3);
       });
 
-      const mat = new MeshStandardNodeMaterial();
+      const mat = new MatClass();
       mat.transparent = true;
       mat.opacity = 0.72;
       mat.depthWrite = false;
@@ -136,14 +137,12 @@ export class World {
       mat.side = THREE.FrontSide;
 
       // Color node: base color brightened by Fresnel
-      const baseColor = vec3(0.18, 0.5, 0.66); // Water base color
+      const baseColor = vec3(0.18, 0.5, 0.66);
       const fresnel = fresnelNode();
       mat.colorNode = mix(baseColor, baseColor.mul(1.5), fresnel.mul(0.5));
       mat.opacityNode = mix(float(0.72), float(0.95), fresnel);
 
-      (this.matWater as unknown as { map: unknown }).map = (this.g.atlas as { texture: unknown }).texture;
-      // Replace the material on the water mesh type
-      (this as unknown as { matWaterTSL: unknown }).matWaterTSL = mat;
+      this._waterTSLMat = mat;
     } catch {
       // TSL not available, keep standard material
     }
@@ -441,8 +440,7 @@ export class World {
     mk(opaque, this.matOpaque);
     mk(cutout, this.matCutout, m => { m.castShadow = true; });
     // Use TSL water material if available, otherwise standard
-    const waterMat = (this as unknown as { matWaterTSL?: THREE.Material }).matWaterTSL || this.matWater;
-    mk(water, waterMat, m => { m.renderOrder = 2; });
+    mk(water, this._waterTSLMat || this.matWater, m => { m.renderOrder = 2; });
     chunk.dirty = false;
   }
 

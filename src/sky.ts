@@ -5,12 +5,14 @@
 import { U } from './utils';
 import { CFG } from './config';
 import type { Game, Palette } from './types';
+import type { TSL, TSLNode, MeshBasicNodeMaterial } from 'three/webgpu';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// TSL is a dynamic node-graph API; strict typing is not feasible.
+function getTSL(): TSL {
+  return (window as unknown as { THREE: { TSL: TSL } }).THREE.TSL;
+}
 
-function T(): any {
-  return (window as any).THREE.TSL;
+function getMeshBasicNodeMaterial(): new () => MeshBasicNodeMaterial {
+  return (window as unknown as { THREE: { MeshBasicNodeMaterial: new () => MeshBasicNodeMaterial } }).THREE.MeshBasicNodeMaterial;
 }
 
 export class Sky {
@@ -60,7 +62,7 @@ export class Sky {
   }
 
   private _buildSkyDome(): void {
-    const t = T();
+    const t = getTSL();
     const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn } = t;
 
     // TSL uniforms
@@ -73,7 +75,8 @@ export class Sky {
     const uStar = uniform('float'); uStar.value = this.uStarBright;
 
     // Hash function for stars
-    const hash3 = Fn(([p]: any[]) => {
+    const hash3 = Fn((args?: TSLNode[]) => {
+      const p = args![0];
       return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
     });
 
@@ -98,7 +101,7 @@ export class Sky {
       const horizonBoost = float(1).sub(abs(d.y));
       const mie = pow(s, 8).mul(0.15).mul(horizonBoost);
 
-      let r = withGround;
+      let r: TSLNode = withGround;
       r = r.add(uSunCol.mul(pow(s, 900)).mul(5));
       r = r.add(uSunCol.mul(pow(s, 24)).mul(0.8));
       r = r.add(uSunCol.mul(pow(s, 5)).mul(0.3).mul(horizonBoost));
@@ -126,8 +129,8 @@ export class Sky {
     });
 
     // Create TSL node material
-    const MeshBasicNodeMaterial = (window as any).THREE.MeshBasicNodeMaterial;
-    const mat = new MeshBasicNodeMaterial();
+    const MatClass = getMeshBasicNodeMaterial();
+    const mat = new MatClass();
     mat.colorNode = skyColor();
     mat.side = THREE.BackSide;
     mat.depthWrite = false;
