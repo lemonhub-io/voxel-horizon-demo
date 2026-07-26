@@ -47,6 +47,7 @@ export class Player {
   dmgT?: number;
   zT?: number;
   xT?: number;
+  crashShield = 45; // 45 seconds of hazard immunity after crash
   zWarned?: boolean;
   xWarned?: boolean;
   dfT?: ReturnType<typeof setTimeout>;
@@ -561,6 +562,11 @@ export class Player {
     let haz = night ? pal.hazard.night : pal.hazard.day;
     if (g.stormActive) haz *= 3.2;
     if (this.sheltered || inShip) haz = 0;
+    // Crash shield: no hazard drain for first 45 seconds
+    if (this.crashShield > 0) {
+      this.crashShield -= dt;
+      haz = 0;
+    }
     this.hazard -= haz * dt;
     if (!inShip) this.ls -= 0.10 * dt;
     if (this.headInWater) this.ls -= 0.9 * dt;
@@ -627,8 +633,8 @@ export class Player {
     this.pos.set(sp.x + 4, g.world.topSolidY(Math.floor(sp.x + 4), Math.floor(sp.z)) + 1.2, sp.z);
     this.vel.set(0, 0, 0);
     this.hp = 100;
-    this.hazard = 60;
-    this.ls = 60;
+    this.hazard = 40;
+    this.ls = 50;
     this.dead = false;
     g.audio.respawn();
   }

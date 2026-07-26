@@ -302,8 +302,8 @@ export class Game {
       this.player.pos.set(sx + 0.5, gy + 1.2, sz + 0.5);
       this.player.yaw = Math.PI * 0.25;
       this.ship.placeAt(sx + 14, sz + 9);
-      this.player.hazard = 25;
-      this.player.ls = 75;
+      this.player.hazard = 50;
+      this.player.ls = 85;
       this.inv.add('carbon', 10);
       this.discoveries.planets.push({ name: this.planetName, climate: this.palette.climate, visited: 1 });
       s.game.discoveries = this.discoveries;

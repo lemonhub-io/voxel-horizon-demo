@@ -64,7 +64,7 @@ export class Missions {
         done: '脉冲引擎点火自检通过。'
       },
       {
-        id: 'fuel', title: '加注启动燃料', desc: '采集蓝色双氢晶簇（双氢×40），合成 启动燃料 并在飞船面板加注。',
+        id: 'fuel', title: '加注启动燃料', desc: '采集蓝色双氢晶簇（双氢×25），合成 启动燃料 并在飞船面板加注。',
         prog: () => [Math.round(g.ship.fuel), 100],
         check: () => g.ship.fuel >= 99,
         done: '燃料舱加注完毕 —— 可以起飞了。'

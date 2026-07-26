@@ -100,14 +100,20 @@ export const ITEMS: Record<string, ItemDef> = {
   metal_plate: { name: '金属镀层', type: '合成材料', col: '#c8cdd4', stack: 32, desc: '用于修复飞船组件。', glyph: 'plate' },
   nanotube:    { name: '碳纳米管', type: '合成材料', col: '#555a60', stack: 32, desc: '高强度碳结构。', glyph: 'tube' },
   launch_fuel: { name: '启动燃料', type: '合成材料', col: '#ff8a5c', stack: 1, desc: '飞船起飞所需燃料。', glyph: 'fuel' },
-  warp_cell:   { name: '跃迁电池', type: '合成材料', col: '#8a7aff', stack: 3, desc: '星际跃迁引擎能量源。', glyph: 'warp' }
+  warp_cell:   { name: '跃迁电池', type: '合成材料', col: '#8a7aff', stack: 3, desc: '星际跃迁引擎能量源。', glyph: 'warp' },
+  sodium_cell: { name: '钠电池', type: '生存补给', col: '#ffd166', stack: 20, desc: '高效防护充能装置。+50防护', glyph: 'batt', use: 'hazard', useAmt: 50 },
+  o2_canister: { name: '氧气罐', type: '生存补给', col: '#ff8a7a', stack: 20, desc: '压缩氧气容器。+50生命维持', glyph: 'o2c', use: 'ls', useAmt: 50 },
+  medkit:      { name: '修复凝胶', type: '生存补给', col: '#7de8a0', stack: 10, desc: '外星生物修复凝胶。+60生命', glyph: 'med', use: 'hp', useAmt: 60 },
 };
 
 export const RECIPES: Recipe[] = [
   { id: 'metal_plate', out: 1, cat: '材料', req: [['ferrite', 30]], desc: '铁尘压制为金属镀层。' },
   { id: 'nanotube',    out: 1, cat: '材料', req: [['carbon', 40]], desc: '碳原子排列为纳米管。' },
-  { id: 'launch_fuel', out: 1, cat: '燃料', req: [['dihydrogen', 40]], desc: '双氢聚合为启动燃料。' },
-  { id: 'warp_cell',   out: 1, cat: '跃迁', req: [['copper', 20], ['nanotube', 1], ['dihydrogen', 15]], desc: '组装跃迁电池。' }
+  { id: 'launch_fuel', out: 1, cat: '燃料', req: [['dihydrogen', 25]], desc: '双氢聚合为启动燃料。' },
+  { id: 'warp_cell',   out: 1, cat: '跃迁', req: [['copper', 20], ['nanotube', 1], ['dihydrogen', 15]], desc: '组装跃迁电池。' },
+  { id: 'sodium_cell', out: 1, cat: '生存', req: [['sodium', 8], ['ferrite', 5]], desc: '钠元素封装为高效防护电池。' },
+  { id: 'o2_canister', out: 1, cat: '生存', req: [['oxygen', 8], ['ferrite', 5]], desc: '氧气压缩存储于金属容器。' },
+  { id: 'medkit',      out: 1, cat: '生存', req: [['biomass', 12], ['oxygen', 6]], desc: '外星组织合成修复凝胶。' }
 ];
 
 export const PALETTES: Palette[] = [
@@ -120,7 +126,7 @@ export const PALETTES: Palette[] = [
     hazard: { type: 'cold', label: '寒冷', day: 1.8, night: 6, nightType: 'freeze', nightLabel: '极寒' },
     storm: { chance: 0.45, label: '雷暴' },
     trees: { density: 0.028, types: ['round', 'tall', 'shroom'] },
-    tuft: 0.035, plant: 0.012, na: 0.006, o2: 0.008, h2: 0.004, rock: 0.008,
+    tuft: 0.035, plant: 0.012, na: 0.006, o2: 0.008, h2: 0.008, rock: 0.008,
     creatures: ['#8a7a5a', '#6a8a5a', '#9a6a4a', '#5a6a7a'], fauna: 3,
     floraLevel: '繁盛', stormLevel: '中等'
   },
