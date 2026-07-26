@@ -158,8 +158,9 @@ export class Game {
     (this.renderer as unknown as Record<string, unknown>).outputColorSpace = THREE.SRGBColorSpace;
 
     // HDR tone mapping for better light range
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    const r = this.renderer as unknown as Record<string, unknown>;
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 1.8;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);

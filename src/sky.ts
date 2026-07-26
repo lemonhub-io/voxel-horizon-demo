@@ -79,18 +79,18 @@ export class Sky {
             col = mix(horColor, horColor * 0.45, min(-d.y * 2.5, 1.0));
           }
 
-          // Sun disc with multiple lobes (HDR values, will be tone-mapped)
+          // Sun disc with multiple lobes (HDR values, tone-mapped by renderer)
           float s = max(dot(d, sunDir), 0.0);
           float horizonBoost = 1.0 - abs(d.y);
 
-          // Core disc (very bright, HDR)
-          col += sunColor * pow(s, 900.0) * 2.0;
-          // Inner glow
-          col += sunColor * pow(s, 24.0) * 0.45;
+          // Core disc — very bright HDR peak
+          col += sunColor * pow(s, 900.0) * 5.0;
+          // Inner glow — bright halo
+          col += sunColor * pow(s, 24.0) * 0.8;
           // Outer haze
-          col += sunColor * pow(s, 5.0) * 0.18 * horizonBoost;
+          col += sunColor * pow(s, 5.0) * 0.3 * horizonBoost;
           // Wide atmospheric glow near horizon
-          col += sunColor * pow(s, 2.0) * 0.06 * horizonBoost;
+          col += sunColor * pow(s, 2.0) * 0.1 * horizonBoost;
 
           // Dusk/dawn horizon band
           float duskBand = exp(-abs(d.y) * 8.0) * nightMix * 0.3;
@@ -208,24 +208,22 @@ export class Sky {
     this.uniforms.nightMix.value = 1 - day;
     this.uniforms.starBright.value = Math.max(0, 1 - day * 3) * 0.85;
 
-    // Sun light — HDR-aware intensity (will be tone-mapped)
+    // Sun light — HDR values (tone-mapped by renderer)
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
-    // Smooth intensity curve: bright day, dim dusk, very dim night
-    const sunInt = 0.2 + day * 1.2 + dusk * 0.15;
+    const sunInt = 0.3 + day * 2.0 + dusk * 0.2;
     this.sunLight.intensity = sunInt;
-    // Color temperature: warm at dusk, neutral at noon, cool at night
     const sunCol = dusk > 0.1
       ? U.mixHex(pal.sun, '#ff7a4a', dusk * 0.7)
       : U.mixHex('#8fa8cc', pal.sun, Math.max(day, 0.2));
     this.sunLight.color.set(sunCol);
 
-    // Hemisphere light — softer ambient
-    this.hemi.intensity = 0.2 + day * 0.65 + dusk * 0.1;
+    // Hemisphere light
+    this.hemi.intensity = 0.3 + day * 0.8 + dusk * 0.1;
     this.hemi.color.set(top);
     this.hemi.groundColor.set(U.shade(pal.grass, 0.4 + day * 0.2));
 
     // Ambient fill — prevents pitch black at night
-    this.ambientFill.intensity = 0.08 + (1 - day) * 0.12;
+    this.ambientFill.intensity = 0.1 + (1 - day) * 0.2;
 
     // Sun sprite
     this.sunSprite.position.copy(sunDir).multiplyScalar(650);
