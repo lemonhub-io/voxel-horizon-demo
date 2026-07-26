@@ -16,7 +16,7 @@ npm run preview     # preview production build
 npm run typecheck   # type-check only (no output)
 ```
 
-Three.js r128 is vendored at `libs/three.min.js` with a CDN fallback in `index.html`.
+Three.js r185 is installed via npm, bundled by Vite. WebGPU renderer with WebGL2 fallback.
 
 ## Architecture
 
