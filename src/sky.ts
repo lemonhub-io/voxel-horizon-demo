@@ -81,7 +81,7 @@ export class Sky {
       this._uTimeVal = uTimeU;
       this._uStarVal = uStar;
 
-      // Build sky color node — step by step for debuggability
+      // Sky color node tree
       const d = normalize(positionLocal);
       const h = max(d.y, float(0));
 
