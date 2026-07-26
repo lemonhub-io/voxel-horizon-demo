@@ -129,7 +129,7 @@ export class Sky {
       const nightGlow = float(1).sub(h).mul(uNight).mul(0.1);
       skyColor = skyColor.add(vec3(0.04, 0.06, 0.14).mul(nightGlow));
 
-      // Create node material
+      // Create node material — use skyColor directly
       const mat = new MatClass();
       mat.colorNode = skyColor;
       mat.side = THREE.BackSide;
@@ -141,7 +141,11 @@ export class Sky {
       this.dome.renderOrder = -10;
       this.group.add(this.dome);
       this._useTSL = true;
-      console.log('[Sky] TSL node material initialized');
+      console.log('[Sky] TSL material created');
+      console.log('[Sky] colorNode:', mat.colorNode);
+      console.log('[Sky] mat.side:', mat.side, 'THREE.BackSide:', THREE.BackSide);
+      console.log('[Sky] dome in scene:', this.dome.children.length >= 0);
+      console.log('[Sky] group children:', this.group.children.length);
     } catch (e) {
       console.warn('[Sky] TSL failed, using standard material:', e);
       const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
