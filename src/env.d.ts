@@ -16,3 +16,30 @@ declare module 'three/webgpu' {
     outputColorSpace: string;
   }
 }
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer.js' {
+  export class EffectComposer {
+    constructor(renderer: unknown);
+    addPass(pass: unknown): void;
+    setSize(w: number, h: number): void;
+    render(): void;
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass.js' {
+  export class RenderPass {
+    constructor(scene: unknown, camera: unknown);
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass.js' {
+  export class UnrealBloomPass {
+    constructor(resolution: unknown, strength: number, radius: number, threshold: number);
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/FXAAPass.js' {
+  export class FXAAPass {
+    constructor(width: number, height: number);
+  }
+}

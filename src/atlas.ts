@@ -187,8 +187,8 @@ export class TextureAtlas {
     if (this.texture) this.texture.dispose();
     const tex = new THREE.CanvasTexture(this.canvas);
     tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     this.texture = tex;
     this.iconCache = {};

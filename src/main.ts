@@ -18,6 +18,7 @@ import { Player } from './player';
 import { HUD } from './hud';
 import { Missions, Milestones } from './missions';
 import { Save } from './save';
+import { PostProcessing } from './post-processing';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -94,6 +95,7 @@ export class Game {
   milestones!: Milestones;
   player!: Player;
   spawnPoint!: { x: number; z: number };
+  postProc!: PostProcessing;
   missionT?: number;
   stormLeft?: number;
   private _prevX = 0;
@@ -170,10 +172,12 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);
     this.scene.add(this.camera);
     this.atlas = new TextureAtlas();
+    this.postProc = new PostProcessing(this);
     addEventListener('resize', () => {
       this.renderer.setSize(innerWidth, innerHeight);
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
+      this.postProc.resize(innerWidth, innerHeight);
     });
     this.clock = new THREE.Clock();
   }
@@ -623,7 +627,7 @@ export class Game {
       this.sky.update(this.state === 'pause' ? 0 : dt);
       this.fx.update(dt);
       this.fx.applyShake(this.camera);
-      this.renderer.render(this.scene, this.camera);
+      this.postProc.render();
     }
   }
 }

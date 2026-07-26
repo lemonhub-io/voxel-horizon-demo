@@ -435,7 +435,8 @@ export interface Game {
   spawnPoint: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
-  initRenderer(): void;
+  postProc?: { render(): void; resize(w: number, h: number): void };
+  initRenderer(): Promise<void>;
   applySettings(): void;
   uiOpen(): boolean;
   requestPointerLock(): void;
@@ -1106,5 +1107,27 @@ namespace THREE {
   const NeutralToneMapping: number;
   const NoToneMapping: number;
   const PCFSoftShadowMap: number;
+
+  // Post-processing types
+  class EffectComposer {
+    constructor(renderer: WebGLRenderer);
+    addPass(pass: unknown): void;
+    setSize(width: number, height: number): void;
+    render(): void;
+  }
+  class RenderPass {
+    constructor(scene: Scene, camera: Camera);
+  }
+  class UnrealBloomPass {
+    constructor(resolution: Vector2, strength: number, radius: number, threshold: number);
+  }
+  class FXAAPass {
+    constructor(width: number, height: number);
+  }
+  class ShaderPass {
+    constructor(shader: Record<string, unknown>);
+    uniforms: Record<string, { value: unknown }>;
+    renderToScreen: boolean;
+  }
 }
 } // declare global

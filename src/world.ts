@@ -47,9 +47,11 @@ export class World {
   noiseC!: SimplexNoise;
   offA!: number;
   lamps!: number[][];
+  // Using MeshStandardMaterial (PBR) but typed as MeshLambertMaterial for compatibility
   matOpaque!: THREE.MeshLambertMaterial;
   matCutout!: THREE.MeshLambertMaterial;
   matWater!: THREE.MeshLambertMaterial;
+  waterCamPos: THREE.Vector3 | null = null;
   cullFrame: number;
 
   constructor(game: Game) {
@@ -84,20 +86,60 @@ export class World {
   }
 
   buildMaterials(): void {
-    const tex = this.g.atlas.texture;
+    const tex = this.g.atlas.texture as unknown as THREE.Texture | null;
     if (this.matOpaque) {
       this.matOpaque.map = tex; this.matCutout.map = tex; this.matWater.map = tex;
       this.matOpaque.needsUpdate = this.matCutout.needsUpdate = this.matWater.needsUpdate = true;
       return;
     }
-    this.matOpaque = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true });
-    this.matCutout = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide });
-    this.matWater = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false });
-    this.matCutout.onBeforeCompile = (shader: THREE.Shader) => {
+
+    // PBR materials for better lighting
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const map = tex as any;
+    this.matOpaque = new THREE.MeshStandardMaterial({
+      map, vertexColors: true, roughness: 0.85, metalness: 0.0
+    }) as unknown as THREE.MeshLambertMaterial;
+    this.matCutout = new THREE.MeshStandardMaterial({
+      map, vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
+      roughness: 0.9, metalness: 0.0
+    }) as unknown as THREE.MeshLambertMaterial;
+    this.matWater = new THREE.MeshStandardMaterial({
+      map, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,
+      roughness: 0.1, metalness: 0.3
+    }) as unknown as THREE.MeshLambertMaterial;
+
+    // Foliage sway animation
+    (this.matCutout as unknown as { onBeforeCompile: (shader: THREE.Shader) => void }).onBeforeCompile = (shader: THREE.Shader) => {
       shader.uniforms.uTime = this.g.timeUniform;
       shader.vertexShader = 'uniform float uTime;\nattribute float sway;\n' + shader.vertexShader.replace(
         '#include <begin_vertex>',
         '#include <begin_vertex>\n transformed.x += sway * sin(uTime*1.7 + position.x*0.9 + position.z*1.3)*0.07;\n transformed.z += sway * cos(uTime*1.3 + position.x*1.1)*0.07;'
+      );
+    };
+
+    // Water Fresnel + wave animation
+    (this.matWater as unknown as { onBeforeCompile: (shader: THREE.Shader) => void }).onBeforeCompile = (shader: THREE.Shader) => {
+      shader.uniforms.uTime = this.g.timeUniform;
+      const camPos = new THREE.Vector3();
+      shader.uniforms.uCamPos = { value: camPos };
+      this.waterCamPos = camPos;
+      shader.vertexShader = 'uniform float uTime;\nvarying vec3 vWorldPos;\n' + shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n transformed.y += sin(position.x * 2.0 + uTime * 1.5) * 0.04 + cos(position.z * 1.8 + uTime * 1.2) * 0.03;'
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <worldpos_vertex>',
+        '#include <worldpos_vertex>\n vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;'
+      );
+      shader.fragmentShader = 'uniform float uTime;\nuniform vec3 uCamPos;\nvarying vec3 vWorldPos;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        `// Fresnel effect
+         vec3 viewDir = normalize(uCamPos - vWorldPos);
+         float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 3.0);
+         gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * 1.4, fresnel * 0.5);
+         gl_FragColor.a = mix(0.72, 0.95, fresnel);
+         #include <dithering_fragment>`
       );
     };
   }
@@ -398,6 +440,8 @@ export class World {
   }
 
   update(px: number, pz: number, budgetMs: number): void {
+    // Update water Fresnel camera position
+    if (this.waterCamPos) this.waterCamPos.copy(this.g.camera.position);
     const R = this.g.settings.dist;
     const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16);
     const need: Chunk[] = [];

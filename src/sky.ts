@@ -72,18 +72,26 @@ export class Sky {
           vec3 d = normalize(vDir);
           float h = max(d.y, 0.0);
 
-          // Atmospheric scattering gradient
-          float scatter = pow(h, 0.45);
-          vec3 col = mix(horColor, topColor, scatter);
+          // Rayleigh scattering — wavelength-dependent extinction
+          // Blue light scatters more (short λ) → sky is blue
+          // Red light scatters less (long λ) → sun is reddish at horizon
+          vec3 rayleigh = exp(-h * vec3(5.5, 13.0, 22.4));
+          vec3 skyBase = mix(horColor, topColor, 1.0 - rayleigh);
+
+          // Blend with palette colors for biome variation
+          vec3 col = mix(skyBase, mix(horColor, topColor, pow(h, 0.45)), 0.4);
 
           // Ground reflection
           if(d.y < 0.0){
-            col = mix(horColor, horColor * 0.45, min(-d.y * 2.5, 1.0));
+            col = mix(horColor, horColor * 0.4, min(-d.y * 2.5, 1.0));
           }
 
           // Sun disc with multiple lobes (HDR values, tone-mapped by renderer)
           float s = max(dot(d, sunDir), 0.0);
           float horizonBoost = 1.0 - abs(d.y);
+
+          // Mie forward scattering — atmospheric haze near sun
+          float mie = pow(s, 8.0) * 0.15 * horizonBoost;
 
           // Core disc — very bright HDR peak
           col += sunColor * pow(s, 900.0) * 5.0;
@@ -91,28 +99,30 @@ export class Sky {
           col += sunColor * pow(s, 24.0) * 0.8;
           // Outer haze
           col += sunColor * pow(s, 5.0) * 0.3 * horizonBoost;
-          // Wide atmospheric glow near horizon
-          col += sunColor * pow(s, 2.0) * 0.1 * horizonBoost;
+          // Mie scattering contribution
+          col += sunColor * mie;
 
-          // Dusk/dawn horizon band
-          float duskBand = exp(-abs(d.y) * 8.0) * nightMix * 0.3;
-          col += vec3(1.0, 0.4, 0.15) * duskBand * max(sunDir.y + 0.2, 0.0);
+          // Dusk/dawn horizon band — enhanced with Rayleigh reddening
+          float duskBand = exp(-abs(d.y) * 6.0) * nightMix * 0.4;
+          vec3 duskColor = mix(vec3(1.0, 0.5, 0.2), vec3(1.0, 0.3, 0.1), 1.0 - rayleigh.z);
+          col += duskColor * duskBand * max(sunDir.y + 0.2, 0.0);
 
-          // Stars (only visible at night)
+          // Stars (only visible at night) — higher density grid
           if(starBright > 0.01 && d.y > -0.05){
-            vec3 cell = floor(d * 190.0);
-            float star = step(0.9975, hash3(cell));
+            vec3 cell = floor(d * 280.0);
+            float star = step(0.998, hash3(cell));
             float tw = 0.55 + 0.45 * sin(uTime * 2.4 + hash3(cell + 1.0) * 40.0);
-            // Brighter stars with slight color variation
             float starCol = hash3(cell + 2.0);
             vec3 starTint = mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 0.9, 0.7), starCol);
-            col += starTint * star * tw * starBright * 1.2;
+            // Size variation
+            float starSize = 0.8 + hash3(cell + 3.0) * 0.6;
+            col += starTint * star * tw * starBright * starSize;
           }
 
           // Night sky ambient glow
           if(nightMix > 0.3){
-            float nightGlow = (1.0 - h) * nightMix * 0.08;
-            col += vec3(0.05, 0.08, 0.15) * nightGlow;
+            float nightGlow = (1.0 - h) * nightMix * 0.1;
+            col += vec3(0.04, 0.06, 0.14) * nightGlow;
           }
 
           gl_FragColor = vec4(col, 1.0);
@@ -174,14 +184,14 @@ export class Sky {
 
   static makeGlow(): THREE.CanvasTexture {
     const c = document.createElement('canvas');
-    c.width = c.height = 128;
+    c.width = c.height = 256;
     const x = c.getContext('2d')!;
-    const g = x.createRadialGradient(64, 64, 4, 64, 64, 64);
+    const g = x.createRadialGradient(128, 128, 4, 128, 128, 128);
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(0.25, 'rgba(255,255,255,0.5)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     x.fillStyle = g;
-    x.fillRect(0, 0, 128, 128);
+    x.fillRect(0, 0, 256, 256);
     return new THREE.CanvasTexture(c);
   }
 
