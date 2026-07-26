@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { SlotItem, Recipe } from '../types';
-import { ITEMS, RECIPES } from '../config';
+import { ITEMS } from '../config';
 
 export const useInventoryStore = defineStore('inventory', () => {
   const slots = ref<(SlotItem | null)[]>(new Array(24).fill(null));

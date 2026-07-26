@@ -10,10 +10,8 @@
 
 <script setup lang="ts">
 import type { SlotItem } from '../types';
-import { useGameStore } from '../stores/gameStore';
 
 defineProps<{ items: (SlotItem | null)[]; sel: number }>();
 
-const game = useGameStore();
 function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
 </script>

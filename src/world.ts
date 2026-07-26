@@ -3,7 +3,7 @@
 // ============================================================
 
 import { U, SimplexNoise } from './utils';
-import { CFG, B, BLOCK_DEF, PALETTES } from './config';
+import { CFG, B, BLOCK_DEF } from './config';
 import type { Game, Palette, RaycastResult, ScanTarget, MeshBuffers } from './types';
 
 export class Chunk {
@@ -214,7 +214,7 @@ export class World {
     return ch.get(gx - cx * 16, gy, gz - cz * 16);
   }
 
-  setBlock(gx: number, gy: number, gz: number, id: number, opts?: object): boolean {
+  setBlock(gx: number, gy: number, gz: number, id: number, _opts?: object): boolean {
     if (gy < 1 || gy >= CFG.WORLD_H) return false;
     const cx = Math.floor(gx / 16), cz = Math.floor(gz / 16);
     const ch = this.chunks.get(this.key(cx, cz));
@@ -280,7 +280,6 @@ export class World {
       if (def.cross) {
         const t = def.tiles!.all!;
         const [u0, v0, u1, v1] = this.g.atlas.uv(t);
-        const base = cutout.pos.length / 3;
         const quads = [
           [[x + 0.08, y, z + 0.08], [x + 0.92, y, z + 0.92]],
           [[x + 0.92, y, z + 0.08], [x + 0.08, y, z + 0.92]]
@@ -477,7 +476,6 @@ export class World {
 
   findScanTargets(px: number, py: number, pz: number, radius: number): ScanTarget[] {
     const out: ScanTarget[] = [];
-    const r = Math.ceil(radius);
     const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16);
     const cr = Math.ceil(radius / 16) + 1;
     for (let dx = -cr; dx <= cr; dx++) for (let dz = -cr; dz <= cr; dz++) {

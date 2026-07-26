@@ -2,7 +2,6 @@
 // missions.ts — Mission system + Milestones
 // ============================================================
 
-import { U } from './utils';
 import { MILESTONE_DEFS } from './config';
 import type { Game, MissionDef, MilestoneDef, MissionsSaveData, MilestonesSaveData } from './types';
 
@@ -93,7 +92,7 @@ export class Missions {
 
   current(): MissionDef { return this.defs[this.idx]; }
 
-  onEvent(ev: string, data?: string): void {
+  onEvent(ev: string, _data?: string): void {
     if (ev === 'launch') this.launched = true;
     if (ev === 'place') this.shelterCount++;
   }

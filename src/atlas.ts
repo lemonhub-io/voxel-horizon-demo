@@ -1,6 +1,6 @@
 import { U } from './utils';
 import { T, ITEMS, BLOCK_DEF } from './config';
-import type { Palette, BlockDef } from './types';
+import type { Palette } from './types';
 
 export class TextureAtlas {
   size: number;
@@ -254,10 +254,10 @@ export class TextureAtlas {
         for (let i = 0; i < 3; i++) { x.strokeRect(9 + i * 3, 12 + i * 5, 26, 8); }
       } else if (g === 'tube') {
         x.beginPath();
-        for (let t = 0; t <= 40; t++) { const px2 = 6 + t * 0.9, py = 24 + Math.sin(t * 0.55) * 8; t ? x.lineTo(px2, py) : x.moveTo(px2, py); }
+        for (let t = 0; t <= 40; t++) { const px2 = 6 + t * 0.9, py = 24 + Math.sin(t * 0.55) * 8; if (t) x.lineTo(px2, py); else x.moveTo(px2, py); }
         x.stroke();
         x.beginPath();
-        for (let t = 0; t <= 40; t++) { const px2 = 6 + t * 0.9, py = 24 - Math.sin(t * 0.55) * 8; t ? x.lineTo(px2, py) : x.moveTo(px2, py); }
+        for (let t = 0; t <= 40; t++) { const px2 = 6 + t * 0.9, py = 24 - Math.sin(t * 0.55) * 8; if (t) x.lineTo(px2, py); else x.moveTo(px2, py); }
         x.stroke();
       } else if (g === 'fuel') {
         x.strokeRect(15, 8, 18, 32); x.fillRect(19, 4, 10, 5);

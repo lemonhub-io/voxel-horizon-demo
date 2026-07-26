@@ -5,7 +5,7 @@
 
 import type { InputState, Settings, SaveData, Palette, PlanetInfo, Discoveries } from './types';
 import { U } from './utils';
-import { PALETTES, HAZ_ICONS } from './config';
+import { PALETTES } from './config';
 import { TextureAtlas } from './atlas';
 import { AudioEngine } from './audio';
 import { World } from './world';
@@ -172,7 +172,7 @@ export class Game {
 
   requestPointerLock(): void {
     if (this.state === 'play' && !this.uiOpen()) {
-      try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch (_e) { /* requires user gesture */ }
+      try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch { /* requires user gesture */ }
     }
   }
   exitPointerLock(): void { if (document.pointerLockElement) document.exitPointerLock(); }
@@ -460,6 +460,7 @@ export class Game {
   }
 
   startWarp(): void {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const g = this;
     const s = this.stores;
     this.state = 'warp';
@@ -520,7 +521,7 @@ export class Game {
     }, 2200);
   }
 
-  onPlayerDeath(cause?: string): void {
+  onPlayerDeath(_cause?: string): void {
     const s = this.stores;
     this.state = 'dead';
     s.game.state = 'dead';

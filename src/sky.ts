@@ -148,7 +148,7 @@ export class Sky {
     const dusk = U.clamp(1 - Math.abs(sunY) * 4, 0, 1) * (day > 0.05 ? 1 : 0.4);
     const pal = this.pal;
 
-    let top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
+    const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff9a5a', dusk * 0.55);
     this.uniforms.topColor.value.set(top);

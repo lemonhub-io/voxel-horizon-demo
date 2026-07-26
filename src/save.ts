@@ -33,7 +33,7 @@ export const Save = {
       const raw = localStorage.getItem(CFG.SAVE_KEY);
       if (!raw) return null;
       return JSON.parse(raw) as SaveData;
-    } catch (e) { return null; }
+    } catch { return null; }
   },
   clear(): void { localStorage.removeItem(CFG.SAVE_KEY); },
   loadSettings(): Settings {
@@ -41,9 +41,9 @@ export const Save = {
       const raw = localStorage.getItem(CFG.SET_KEY);
       if (!raw) return { ...DEFAULT_SETTINGS };
       return Object.assign({ ...DEFAULT_SETTINGS }, JSON.parse(raw)) as Settings;
-    } catch (e) { return { ...DEFAULT_SETTINGS }; }
+    } catch { return { ...DEFAULT_SETTINGS }; }
   },
   saveSettings(s: Settings): void {
-    try { localStorage.setItem(CFG.SET_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(CFG.SET_KEY, JSON.stringify(s)); } catch { /* ignore */ }
   }
 };

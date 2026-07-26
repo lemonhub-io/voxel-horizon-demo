@@ -3,8 +3,7 @@
 // UI rendering handled by Vue InventoryScreen component
 // ============================================================
 
-import { U } from './utils';
-import { ITEMS, RECIPES } from './config';
+import { ITEMS } from './config';
 import type { Game, SlotItem, Recipe, InventorySaveData } from './types';
 import { useInventoryStore } from './stores/inventoryStore';
 

@@ -1,8 +1,8 @@
 <template>
   <TitleScreen
     v-if="game.state === 'title'"
-    :has-save="hasSave"
     ref="titleRef"
+    :has-save="hasSave"
     @new-game="onNewGame"
     @continue="onContinue"
     @help="showHelp = true"

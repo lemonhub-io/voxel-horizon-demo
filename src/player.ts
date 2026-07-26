@@ -289,7 +289,7 @@ export class Player {
     }
   }
 
-  updateTargeting(dt?: number): void {
+  updateTargeting(_dt?: number): void {
     const g = this.g;
     const hit = g.world.raycast(this.eyePos(), this.lookDir(), CFG.REACH);
     this.target = hit;

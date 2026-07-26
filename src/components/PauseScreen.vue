@@ -7,6 +7,7 @@
       <button class="btn t-btn" @click="$emit('help')">操作手册</button>
       <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       <button class="btn t-btn" @click="$emit('quit')">返回标题</button>
+      <!-- eslint-disable-next-line vue/no-v-html -->
       <div id="pause-stats" v-html="statsHtml"></div>
     </div>
   </div>

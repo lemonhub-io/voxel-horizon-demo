@@ -79,7 +79,7 @@ import { useInventoryStore } from '../stores/inventoryStore';
 import { useGameStore } from '../stores/gameStore';
 import { useMilestonesStore } from '../stores/milestonesStore';
 import { ITEMS, RECIPES, MILESTONE_DEFS } from '../config';
-import type { SlotItem, Recipe, MilestoneDef } from '../types';
+import type { SlotItem, MilestoneDef } from '../types';
 
 defineEmits(['close', 'slot-click', 'slot-hover', 'slot-leave', 'use-item', 'craft']);
 

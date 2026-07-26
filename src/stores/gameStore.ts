@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Palette, Settings, Discoveries, PlanetInfo } from '../types';
 import { PALETTES } from '../config';
-import { U } from '../utils';
 
 export const useGameStore = defineStore('game', () => {
   const state = ref('title');

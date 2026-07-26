@@ -4,7 +4,7 @@
 // ============================================================
 
 import { U } from './utils';
-import { B, ITEMS } from './config';
+import { B } from './config';
 import type { Game, Marker, PlanetInfo } from './types';
 import { useHudStore } from './stores/hudStore';
 
@@ -49,7 +49,7 @@ export class HUD {
     ctx.font = '600 15px Rajdhani';
     ctx.textAlign = 'center';
     for (let d = -100; d <= 100; d += 5) {
-      let a = Math.round((deg + d) / 5) * 5;
+      const a = Math.round((deg + d) / 5) * 5;
       const x = W / 2 + (a - deg) * pxPerDeg;
       if (x < 10 || x > W - 10) continue;
       const norm = ((a % 360) + 360) % 360;
@@ -72,7 +72,7 @@ export class HUD {
       const dx = sp.x - g.player.pos.x, dz = sp.z - g.player.pos.z;
       const dist = Math.sqrt(dx * dx + dz * dz);
       if (dist > 8) {
-        let bearing = Math.atan2(dx, -dz) * 180 / Math.PI;
+        const bearing = Math.atan2(dx, -dz) * 180 / Math.PI;
         let rel = bearing - deg;
         while (rel > 180) rel -= 360;
         while (rel < -180) rel += 360;
@@ -185,11 +185,11 @@ export class HUD {
     useHudStore().interactKey = '';
   }
 
-  setMineProgress(p: number): void {
+  setMineProgress(_p: number): void {
     // Rendered reactively by HudOverlay via player store
   }
 
-  setHeat(h: number, hot: boolean): void {
+  setHeat(_h: number, _hot: boolean): void {
     // Rendered reactively by HudOverlay via player store
   }
 

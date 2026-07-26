@@ -3,7 +3,7 @@
 // ============================================================
 
 import { U } from './utils';
-import { CFG, ITEMS } from './config';
+import { ITEMS } from './config';
 import { Sky } from './sky';
 import type { Game, ShipComponent, ShipSaveData } from './types';
 

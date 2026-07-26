@@ -1,7 +1,7 @@
 <template>
   <div id="hud">
     <div id="hud-top">
-      <div id="compass-wrap"><canvas id="compass" width="640" height="52" ref="compassCanvas"></canvas></div>
+      <div id="compass-wrap"><canvas id="compass" ref="compassCanvas" width="640" height="52"></canvas></div>
       <div id="hud-corner">
         <div id="hud-units"><span class="u-sym">◈</span><span>{{ inventory.units }}</span></div>
         <div id="hud-planet">{{ game.planetName }}</div>
@@ -24,7 +24,7 @@
     </div>
 
     <div id="stats-left" :class="{ hidden: hud.flightHudOn }">
-      <div class="stat-row" id="shield-row"><span class="stat-ico">⬡</span><div class="bar"><div class="bar-fill shield" :style="{ width: player.hp + '%' }"></div></div></div>
+      <div id="shield-row" class="stat-row"><span class="stat-ico">⬡</span><div class="bar"><div class="bar-fill shield" :style="{ width: player.hp + '%' }"></div></div></div>
       <div class="stat-row"><span class="stat-ico">✚</span><div id="hp-segs"><div v-for="i in 4" :key="i" class="hp-seg" :class="{ off: player.hp / 100 < i / 4 - 0.24, hurt: player.hp < 30 }"></div></div></div>
     </div>
 
@@ -41,7 +41,7 @@
       <div id="mission-kind">任务</div>
       <div id="mission-title">{{ hud.missionTitle }}</div>
       <div id="mission-desc">{{ hud.missionDesc }}</div>
-      <div id="mission-prog-wrap" v-if="hud.missionMax > 0"><div class="bar slim"><div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div></div><span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span></div>
+      <div v-if="hud.missionMax > 0" id="mission-prog-wrap"><div class="bar slim"><div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div></div><span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span></div>
     </div>
 
     <div id="marker-layer"></div>
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onMounted } from 'vue';
+import { computed, ref } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { usePlayerStore } from '../stores/playerStore';
 import { useInventoryStore } from '../stores/inventoryStore';
