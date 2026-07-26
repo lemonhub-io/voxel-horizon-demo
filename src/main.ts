@@ -164,7 +164,7 @@ export class Game {
     // HDR tone mapping for better light range
     const r = this.renderer as unknown as Record<string, unknown>;
     r.toneMapping = THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure = 1.8;
+    r.toneMappingExposure = 2.2;
 
     // Shadow maps
     this.renderer.shadowMap.enabled = true;

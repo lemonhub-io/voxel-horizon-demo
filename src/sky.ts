@@ -116,9 +116,9 @@ export class Sky {
     const starSize = float(0.8).add(hash3(cell.add(3)).mul(0.6));
     skyColor = skyColor.add(starTint.mul(star).mul(tw).mul(uStar).mul(starSize));
 
-    // Night glow
-    const nightGlow = float(1).sub(h).mul(uNight).mul(0.1);
-    skyColor = skyColor.add(vec3(0.04, 0.06, 0.14).mul(nightGlow));
+    // Night glow — brighter for better visibility
+    const nightGlow = float(1).sub(h).mul(uNight).mul(0.2);
+    skyColor = skyColor.add(vec3(0.08, 0.12, 0.25).mul(nightGlow));
 
     // Create node material (MeshBasicNodeMaterial is from the WebGPU build)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,7 +223,7 @@ export class Sky {
     this._uSunCol.value = new THREE.Color(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
     this._uSun.value = new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z);
     this._uNight.value = 1 - day;
-    this._uStar.value = Math.max(0, 1 - day * 3) * 0.85;
+    this._uStar.value = Math.max(0, 1 - day * 2.5) * 1.0;
 
     // Sun light
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
@@ -239,15 +239,15 @@ export class Sky {
         this.sunLight.target.updateMatrixWorld();
       }
     }
-    this.sunLight.intensity = 0.3 + day * 2.0 + dusk * 0.2;
+    this.sunLight.intensity = 0.6 + day * 1.8 + dusk * 0.2;
     this.sunLight.color.set(dusk > 0.1
       ? U.mixHex(pal.sun, '#ff7a4a', dusk * 0.7)
       : U.mixHex('#8fa8cc', pal.sun, Math.max(day, 0.2)));
 
-    this.hemi.intensity = 0.3 + day * 0.8 + dusk * 0.1;
+    this.hemi.intensity = 0.5 + day * 0.7 + dusk * 0.1;
     this.hemi.color.set(top);
-    this.hemi.groundColor.set(U.shade(pal.grass, 0.4 + day * 0.2));
-    this.ambientFill.intensity = 0.1 + (1 - day) * 0.2;
+    this.hemi.groundColor.set(U.shade(pal.grass, 0.5 + day * 0.2));
+    this.ambientFill.intensity = 0.25 + (1 - day) * 0.25;
 
     this.sunSprite.position.copy(sunDir).multiplyScalar(650);
     (this.sunSprite.material as THREE.SpriteMaterial).opacity = 0.4 + day * 0.5 + dusk * 0.15;
