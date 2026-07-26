@@ -911,12 +911,12 @@ namespace THREE {
     updateProjectionMatrix(): void;
   }
   class WebGLRenderer {
-    constructor(params: { canvas: HTMLCanvasElement; antialias?: boolean; powerPreference?: string });
+    constructor(params: { canvas: HTMLCanvasElement; antialias?: boolean; powerPreference?: string; forceWebGL?: boolean });
     setPixelRatio(ratio: number): void;
     setSize(width: number, height: number): void;
     setClearColor(color: string | number): void;
     render(scene: Scene, camera: Camera): void;
-    outputEncoding: number;
+    outputColorSpace: string;
   }
   class Fog { constructor(color: string, near: number, far: number); color: Color; near: number; far: number; }
   class BufferGeometry {
@@ -932,7 +932,6 @@ namespace THREE {
     count: number;
     setXY(index: number, x: number, y: number): void;
   }
-  class Float32BufferAttribute extends BufferAttribute { constructor(array: number[], itemSize: number); }
   class EdgesGeometry extends BufferGeometry { constructor(geometry: BufferGeometry); }
   class SphereGeometry extends BufferGeometry { constructor(radius: number, widthSegments?: number, heightSegments?: number); }
   class BoxGeometry extends BufferGeometry {
@@ -1062,6 +1061,6 @@ namespace THREE {
   const DoubleSide: number;
   const NearestFilter: number;
   const ClampToEdgeWrapping: number;
-  const sRGBEncoding: number;
+  const SRGBColorSpace: string;
 }
 } // declare global

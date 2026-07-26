@@ -149,7 +149,7 @@ export function createThreeMock() {
   class SpotLight extends Light { target = new Object3D(); constructor() { super(); } }
 
   class WebGLRenderer {
-    outputEncoding = 0;
+    outputColorSpace = 'srgb';
     setPixelRatio() {}
     setSize() {}
     setClearColor() {}
@@ -167,7 +167,7 @@ export function createThreeMock() {
     Material, MeshBasicMaterial, MeshLambertMaterial, PointsMaterial, LineBasicMaterial, SpriteMaterial,
     Texture, CanvasTexture, Mesh, Points, LineSegments, Sprite, Group,
     Light, DirectionalLight, HemisphereLight, PointLight, SpotLight,
-    AdditiveBlending: 2, BackSide: 1, DoubleSide: 2, NearestFilter: 0, ClampToEdgeWrapping: 0, sRGBEncoding: 0,
+    AdditiveBlending: 2, BackSide: 1, DoubleSide: 2, NearestFilter: 0, ClampToEdgeWrapping: 0, SRGBColorSpace: 'srgb',
     ShaderMaterial: Material,
   };
 

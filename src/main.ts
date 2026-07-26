@@ -137,10 +137,20 @@ export class Game {
 
   initRenderer(): void {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+
+    // Use WebGPURenderer with automatic WebGL2 fallback
+    const WebGPURenderer = (THREE as unknown as Record<string, unknown>).WebGPURenderer;
+    if (WebGPURenderer) {
+      this.renderer = new (WebGPURenderer as new (opts: Record<string, unknown>) => THREE.WebGLRenderer)({ canvas, antialias: false });
+      console.log('[VoxelHorizon] WebGPURenderer initialized (WebGPU backend with WebGL2 fallback)');
+    } else {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+      console.log('[VoxelHorizon] WebGLRenderer initialized (legacy)');
+    }
+
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
     this.renderer.setSize(innerWidth, innerHeight);
-    this.renderer.outputEncoding = THREE.sRGBEncoding;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);

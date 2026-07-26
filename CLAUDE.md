@@ -80,7 +80,7 @@ TypeScript (strict mode, no `any`) with Vite. ES modules with proper imports/exp
 ## Important Conventions
 
 - **TypeScript strict mode.** No `any` types. All variables, parameters, and return types must be explicitly annotated or inferrable.
-- **Three.js r128 API.** Uses `THREE.sRGBEncoding`, older material syntax. Do not upgrade to newer Three.js patterns. THREE is loaded via `<script>` tag and declared as a global namespace in `src/types.ts`.
+- **Three.js r185 API with WebGPU.** Uses `WebGPURenderer` (auto-fallback to WebGL2), `outputColorSpace = SRGBColorSpace`. THREE is loaded via `<script>` tag (`libs/three.webgpu.min.js`) and declared as a global namespace in `src/types.ts`.
 - **Module references.** Classes reference each other through `this.g` (game reference passed in constructor) and explicit imports.
 - **Seed-based generation.** Use `U.mulberry32(seed)` for seeded RNG, `U.rand(min, max)` / `U.randi(min, max)` for unseeded.
 - **Type declarations.** Shared interfaces are in `src/types.ts` with `export`. THREE.js types are declared via `declare global { namespace THREE { ... } }`.
