@@ -109,43 +109,8 @@ export class World {
       roughness: 0.1, metalness: 0.3
     }) as unknown as THREE.MeshLambertMaterial;
 
-    // Water Fresnel via TSL (WebGPU-compatible)
-    this._applyWaterTSL();
-  }
-
-  private _applyWaterTSL(): void {
-    try {
-      const g = window as unknown as { THREE: { TSL: import('three/webgpu').TSL; MeshStandardNodeMaterial: new () => import('three/webgpu').MeshStandardNodeMaterial } };
-      const TSL = g.THREE.TSL;
-      const MatClass = g.THREE.MeshStandardNodeMaterial;
-      if (!TSL || !MatClass) return;
-
-      const { float, vec3, mix, pow, max, dot, normalize, positionWorld, cameraPosition, Fn } = TSL;
-
-      // Fresnel: more reflective at grazing angles
-      const fresnelNode = Fn(() => {
-        const viewDir = normalize(cameraPosition.sub(positionWorld));
-        return pow(float(1).sub(max(dot(viewDir, vec3(0, 1, 0)), 0)), 3);
-      });
-
-      const mat = new MatClass();
-      mat.transparent = true;
-      mat.opacity = 0.72;
-      mat.depthWrite = false;
-      mat.roughness = 0.1;
-      mat.metalness = 0.3;
-      mat.side = THREE.FrontSide;
-
-      // Color node: base color brightened by Fresnel
-      const baseColor = vec3(0.18, 0.5, 0.66);
-      const fresnel = fresnelNode();
-      mat.colorNode = mix(baseColor, baseColor.mul(1.5), fresnel.mul(0.5));
-      mat.opacityNode = mix(float(0.72), float(0.95), fresnel);
-
-      this._waterTSLMat = mat;
-    } catch {
-      // TSL not available, keep standard material
-    }
+    // Water Fresnel disabled — TSL causes black screen on some setups
+    // TODO: Re-enable when TSL compatibility is confirmed
   }
 
   key(cx: number, cz: number): string { return cx + ',' + cz; }

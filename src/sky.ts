@@ -1,120 +1,49 @@
 // ============================================================
-// sky.ts — Sky dome with TSL (WebGPU-compatible) shader
+// sky.ts — Sky dome with per-frame color update (WebGPU-compatible)
 // ============================================================
 
 import { U } from './utils';
 import { CFG } from './config';
 import type { Game, Palette } from './types';
-import type { TSL, TSLNode, MeshBasicNodeMaterial } from 'three/webgpu';
-
-function getTSL(): TSL {
-  return (window as unknown as { THREE: { TSL: TSL } }).THREE.TSL;
-}
-
-function getMeshBasicNodeMaterial(): new () => MeshBasicNodeMaterial {
-  return (window as unknown as { THREE: { MeshBasicNodeMaterial: new () => MeshBasicNodeMaterial } }).THREE.MeshBasicNodeMaterial;
-}
 
 export class Sky {
   g: Game;
   group: THREE.Group;
-  // TSL uniform value holders (reassigned each frame to trigger node updates)
-  private _uTopVal!: { value: unknown };
-  private _uHorVal!: { value: unknown };
-  private _uSunVal!: { value: unknown };
-  private _uSunColVal!: { value: unknown };
-  private _uNightVal!: { value: unknown };
-  private _uTimeVal!: { value: unknown };
-  private _uStarVal!: { value: unknown };
-  dome!: THREE.Mesh;
-  sunLight!: THREE.DirectionalLight;
-  hemi!: THREE.HemisphereLight;
-  ambientFill!: THREE.AmbientLight;
-  celestial!: THREE.Group;
-  planetBig!: THREE.Mesh;
-  moon!: THREE.Mesh;
-  planetGlow!: THREE.Sprite;
-  sunSprite!: THREE.Sprite;
+  dome: THREE.Mesh;
+  sunLight: THREE.DirectionalLight;
+  hemi: THREE.HemisphereLight;
+  ambientFill: THREE.AmbientLight;
+  celestial: THREE.Group;
+  planetBig: THREE.Mesh;
+  moon: THREE.Mesh;
+  planetGlow: THREE.Sprite;
+  sunSprite: THREE.Sprite;
   t: number;
   dayMix: number;
   pal!: Palette;
   private _sunDir = new THREE.Vector3();
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
-  private _useTSL = false;
 
   constructor(game: Game) {
     this.g = game;
     this.group = new THREE.Group();
     game.scene.add(this.group);
-
     this.t = 0.28;
     this.dayMix = 1;
 
-    this._buildSkyDome();
-    this._buildLights();
-    this._buildCelestial();
-  }
+    // Sky dome — standard material, color updated per frame
+    const mat = new THREE.MeshBasicMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+    });
+    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
+    this.dome.frustumCulled = false;
+    this.dome.renderOrder = -10;
+    this.group.add(this.dome);
 
-  private _buildSkyDome(): void {
-    try {
-      const t = getTSL();
-      const MatClass = getMeshBasicNodeMaterial();
-      if (!t || !MatClass) throw new Error('TSL not available');
-
-      const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn } = t;
-
-      // TSL uniforms
-      const uTop = uniform('vec3'); uTop.value = new THREE.Color('#3a8fd4');
-      const uHor = uniform('vec3'); uHor.value = new THREE.Color('#bfe4ee');
-      const uSun = uniform('vec3'); uSun.value = new THREE.Vector3(0, 1, 0);
-      const uSunCol = uniform('vec3'); uSunCol.value = new THREE.Color('#fff2d0');
-      const uNight = uniform('float'); uNight.value = 0;
-      const uTimeU = uniform('float'); uTimeU.value = 0;
-      const uStar = uniform('float'); uStar.value = 0;
-
-      this._uTopVal = uTop;
-      this._uHorVal = uHor;
-      this._uSunVal = uSun;
-      this._uSunColVal = uSunCol;
-      this._uNightVal = uNight;
-      this._uTimeVal = uTimeU;
-      this._uStarVal = uStar;
-
-      // Simple test: hardcoded sky blue gradient
-      const d = normalize(positionLocal);
-      const h = max(d.y, float(0));
-      const skyColor = mix(uHor, uTop, pow(h, 0.45));
-
-      // Create node material
-      const mat = new MatClass();
-      mat.colorNode = skyColor;
-      mat.side = THREE.BackSide;
-      mat.depthWrite = false;
-      mat.fog = false;
-
-      this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
-      this.dome.frustumCulled = false;
-      this.dome.renderOrder = -10;
-      this.group.add(this.dome);
-      this._useTSL = true;
-      console.log('[Sky] TSL material created');
-      console.log('[Sky] colorNode:', mat.colorNode);
-      console.log('[Sky] mat.side:', mat.side, 'THREE.BackSide:', THREE.BackSide);
-      console.log('[Sky] dome in scene:', this.dome.children.length >= 0);
-      console.log('[Sky] group children:', this.group.children.length);
-    } catch (e) {
-      console.warn('[Sky] TSL failed, using standard material:', e);
-      const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
-      this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
-      this.dome.frustumCulled = false;
-      this.dome.renderOrder = -10;
-      this.group.add(this.dome);
-      this._useTSL = false;
-    }
-  }
-
-  private _buildLights(): void {
+    // Lights
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
@@ -127,16 +56,15 @@ export class Sky {
     this.sunLight.shadow.bias = -0.001;
     this.sunLight.shadow.normalBias = 0.02;
     this.sunLight.shadow.radius = 2;
-    this.g.scene.add(this.sunLight);
+    game.scene.add(this.sunLight);
 
     this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
-    this.g.scene.add(this.hemi);
+    game.scene.add(this.hemi);
 
     this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.15);
-    this.g.scene.add(this.ambientFill as unknown as THREE.Object3D);
-  }
+    game.scene.add(this.ambientFill as unknown as THREE.Object3D);
 
-  private _buildCelestial(): void {
+    // Celestial bodies
     this.celestial = new THREE.Group();
     this.group.add(this.celestial);
     const mk = (r: number, col: string, emis: string, x: number, y: number, z: number): THREE.Mesh => {
@@ -193,24 +121,13 @@ export class Sky {
     const dusk = U.clamp(1 - Math.abs(sunY) * 3.5, 0, 1) * (day > 0.03 ? 1 : 0.3);
     const pal = this.pal;
 
-    // Update sky dome color
+    // Sky dome color — blend top/horizon by day/night + dusk tint
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-
-    if (this._useTSL && this._uTopVal) {
-      // TSL uniform update — reassign .value to trigger node update
-      this._uTopVal.value = new THREE.Color(top);
-      this._uHorVal.value = new THREE.Color(hor);
-      this._uSunColVal.value = new THREE.Color(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
-      this._uSunVal.value = new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z);
-      this._uNightVal.value = 1 - day;
-      this._uTimeVal.value = g.timeUniform.value;
-      this._uStarVal.value = Math.max(0, 1 - day * 3) * 0.85;
-    } else if (!this._useTSL) {
-      // Fallback: update standard material color directly
-      (this.dome.material as THREE.MeshBasicMaterial).color.set(top);
-    }
+    // Blend top and horizon for dome average color
+    const domeColor = U.mixHex(hor, top, 0.45);
+    (this.dome.material as THREE.MeshBasicMaterial).color.set(domeColor);
 
     // Sun light
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
