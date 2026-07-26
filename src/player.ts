@@ -54,6 +54,8 @@ export class Player {
   // Pre-allocated scratch vectors to avoid per-frame allocations
   private _eyePos = new THREE.Vector3();
   private _lookDir = new THREE.Vector3();
+  private _jumpTime = 0;
+  private _landImpact = 0;
   private _fwd = new THREE.Vector3();
   private _right = new THREE.Vector3();
   private _wish = new THREE.Vector3();
@@ -191,16 +193,18 @@ export class Player {
       this.vel.y = Math.max(this.vel.y, -3.2);
       if (input.keys['Space']) this.vel.y = Math.min(this.vel.y + 16 * dt, 3.4);
     } else {
-      // Only apply gravity if not on ground (prevents Y oscillation)
+      // Variable gravity: lighter ascent, snappier descent
       if (!this.onGround || this.vel.y > 0) {
-        this.vel.y -= CFG.GRAVITY * dt;
+        const gravMul = this.vel.y > 0 ? 0.85 : 1.3; // ascent: 85% gravity, descent: 130%
+        this.vel.y -= CFG.GRAVITY * gravMul * dt;
       } else {
         this.vel.y = 0;
       }
       if (input.keys['Space']) {
         if (this.onGround) {
-          this.vel.y = 8.0;
+          this.vel.y = 7.2;
           this.onGround = false;
+          this._jumpTime = 0;
           g.audio.jump();
         } else if (this.jetFuel > 1) {
           this.vel.y = Math.min(this.vel.y + 30 * dt, 6.2);
@@ -237,7 +241,20 @@ export class Player {
     // Idle sway — subtle breathing motion when standing still
     const idleSwayX = this.onGround && !moving ? Math.sin(g.time * 1.1) * 0.008 : 0;
     const idleSwayY = this.onGround && !moving ? Math.sin(g.time * 0.7) * 0.005 : 0;
-    cam.position.y += bob + idleSwayY;
+
+    // Jump arc camera — slight pull-up at start, push-down at apex
+    let jumpCamY = 0;
+    if (!this.onGround) {
+      this._jumpTime += dt;
+      const jt = this._jumpTime;
+      // Slight upward tilt at jump start, then level off
+      jumpCamY = Math.sin(jt * 4) * 0.03 * Math.max(0, 1 - jt);
+    }
+    // Landing camera dip — decays over 0.3s
+    this._landImpact = Math.max(0, this._landImpact - dt * 0.5);
+    const landDip = this._landImpact * Math.sin(this._landImpact * 10);
+
+    cam.position.y += bob + idleSwayY + jumpCamY - landDip;
     cam.position.x += idleSwayX;
     cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
 
@@ -305,7 +322,11 @@ export class Player {
         this.damage(dmg, '坠落');
         this.g.audio.land(true);
         this.g.fx.shake(0.3);
-      } else if (impact < -6) this.g.audio.land(false);
+      } else if (impact < -6) {
+        this.g.audio.land(false);
+      }
+      // Landing camera dip — proportional to fall speed
+      this._landImpact = Math.min(Math.abs(impact) * 0.012, 0.15);
     }
   }
 
