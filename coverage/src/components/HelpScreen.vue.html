@@ -1,0 +1,154 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/components/HelpScreen.vue</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../prettify.css" />
+    <link rel="stylesheet" href="../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/components</a> HelpScreen.vue</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>4/4</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>4/4</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>1/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>3/3</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">&lt;template&gt;
+  &lt;div id="help-screen" class="screen" style="z-index:200"&gt;
+    &lt;div class="help-box panel"&gt;
+      &lt;div class="p-kicker"&gt;操作手册 // MANUAL&lt;/div&gt;
+      &lt;div class="help-grid"&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;W A S D&lt;/span&gt; 移动&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;Shift&lt;/span&gt; 冲刺&lt;/div&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;空格&lt;/span&gt; 跳跃 / 按住喷气背包&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;鼠标左键&lt;/span&gt; 激光采集 / 攻击&lt;/div&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;鼠标右键&lt;/span&gt; 放置方块 / 使用物品&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;1-9 / 滚轮&lt;/span&gt; 快捷栏&lt;/div&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;E&lt;/span&gt; 交互 / 进入飞船&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;Tab&lt;/span&gt; 背包 · 合成 · 发现&lt;/div&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;C&lt;/span&gt; 扫描脉冲(标记资源)&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;F&lt;/span&gt; 分析目镜&lt;/div&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;Z&lt;/span&gt; 补充生命维持(消耗氧)&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;X&lt;/span&gt; 补充危险防护(消耗钠)&lt;/div&gt;
+        &lt;div&gt;&lt;span class="kbd"&gt;T&lt;/span&gt; 手电&lt;/div&gt;&lt;div&gt;&lt;span class="kbd"&gt;Esc&lt;/span&gt; 暂停&lt;/div&gt;
+        &lt;div class="help-wide"&gt;飞行模式：鼠标转向 · &lt;span class="kbd"&gt;W/S&lt;/span&gt; 油门 · &lt;span class="kbd"&gt;空格&lt;/span&gt; 加力 · &lt;span class="kbd"&gt;E&lt;/span&gt; 降落 · &lt;span class="kbd"&gt;J&lt;/span&gt; 跃迁(需跃迁电池)&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class="help-flow"&gt;旅程指引：补充防护(钠·黄色荧光植物) → 校准工具(铁尘·岩石) → 生命维持(氧·红色呼吸花) → 合成金属镀层修复推进器 → 碳纳米管修复脉冲引擎 → 双氢合成启动燃料 → 起飞 → 建造庇护所 · 扫描生物 · 合成跃迁电池 → 跃迁新星球&lt;/div&gt;
+      &lt;div class="set-actions"&gt;&lt;button class="btn sm" @click="$emit('back')"&gt;返回&lt;/button&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+&nbsp;
+&lt;script setup lang="ts"&gt;
+defineEmits(['back']);
+&lt;/script&gt;
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-07-26T09:27:49.459Z
+            </div>
+        <script src="../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../sorter.js"></script>
+        <script src="../../block-navigation.js"></script>
+    </body>
+</html>
+    

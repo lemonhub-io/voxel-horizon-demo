@@ -24,5 +24,9 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   function stackMax(id: string): number { return ITEMS[id]?.stack || 64; }
 
-  return { slots, hotbar, sel, units, open, tab, drag, selRecipe, selected, count, stackMax };
+  function canAfford(req: [string, number][]): boolean {
+    return req.every(([id, n]) => count(id) >= n);
+  }
+
+  return { slots, hotbar, sel, units, open, tab, drag, selRecipe, selected, count, stackMax, canAfford };
 });

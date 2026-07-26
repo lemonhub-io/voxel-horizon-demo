@@ -1,0 +1,1411 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/audio.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">src</a> audio.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/475</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/149</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/68</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/314</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a>
+<a name='L295'></a><a href='#L295'>295</a>
+<a name='L296'></a><a href='#L296'>296</a>
+<a name='L297'></a><a href='#L297'>297</a>
+<a name='L298'></a><a href='#L298'>298</a>
+<a name='L299'></a><a href='#L299'>299</a>
+<a name='L300'></a><a href='#L300'>300</a>
+<a name='L301'></a><a href='#L301'>301</a>
+<a name='L302'></a><a href='#L302'>302</a>
+<a name='L303'></a><a href='#L303'>303</a>
+<a name='L304'></a><a href='#L304'>304</a>
+<a name='L305'></a><a href='#L305'>305</a>
+<a name='L306'></a><a href='#L306'>306</a>
+<a name='L307'></a><a href='#L307'>307</a>
+<a name='L308'></a><a href='#L308'>308</a>
+<a name='L309'></a><a href='#L309'>309</a>
+<a name='L310'></a><a href='#L310'>310</a>
+<a name='L311'></a><a href='#L311'>311</a>
+<a name='L312'></a><a href='#L312'>312</a>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a>
+<a name='L322'></a><a href='#L322'>322</a>
+<a name='L323'></a><a href='#L323'>323</a>
+<a name='L324'></a><a href='#L324'>324</a>
+<a name='L325'></a><a href='#L325'>325</a>
+<a name='L326'></a><a href='#L326'>326</a>
+<a name='L327'></a><a href='#L327'>327</a>
+<a name='L328'></a><a href='#L328'>328</a>
+<a name='L329'></a><a href='#L329'>329</a>
+<a name='L330'></a><a href='#L330'>330</a>
+<a name='L331'></a><a href='#L331'>331</a>
+<a name='L332'></a><a href='#L332'>332</a>
+<a name='L333'></a><a href='#L333'>333</a>
+<a name='L334'></a><a href='#L334'>334</a>
+<a name='L335'></a><a href='#L335'>335</a>
+<a name='L336'></a><a href='#L336'>336</a>
+<a name='L337'></a><a href='#L337'>337</a>
+<a name='L338'></a><a href='#L338'>338</a>
+<a name='L339'></a><a href='#L339'>339</a>
+<a name='L340'></a><a href='#L340'>340</a>
+<a name='L341'></a><a href='#L341'>341</a>
+<a name='L342'></a><a href='#L342'>342</a>
+<a name='L343'></a><a href='#L343'>343</a>
+<a name='L344'></a><a href='#L344'>344</a>
+<a name='L345'></a><a href='#L345'>345</a>
+<a name='L346'></a><a href='#L346'>346</a>
+<a name='L347'></a><a href='#L347'>347</a>
+<a name='L348'></a><a href='#L348'>348</a>
+<a name='L349'></a><a href='#L349'>349</a>
+<a name='L350'></a><a href='#L350'>350</a>
+<a name='L351'></a><a href='#L351'>351</a>
+<a name='L352'></a><a href='#L352'>352</a>
+<a name='L353'></a><a href='#L353'>353</a>
+<a name='L354'></a><a href='#L354'>354</a>
+<a name='L355'></a><a href='#L355'>355</a>
+<a name='L356'></a><a href='#L356'>356</a>
+<a name='L357'></a><a href='#L357'>357</a>
+<a name='L358'></a><a href='#L358'>358</a>
+<a name='L359'></a><a href='#L359'>359</a>
+<a name='L360'></a><a href='#L360'>360</a>
+<a name='L361'></a><a href='#L361'>361</a>
+<a name='L362'></a><a href='#L362'>362</a>
+<a name='L363'></a><a href='#L363'>363</a>
+<a name='L364'></a><a href='#L364'>364</a>
+<a name='L365'></a><a href='#L365'>365</a>
+<a name='L366'></a><a href='#L366'>366</a>
+<a name='L367'></a><a href='#L367'>367</a>
+<a name='L368'></a><a href='#L368'>368</a>
+<a name='L369'></a><a href='#L369'>369</a>
+<a name='L370'></a><a href='#L370'>370</a>
+<a name='L371'></a><a href='#L371'>371</a>
+<a name='L372'></a><a href='#L372'>372</a>
+<a name='L373'></a><a href='#L373'>373</a>
+<a name='L374'></a><a href='#L374'>374</a>
+<a name='L375'></a><a href='#L375'>375</a>
+<a name='L376'></a><a href='#L376'>376</a>
+<a name='L377'></a><a href='#L377'>377</a>
+<a name='L378'></a><a href='#L378'>378</a>
+<a name='L379'></a><a href='#L379'>379</a>
+<a name='L380'></a><a href='#L380'>380</a>
+<a name='L381'></a><a href='#L381'>381</a>
+<a name='L382'></a><a href='#L382'>382</a>
+<a name='L383'></a><a href='#L383'>383</a>
+<a name='L384'></a><a href='#L384'>384</a>
+<a name='L385'></a><a href='#L385'>385</a>
+<a name='L386'></a><a href='#L386'>386</a>
+<a name='L387'></a><a href='#L387'>387</a>
+<a name='L388'></a><a href='#L388'>388</a>
+<a name='L389'></a><a href='#L389'>389</a>
+<a name='L390'></a><a href='#L390'>390</a>
+<a name='L391'></a><a href='#L391'>391</a>
+<a name='L392'></a><a href='#L392'>392</a>
+<a name='L393'></a><a href='#L393'>393</a>
+<a name='L394'></a><a href='#L394'>394</a>
+<a name='L395'></a><a href='#L395'>395</a>
+<a name='L396'></a><a href='#L396'>396</a>
+<a name='L397'></a><a href='#L397'>397</a>
+<a name='L398'></a><a href='#L398'>398</a>
+<a name='L399'></a><a href='#L399'>399</a>
+<a name='L400'></a><a href='#L400'>400</a>
+<a name='L401'></a><a href='#L401'>401</a>
+<a name='L402'></a><a href='#L402'>402</a>
+<a name='L403'></a><a href='#L403'>403</a>
+<a name='L404'></a><a href='#L404'>404</a>
+<a name='L405'></a><a href='#L405'>405</a>
+<a name='L406'></a><a href='#L406'>406</a>
+<a name='L407'></a><a href='#L407'>407</a>
+<a name='L408'></a><a href='#L408'>408</a>
+<a name='L409'></a><a href='#L409'>409</a>
+<a name='L410'></a><a href='#L410'>410</a>
+<a name='L411'></a><a href='#L411'>411</a>
+<a name='L412'></a><a href='#L412'>412</a>
+<a name='L413'></a><a href='#L413'>413</a>
+<a name='L414'></a><a href='#L414'>414</a>
+<a name='L415'></a><a href='#L415'>415</a>
+<a name='L416'></a><a href='#L416'>416</a>
+<a name='L417'></a><a href='#L417'>417</a>
+<a name='L418'></a><a href='#L418'>418</a>
+<a name='L419'></a><a href='#L419'>419</a>
+<a name='L420'></a><a href='#L420'>420</a>
+<a name='L421'></a><a href='#L421'>421</a>
+<a name='L422'></a><a href='#L422'>422</a>
+<a name='L423'></a><a href='#L423'>423</a>
+<a name='L424'></a><a href='#L424'>424</a>
+<a name='L425'></a><a href='#L425'>425</a>
+<a name='L426'></a><a href='#L426'>426</a>
+<a name='L427'></a><a href='#L427'>427</a>
+<a name='L428'></a><a href='#L428'>428</a>
+<a name='L429'></a><a href='#L429'>429</a>
+<a name='L430'></a><a href='#L430'>430</a>
+<a name='L431'></a><a href='#L431'>431</a>
+<a name='L432'></a><a href='#L432'>432</a>
+<a name='L433'></a><a href='#L433'>433</a>
+<a name='L434'></a><a href='#L434'>434</a>
+<a name='L435'></a><a href='#L435'>435</a>
+<a name='L436'></a><a href='#L436'>436</a>
+<a name='L437'></a><a href='#L437'>437</a>
+<a name='L438'></a><a href='#L438'>438</a>
+<a name='L439'></a><a href='#L439'>439</a>
+<a name='L440'></a><a href='#L440'>440</a>
+<a name='L441'></a><a href='#L441'>441</a>
+<a name='L442'></a><a href='#L442'>442</a>
+<a name='L443'></a><a href='#L443'>443</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { U } from './utils';
+import type { AudioToneOpts, AudioNoiseOpts, LoopHandle, LoopEntry } from './types';
+&nbsp;
+export class AudioEngine {
+  ok: boolean;
+  vol: { master: number; music: number; sfx: number };
+  loops: Record&lt;string, LoopEntry&gt;;
+  musicMode: string | null;
+  nightMix: number;
+  ctx!: AudioContext;
+  master!: GainNode;
+  comp!: DynamicsCompressorNode;
+  sfxBus!: GainNode;
+  musicBus!: GainNode;
+  reverb!: ConvolverNode;
+  revGain!: GainNode;
+  noiseBuf!: AudioBuffer;
+  padTimer: ReturnType&lt;typeof setInterval&gt; | null = <span class="cstat-no" title="statement not covered" >null;</span>
+  pluckTimer: ReturnType&lt;typeof setInterval&gt; | null = <span class="cstat-no" title="statement not covered" >null;</span>
+  chordIdx: number = <span class="cstat-no" title="statement not covered" >0;</span>
+&nbsp;
+<span class="fstat-no" title="function not covered" >  constructor() {</span>
+<span class="cstat-no" title="statement not covered" >    this.ok = false;</span>
+<span class="cstat-no" title="statement not covered" >    this.vol = { master: 0.8, music: 0.6, sfx: 0.9 };</span>
+<span class="cstat-no" title="statement not covered" >    this.loops = {};</span>
+<span class="cstat-no" title="statement not covered" >    this.musicMode = null;</span>
+<span class="cstat-no" title="statement not covered" >    this.nightMix = 0;</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  ensure(): void {</span>
+<span class="cstat-no" title="statement not covered" >    if (this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const AC = <span class="cstat-no" title="statement not covered" >window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;</span>
+<span class="cstat-no" title="statement not covered" >    if (!AC) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >    this.ctx = new AC();</span>
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx;</span>
+<span class="cstat-no" title="statement not covered" >    this.master = c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >    this.comp = c.createDynamicsCompressor();</span>
+<span class="cstat-no" title="statement not covered" >    this.comp.threshold.value = -14;</span>
+<span class="cstat-no" title="statement not covered" >    this.comp.ratio.value = 5;</span>
+<span class="cstat-no" title="statement not covered" >    this.master.connect(this.comp);</span>
+<span class="cstat-no" title="statement not covered" >    this.comp.connect(c.destination);</span>
+<span class="cstat-no" title="statement not covered" >    this.sfxBus = c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >    this.musicBus = c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >    this.sfxBus.connect(this.master);</span>
+<span class="cstat-no" title="statement not covered" >    this.musicBus.connect(this.master);</span>
+<span class="cstat-no" title="statement not covered" >    this.reverb = c.createConvolver();</span>
+<span class="cstat-no" title="statement not covered" >    this.reverb.buffer = this.makeImpulse(2.6, 2.2);</span>
+<span class="cstat-no" title="statement not covered" >    this.revGain = c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >    this.revGain.gain.value = 0.5;</span>
+<span class="cstat-no" title="statement not covered" >    this.reverb.connect(this.revGain);</span>
+<span class="cstat-no" title="statement not covered" >    this.revGain.connect(this.master);</span>
+<span class="cstat-no" title="statement not covered" >    this.noiseBuf = this.makeNoise(2);</span>
+<span class="cstat-no" title="statement not covered" >    this.ok = true;</span>
+<span class="cstat-no" title="statement not covered" >    this.applyVol();</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  applyVol(): void {</span>
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >    this.master.gain.value = this.vol.master;</span>
+<span class="cstat-no" title="statement not covered" >    this.sfxBus.gain.value = this.vol.sfx;</span>
+<span class="cstat-no" title="statement not covered" >    this.musicBus.gain.value = this.vol.music * 0.8;</span>
+  }
+<span class="fstat-no" title="function not covered" >  setVol(k</span>: string, v: number): void { <span class="cstat-no" title="statement not covered" >(this.vol as Record&lt;string, number&gt;)[k] = v; <span class="cstat-no" title="statement not covered" >t</span>his.applyVol(); }</span>
+&nbsp;
+<span class="fstat-no" title="function not covered" >  makeImpulse(d</span>ur: number, decay: number): AudioBuffer {
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx, r</span>ate = <span class="cstat-no" title="statement not covered" >c.sampleRate, l</span>en = <span class="cstat-no" title="statement not covered" >rate * dur;</span>
+    const buf = <span class="cstat-no" title="statement not covered" >c.createBuffer(2, len, rate);</span>
+<span class="cstat-no" title="statement not covered" >    for (let ch = <span class="cstat-no" title="statement not covered" >0; c</span>h &lt; 2; ch++) {</span>
+      const d = <span class="cstat-no" title="statement not covered" >buf.getChannelData(ch);</span>
+<span class="cstat-no" title="statement not covered" >      for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; len; i++) <span class="cstat-no" title="statement not covered" >d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);</span></span>
+    }
+<span class="cstat-no" title="statement not covered" >    return buf;</span>
+  }
+<span class="fstat-no" title="function not covered" >  makeNoise(d</span>ur: number): AudioBuffer {
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx, l</span>en = <span class="cstat-no" title="statement not covered" >c.sampleRate * dur;</span>
+    const buf = <span class="cstat-no" title="statement not covered" >c.createBuffer(1, len, c.sampleRate);</span>
+    const d = <span class="cstat-no" title="statement not covered" >buf.getChannelData(0);</span>
+<span class="cstat-no" title="statement not covered" >    for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; len; i++) <span class="cstat-no" title="statement not covered" >d[i] = Math.random() * 2 - 1;</span></span>
+<span class="cstat-no" title="statement not covered" >    return buf;</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  tone(o</span>: AudioToneOpts): OscillatorNode | null {
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return null;</span></span>
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx, t</span> = <span class="cstat-no" title="statement not covered" >c.currentTime + (o.at || 0);</span>
+    const osc = <span class="cstat-no" title="statement not covered" >c.createOscillator();</span>
+<span class="cstat-no" title="statement not covered" >    osc.type = o.type || 'sine';</span>
+<span class="cstat-no" title="statement not covered" >    osc.frequency.setValueAtTime(o.f, t);</span>
+<span class="cstat-no" title="statement not covered" >    if (o.f2) <span class="cstat-no" title="statement not covered" >osc.frequency.exponentialRampToValueAtTime(Math.max(o.f2, 1), t + (o.slide || o.dur || 0.2));</span></span>
+<span class="cstat-no" title="statement not covered" >    if (o.detune) <span class="cstat-no" title="statement not covered" >osc.detune.value = o.detune;</span></span>
+    const g = <span class="cstat-no" title="statement not covered" >c.createGain();</span>
+    const a = <span class="cstat-no" title="statement not covered" >o.a || 0.004, d</span> = <span class="cstat-no" title="statement not covered" >o.dur || 0.2, r</span> = <span class="cstat-no" title="statement not covered" >o.r || 0.06;</span>
+<span class="cstat-no" title="statement not covered" >    g.gain.setValueAtTime(0, t);</span>
+<span class="cstat-no" title="statement not covered" >    g.gain.linearRampToValueAtTime(o.vol || 0.2, t + a);</span>
+<span class="cstat-no" title="statement not covered" >    if (o.sus !== undefined) <span class="cstat-no" title="statement not covered" >g.gain.setValueAtTime(o.sus, t + d);</span></span>
+<span class="cstat-no" title="statement not covered" >    g.gain.exponentialRampToValueAtTime(0.0001, t + d + r);</span>
+    let node: AudioNode = <span class="cstat-no" title="statement not covered" >osc;</span>
+<span class="cstat-no" title="statement not covered" >    if (o.filter) {</span>
+      const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter();</span>
+<span class="cstat-no" title="statement not covered" >      f.type = o.filter; <span class="cstat-no" title="statement not covered" >f</span>.frequency.value = o.ff || 1200; <span class="cstat-no" title="statement not covered" >f</span>.Q.value = o.q || 1;</span>
+<span class="cstat-no" title="statement not covered" >      osc.connect(f); <span class="cstat-no" title="statement not covered" >n</span>ode = f;</span>
+    }
+<span class="cstat-no" title="statement not covered" >    node.connect(g);</span>
+    let out: AudioNode = <span class="cstat-no" title="statement not covered" >g;</span>
+<span class="cstat-no" title="statement not covered" >    if (o.pan) {</span>
+      const p = <span class="cstat-no" title="statement not covered" >c.createStereoPanner();</span>
+<span class="cstat-no" title="statement not covered" >      p.pan.value = U.clamp(o.pan, -1, 1);</span>
+<span class="cstat-no" title="statement not covered" >      g.connect(p); <span class="cstat-no" title="statement not covered" >o</span>ut = p;</span>
+    }
+<span class="cstat-no" title="statement not covered" >    out.connect(o.bus || this.sfxBus);</span>
+<span class="cstat-no" title="statement not covered" >    if (o.rev) { const rg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >r</span>g.gain.value = o.rev; <span class="cstat-no" title="statement not covered" >o</span>ut.connect(rg); <span class="cstat-no" title="statement not covered" >r</span>g.connect(this.reverb); }</span></span>
+<span class="cstat-no" title="statement not covered" >    osc.start(t);</span>
+<span class="cstat-no" title="statement not covered" >    osc.stop(t + d + r + 0.05);</span>
+<span class="cstat-no" title="statement not covered" >    return osc;</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  noise(o</span>: AudioNoiseOpts): void {
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx, t</span> = <span class="cstat-no" title="statement not covered" >c.currentTime + (o.at || 0);</span>
+    const src = <span class="cstat-no" title="statement not covered" >c.createBufferSource();</span>
+<span class="cstat-no" title="statement not covered" >    src.buffer = this.noiseBuf;</span>
+<span class="cstat-no" title="statement not covered" >    src.loop = true;</span>
+    const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter();</span>
+<span class="cstat-no" title="statement not covered" >    f.type = o.type || 'bandpass';</span>
+<span class="cstat-no" title="statement not covered" >    f.frequency.setValueAtTime(o.f || 1000, t);</span>
+<span class="cstat-no" title="statement not covered" >    if (o.f2) <span class="cstat-no" title="statement not covered" >f.frequency.exponentialRampToValueAtTime(o.f2, t + (o.dur || 0.2));</span></span>
+<span class="cstat-no" title="statement not covered" >    f.Q.value = o.q || 1;</span>
+    const g = <span class="cstat-no" title="statement not covered" >c.createGain();</span>
+    const a = <span class="cstat-no" title="statement not covered" >o.a || 0.003, d</span> = <span class="cstat-no" title="statement not covered" >o.dur || 0.15, r</span> = <span class="cstat-no" title="statement not covered" >o.r || 0.05;</span>
+<span class="cstat-no" title="statement not covered" >    g.gain.setValueAtTime(0, t);</span>
+<span class="cstat-no" title="statement not covered" >    g.gain.linearRampToValueAtTime(o.vol || 0.2, t + a);</span>
+<span class="cstat-no" title="statement not covered" >    g.gain.exponentialRampToValueAtTime(0.0001, t + d + r);</span>
+<span class="cstat-no" title="statement not covered" >    src.connect(f); <span class="cstat-no" title="statement not covered" >f</span>.connect(g);</span>
+    let out: AudioNode = <span class="cstat-no" title="statement not covered" >g;</span>
+<span class="cstat-no" title="statement not covered" >    if (o.pan) { const p = <span class="cstat-no" title="statement not covered" >c.createStereoPanner(); <span class="cstat-no" title="statement not covered" >p</span>.pan.value = U.clamp(o.pan, -1, 1); <span class="cstat-no" title="statement not covered" >g</span>.connect(p); <span class="cstat-no" title="statement not covered" >o</span>ut = p; }</span></span>
+<span class="cstat-no" title="statement not covered" >    out.connect(o.bus || this.sfxBus);</span>
+<span class="cstat-no" title="statement not covered" >    if (o.rev) { const rg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >r</span>g.gain.value = o.rev; <span class="cstat-no" title="statement not covered" >o</span>ut.connect(rg); <span class="cstat-no" title="statement not covered" >r</span>g.connect(this.reverb); }</span></span>
+<span class="cstat-no" title="statement not covered" >    src.start(t);</span>
+<span class="cstat-no" title="statement not covered" >    src.stop(t + d + r + 0.1);</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  mkLoop(n</span>ame: string, build: (c: AudioContext, out: GainNode) =&gt; LoopHandle | void): LoopEntry {
+<span class="cstat-no" title="statement not covered" >    if (!this.ok || this.loops[name]) <span class="cstat-no" title="statement not covered" >return this.loops[name];</span></span>
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx;</span>
+    const g = <span class="cstat-no" title="statement not covered" >c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >    g.gain.value = 0;</span>
+<span class="cstat-no" title="statement not covered" >    g.connect(this.sfxBus);</span>
+    const handle = <span class="cstat-no" title="statement not covered" >build(c, g) || null;</span>
+<span class="cstat-no" title="statement not covered" >    this.loops[name] = { gain: g, handle, on: false };</span>
+<span class="cstat-no" title="statement not covered" >    return this.loops[name];</span>
+  }
+<span class="fstat-no" title="function not covered" >  setLoop(n</span>ame: string, on: boolean, vol?: number, ramp?: number): void {
+    const l = <span class="cstat-no" title="statement not covered" >this.loops[name];</span>
+<span class="cstat-no" title="statement not covered" >    if (!l) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const t = <span class="cstat-no" title="statement not covered" >this.ctx.currentTime;</span>
+<span class="cstat-no" title="statement not covered" >    l.gain.gain.cancelScheduledValues(t);</span>
+<span class="cstat-no" title="statement not covered" >    l.gain.gain.setValueAtTime(l.gain.gain.value, t);</span>
+<span class="cstat-no" title="statement not covered" >    l.gain.gain.linearRampToValueAtTime(on ? (vol || 1) : 0, t + (ramp || 0.08));</span>
+<span class="cstat-no" title="statement not covered" >    l.on = on;</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  initLoops(): void {</span>
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >    this.mkLoop(<span class="fstat-no" title="function not covered" >'wind', (c</span>, out) =&gt; {</span>
+      const src = <span class="cstat-no" title="statement not covered" >c.createBufferSource(); <span class="cstat-no" title="statement not covered" >s</span>rc.buffer = this.noiseBuf; <span class="cstat-no" title="statement not covered" >s</span>rc.loop = true;</span>
+      const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter(); <span class="cstat-no" title="statement not covered" >f</span>.type = 'lowpass'; <span class="cstat-no" title="statement not covered" >f</span>.frequency.value = 420; <span class="cstat-no" title="statement not covered" >f</span>.Q.value = 0.6;</span>
+      const g2 = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >g</span>2.gain.value = 0.5;</span>
+      const lfo = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >l</span>fo.frequency.value = 0.13;</span>
+      const lg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >l</span>g.gain.value = 180;</span>
+<span class="cstat-no" title="statement not covered" >      lfo.connect(lg); <span class="cstat-no" title="statement not covered" >l</span>g.connect(f.frequency);</span>
+<span class="cstat-no" title="statement not covered" >      src.connect(f); <span class="cstat-no" title="statement not covered" >f</span>.connect(g2); <span class="cstat-no" title="statement not covered" >g</span>2.connect(out);</span>
+<span class="cstat-no" title="statement not covered" >      src.start(); <span class="cstat-no" title="statement not covered" >l</span>fo.start();</span>
+    });
+<span class="cstat-no" title="statement not covered" >    this.mkLoop(<span class="fstat-no" title="function not covered" >'laser', (c</span>, out) =&gt; {</span>
+      const o1 = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >o</span>1.type = 'sawtooth'; <span class="cstat-no" title="statement not covered" >o</span>1.frequency.value = 92;</span>
+      const o2 = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >o</span>2.type = 'square'; <span class="cstat-no" title="statement not covered" >o</span>2.frequency.value = 138.5; <span class="cstat-no" title="statement not covered" >o</span>2.detune.value = 6;</span>
+      const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter(); <span class="cstat-no" title="statement not covered" >f</span>.type = 'lowpass'; <span class="cstat-no" title="statement not covered" >f</span>.frequency.value = 900;</span>
+      const lfo = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >l</span>fo.frequency.value = 17;</span>
+      const lg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >l</span>g.gain.value = 300;</span>
+<span class="cstat-no" title="statement not covered" >      lfo.connect(lg); <span class="cstat-no" title="statement not covered" >l</span>g.connect(f.frequency);</span>
+      const g2 = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >g</span>2.gain.value = 0.14;</span>
+<span class="cstat-no" title="statement not covered" >      o1.connect(f); <span class="cstat-no" title="statement not covered" >o</span>2.connect(f); <span class="cstat-no" title="statement not covered" >f</span>.connect(g2); <span class="cstat-no" title="statement not covered" >g</span>2.connect(out);</span>
+<span class="cstat-no" title="statement not covered" >      o1.start(); <span class="cstat-no" title="statement not covered" >o</span>2.start(); <span class="cstat-no" title="statement not covered" >l</span>fo.start();</span>
+<span class="cstat-no" title="statement not covered" >      return { o1, o2 } as unknown as LoopHandle;</span>
+    });
+<span class="cstat-no" title="statement not covered" >    this.mkLoop(<span class="fstat-no" title="function not covered" >'jet', (c</span>, out) =&gt; {</span>
+      const src = <span class="cstat-no" title="statement not covered" >c.createBufferSource(); <span class="cstat-no" title="statement not covered" >s</span>rc.buffer = this.noiseBuf; <span class="cstat-no" title="statement not covered" >s</span>rc.loop = true;</span>
+      const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter(); <span class="cstat-no" title="statement not covered" >f</span>.type = 'bandpass'; <span class="cstat-no" title="statement not covered" >f</span>.frequency.value = 800; <span class="cstat-no" title="statement not covered" >f</span>.Q.value = 0.8;</span>
+      const o = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >o</span>.type = 'sawtooth'; <span class="cstat-no" title="statement not covered" >o</span>.frequency.value = 55;</span>
+      const og = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >o</span>g.gain.value = 0.35;</span>
+      const g2 = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >g</span>2.gain.value = 0.4;</span>
+<span class="cstat-no" title="statement not covered" >      src.connect(f); <span class="cstat-no" title="statement not covered" >f</span>.connect(g2); <span class="cstat-no" title="statement not covered" >o</span>.connect(og); <span class="cstat-no" title="statement not covered" >o</span>g.connect(g2); <span class="cstat-no" title="statement not covered" >g</span>2.connect(out);</span>
+<span class="cstat-no" title="statement not covered" >      src.start(); <span class="cstat-no" title="statement not covered" >o</span>.start();</span>
+    });
+<span class="cstat-no" title="statement not covered" >    this.mkLoop(<span class="fstat-no" title="function not covered" >'ship', (c</span>, out) =&gt; {</span>
+      const o1 = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >o</span>1.type = 'sawtooth'; <span class="cstat-no" title="statement not covered" >o</span>1.frequency.value = 48;</span>
+      const o2 = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >o</span>2.type = 'triangle'; <span class="cstat-no" title="statement not covered" >o</span>2.frequency.value = 96.5;</span>
+      const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter(); <span class="cstat-no" title="statement not covered" >f</span>.type = 'lowpass'; <span class="cstat-no" title="statement not covered" >f</span>.frequency.value = 300;</span>
+      const src = <span class="cstat-no" title="statement not covered" >c.createBufferSource(); <span class="cstat-no" title="statement not covered" >s</span>rc.buffer = this.noiseBuf; <span class="cstat-no" title="statement not covered" >s</span>rc.loop = true;</span>
+      const nf = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter(); <span class="cstat-no" title="statement not covered" >n</span>f.type = 'bandpass'; <span class="cstat-no" title="statement not covered" >n</span>f.frequency.value = 500; <span class="cstat-no" title="statement not covered" >n</span>f.Q.value = 0.5;</span>
+      const ng = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >n</span>g.gain.value = 0.16;</span>
+      const g2 = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >g</span>2.gain.value = 0.35;</span>
+<span class="cstat-no" title="statement not covered" >      o1.connect(f); <span class="cstat-no" title="statement not covered" >o</span>2.connect(f); <span class="cstat-no" title="statement not covered" >f</span>.connect(g2);</span>
+<span class="cstat-no" title="statement not covered" >      src.connect(nf); <span class="cstat-no" title="statement not covered" >n</span>f.connect(ng); <span class="cstat-no" title="statement not covered" >n</span>g.connect(g2);</span>
+<span class="cstat-no" title="statement not covered" >      g2.connect(out);</span>
+<span class="cstat-no" title="statement not covered" >      o1.start(); <span class="cstat-no" title="statement not covered" >o</span>2.start(); <span class="cstat-no" title="statement not covered" >s</span>rc.start();</span>
+<span class="cstat-no" title="statement not covered" >      return { o1, o2, f, nf } as unknown as LoopHandle;</span>
+    });
+<span class="cstat-no" title="statement not covered" >    this.mkLoop(<span class="fstat-no" title="function not covered" >'storm', (c</span>, out) =&gt; {</span>
+      const src = <span class="cstat-no" title="statement not covered" >c.createBufferSource(); <span class="cstat-no" title="statement not covered" >s</span>rc.buffer = this.noiseBuf; <span class="cstat-no" title="statement not covered" >s</span>rc.loop = true;</span>
+      const f = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter(); <span class="cstat-no" title="statement not covered" >f</span>.type = 'lowpass'; <span class="cstat-no" title="statement not covered" >f</span>.frequency.value = 700; <span class="cstat-no" title="statement not covered" >f</span>.Q.value = 0.7;</span>
+      const lfo = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >l</span>fo.frequency.value = 0.4;</span>
+      const lg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >l</span>g.gain.value = 350;</span>
+<span class="cstat-no" title="statement not covered" >      lfo.connect(lg); <span class="cstat-no" title="statement not covered" >l</span>g.connect(f.frequency);</span>
+      const g2 = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >g</span>2.gain.value = 0.8;</span>
+<span class="cstat-no" title="statement not covered" >      src.connect(f); <span class="cstat-no" title="statement not covered" >f</span>.connect(g2); <span class="cstat-no" title="statement not covered" >g</span>2.connect(out);</span>
+<span class="cstat-no" title="statement not covered" >      src.start(); <span class="cstat-no" title="statement not covered" >l</span>fo.start();</span>
+    });
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  shipThrottle(t</span>: number): void {
+    const l = <span class="cstat-no" title="statement not covered" >this.loops.ship;</span>
+<span class="cstat-no" title="statement not covered" >    if (!l || !l.handle) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const now = <span class="cstat-no" title="statement not covered" >this.ctx.currentTime;</span>
+<span class="cstat-no" title="statement not covered" >    (l.handle.o1 as OscillatorNode).frequency.setTargetAtTime(48 + t * 60, now, 0.1);</span>
+<span class="cstat-no" title="statement not covered" >    (l.handle.o2 as OscillatorNode).frequency.setTargetAtTime(96.5 + t * 120, now, 0.1);</span>
+<span class="cstat-no" title="statement not covered" >    (l.handle.f as BiquadFilterNode).frequency.setTargetAtTime(300 + t * 1400, now, 0.1);</span>
+  }
+<span class="fstat-no" title="function not covered" >  laserPitch(p</span>: number): void {
+    const l = <span class="cstat-no" title="statement not covered" >this.loops.laser;</span>
+<span class="cstat-no" title="statement not covered" >    if (!l || !l.handle) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const f1 = <span class="cstat-no" title="statement not covered" >92 + p * 90, f</span>2 = <span class="cstat-no" title="statement not covered" >138.5 + p * 140;</span>
+<span class="cstat-no" title="statement not covered" >    if (!isFinite(f1) || !isFinite(f2)) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const now = <span class="cstat-no" title="statement not covered" >this.ctx.currentTime;</span>
+<span class="cstat-no" title="statement not covered" >    (l.handle.o1 as OscillatorNode).frequency.setTargetAtTime(f1, now, 0.05);</span>
+<span class="cstat-no" title="statement not covered" >    (l.handle.o2 as OscillatorNode).frequency.setTargetAtTime(f2, now, 0.05);</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  uiHover(): void {</span> <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 2400, dur: 0.03, vol: 0.05, r: 0.03 }); }</span>
+<span class="fstat-no" title="function not covered" >  uiClick(): void {</span> <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 1700, f2: 2300, dur: 0.06, vol: 0.12, r: 0.05, rev: 0.2 }); <span class="cstat-no" title="statement not covered" >t</span>his.tone({ type: 'square', f: 850, dur: 0.03, vol: 0.03 }); }</span>
+<span class="fstat-no" title="function not covered" >  uiOpen(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'highpass', f: 1200, dur: 0.12, vol: 0.08 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 520, f2: 780, dur: 0.14, vol: 0.1, rev: 0.3 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 1040, dur: 0.1, vol: 0.06, at: 0.05, rev: 0.3 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  uiClose(): void {</span> <span class="cstat-no" title="statement not covered" >this.noise({ type: 'highpass', f: 1400, dur: 0.1, vol: 0.06 }); <span class="cstat-no" title="statement not covered" >t</span>his.tone({ type: 'sine', f: 700, f2: 420, dur: 0.12, vol: 0.09 }); }</span>
+<span class="fstat-no" title="function not covered" >  uiDeny(): void {</span> <span class="cstat-no" title="statement not covered" >this.tone({ type: 'square', f: 220, dur: 0.09, vol: 0.09 }); <span class="cstat-no" title="statement not covered" >t</span>his.tone({ type: 'square', f: 185, dur: 0.12, vol: 0.09, at: 0.1 }); }</span>
+<span class="fstat-no" title="function not covered" >  pickup(i</span>: number): void {
+    const f = <span class="cstat-no" title="statement not covered" >880 * Math.pow(1.06, (i || 0) % 8);</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f, f2: f * 1.5, dur: 0.07, vol: 0.11, rev: 0.25 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'triangle', f: f * 2, dur: 0.05, vol: 0.05, at: 0.04, rev: 0.25 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  notify(k</span>ind: string): void {
+<span class="cstat-no" title="statement not covered" >    if (kind === 'danger') {</span>
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: 'square', f: 640, dur: 0.1, vol: 0.1, filter: 'lowpass', ff: 1800 });</span>
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: 'square', f: 640, dur: 0.1, vol: 0.1, at: 0.16, filter: 'lowpass', ff: 1800 });</span>
+    } else {
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: 'sine', f: 1245, dur: 0.09, vol: 0.12, rev: 0.4 });</span>
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: 'sine', f: 1867, dur: 0.14, vol: 0.1, at: 0.09, rev: 0.4 });</span>
+    }
+  }
+<span class="fstat-no" title="function not covered" >  milestone(): void {</span>
+    const notes = <span class="cstat-no" title="statement not covered" >[523.25, 659.25, 783.99, 1046.5];</span>
+<span class="cstat-no" title="statement not covered" >    notes.<span class="fstat-no" title="function not covered" >forEach((f</span>, i) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: 'triangle', f, dur: 0.5, vol: 0.12, at: i * 0.1, a: 0.01, r: 0.6, rev: 0.7 });</span>
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: 'sine', f: f * 2, dur: 0.3, vol: 0.04, at: i * 0.1, rev: 0.7 });</span>
+    });
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'highpass', f: 3000, dur: 0.7, vol: 0.03, a: 0.3, rev: 0.6 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  missionDone(): void {</span>
+<span class="cstat-no" title="statement not covered" >    [659.25, 880, 1108.7].<span class="fstat-no" title="function not covered" >forEach((f</span>, i) =&gt; <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f, dur: 0.3, vol: 0.11, at: i * 0.12, r: 0.4, rev: 0.6 }))</span>;</span>
+  }
+<span class="fstat-no" title="function not covered" >  craft(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'bandpass', f: 2400, dur: 0.08, vol: 0.1 });</span>
+<span class="cstat-no" title="statement not covered" >    [740, 932, 1244].<span class="fstat-no" title="function not covered" >forEach((f</span>, i) =&gt; <span class="cstat-no" title="statement not covered" >this.tone({ type: 'triangle', f, dur: 0.12, vol: 0.1, at: 0.05 + i * 0.07, rev: 0.4 }))</span>;</span>
+  }
+<span class="fstat-no" title="function not covered" >  alarm(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 880, f2: 620, dur: 0.28, vol: 0.07, filter: 'lowpass', ff: 2200 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 880, f2: 620, dur: 0.28, vol: 0.07, at: 0.36, filter: 'lowpass', ff: 2200 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  heartbeat(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 60, f2: 40, dur: 0.09, vol: 0.3 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 55, f2: 38, dur: 0.08, vol: 0.22, at: 0.16 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  mineHit(s</span>nd: string, pan?: number): void {
+    const m = (<span class="cstat-no" title="statement not covered" >{ stone: [1500, 0.05], grass: [650, 0.07], wood: [950, 0.06], sand: [480, 0.08], crystal: [2600, 0.06], glass: [2900, 0.05], metal: [2100, 0.05] } as Record&lt;string, number[]&gt;)[snd] || [1200, 0.06];</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'bandpass', f: m[0], q: 1.5, dur: m[1], vol: 0.14, pan });</span>
+<span class="cstat-no" title="statement not covered" >    if (snd === 'crystal' || snd === 'glass') <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 1800 + Math.random() * 900, dur: 0.06, vol: 0.06, pan });</span></span>
+  }
+<span class="fstat-no" title="function not covered" >  blockBreak(s</span>nd: string, pan?: number): void {
+    const base = (<span class="cstat-no" title="statement not covered" >{ stone: 320, grass: 260, wood: 300, sand: 220, crystal: 900, glass: 1200, metal: 500 } as Record&lt;string, number&gt;)[snd] || 300;</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: base * 3, dur: 0.16, vol: 0.3, pan });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: base * 0.4, f2: base * 0.2, dur: 0.12, vol: 0.18, pan });</span>
+<span class="cstat-no" title="statement not covered" >    if (snd === 'crystal' || snd === 'glass') <span class="cstat-no" title="statement not covered" >[1, 1.4, 1.9].<span class="fstat-no" title="function not covered" >forEach((m</span>, i) =&gt; <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 1600 * m, dur: 0.09, vol: 0.05, at: i * 0.03, pan }))</span>;</span></span>
+  }
+<span class="fstat-no" title="function not covered" >  place(s</span>nd: string | undefined, pan?: number): void {
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 900, dur: 0.07, vol: 0.2, pan });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 240, f2: 170, dur: 0.08, vol: 0.14, pan });</span>
+  }
+<span class="fstat-no" title="function not covered" >  step(s</span>nd: string, run: boolean): void {
+    const m = (<span class="cstat-no" title="statement not covered" >{ grass: [500, 0.05], stone: [1300, 0.04], sand: [380, 0.07], wood: [800, 0.045], metal: [1600, 0.04] } as Record&lt;string, number[]&gt;)[snd] || [500, 0.05];</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'bandpass', f: m[0] * (0.9 + Math.random() * 0.25), q: 1.1, dur: m[1], vol: run ? 0.09 : 0.06 });</span>
+<span class="cstat-no" title="statement not covered" >    if (snd === 'stone' || snd === 'metal') <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 900 + Math.random() * 300, dur: 0.02, vol: 0.02 });</span></span>
+  }
+<span class="fstat-no" title="function not covered" >  jump(): void {</span> <span class="cstat-no" title="statement not covered" >this.noise({ type: 'bandpass', f: 700, dur: 0.08, vol: 0.06 }); }</span>
+<span class="fstat-no" title="function not covered" >  land(h</span>ard: boolean): void {
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 500, dur: hard ? 0.2 : 0.1, vol: hard ? 0.35 : 0.15 });</span>
+<span class="cstat-no" title="statement not covered" >    if (hard) <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 80, f2: 40, dur: 0.15, vol: 0.3 });</span></span>
+  }
+<span class="fstat-no" title="function not covered" >  hurt(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 260, f2: 130, dur: 0.18, vol: 0.16, filter: 'lowpass', ff: 1400 });</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 800, dur: 0.12, vol: 0.15 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  death(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 320, f2: 55, dur: 1.6, vol: 0.2, filter: 'lowpass', ff: 900, r: 0.8 });</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 400, dur: 1.2, vol: 0.2, r: 0.8 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  respawn(): void {</span>
+<span class="cstat-no" title="statement not covered" >    [392, 523.25, 659.25, 783.99].<span class="fstat-no" title="function not covered" >forEach((f</span>, i) =&gt; <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f, dur: 0.4, vol: 0.09, at: i * 0.13, rev: 0.7 }))</span>;</span>
+  }
+<span class="fstat-no" title="function not covered" >  scanPulse(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 700, f2: 2400, dur: 0.7, slide: 0.7, vol: 0.1, a: 0.02, r: 0.3, rev: 0.6 });</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'highpass', f: 2000, dur: 0.5, vol: 0.04, a: 0.1, rev: 0.5 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  scanFound(i</span>: number): void { <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 1560 + i * 120, dur: 0.06, vol: 0.07, at: 0.3 + i * 0.07, rev: 0.5 }); }</span>
+<span class="fstat-no" title="function not covered" >  analyze(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 980, f2: 1960, dur: 0.5, slide: 0.5, vol: 0.09, rev: 0.5 });</span>
+<span class="cstat-no" title="statement not covered" >    [1244, 1568, 2093].<span class="fstat-no" title="function not covered" >forEach((f</span>, i) =&gt; <span class="cstat-no" title="statement not covered" >this.tone({ type: 'triangle', f, dur: 0.18, vol: 0.08, at: 0.5 + i * 0.09, rev: 0.6 }))</span>;</span>
+  }
+<span class="fstat-no" title="function not covered" >  analyzeTick(p</span>: number): void { <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 900 + p * 800, dur: 0.03, vol: 0.04 }); }</span>
+<span class="fstat-no" title="function not covered" >  recharge(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 420, f2: 1200, dur: 0.5, slide: 0.5, vol: 0.1, rev: 0.3 });</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'bandpass', f: 1800, dur: 0.35, vol: 0.05, a: 0.1 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  useItem(): void {</span> <span class="cstat-no" title="statement not covered" >this.tone({ type: 'sine', f: 620, f2: 1240, dur: 0.25, vol: 0.11, rev: 0.3 }); }</span>
+<span class="fstat-no" title="function not covered" >  overheat(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'highpass', f: 2500, dur: 0.7, vol: 0.14, r: 0.4 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'square', f: 340, f2: 180, dur: 0.3, vol: 0.08 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  splash(): void {</span> <span class="cstat-no" title="statement not covered" >this.noise({ type: 'lowpass', f: 1100, dur: 0.25, vol: 0.22, r: 0.15 }); }</span>
+<span class="fstat-no" title="function not covered" >  takeoff(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 300, f2: 2400, dur: 2.4, vol: 0.4, a: 0.15, r: 0.8 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 45, f2: 160, dur: 2.4, slide: 2.4, vol: 0.22, filter: 'lowpass', ff: 700, r: 0.6 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  landing(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 1600, f2: 300, dur: 1.6, vol: 0.3, a: 0.05, r: 0.5 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 130, f2: 40, dur: 1.7, slide: 1.7, vol: 0.16, filter: 'lowpass', ff: 500 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  warpCharge(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sawtooth', f: 70, f2: 640, dur: 2.2, slide: 2.2, vol: 0.16, filter: 'lowpass', ff: 1600, a: 0.2 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 140, f2: 1280, dur: 2.2, slide: 2.2, vol: 0.1, a: 0.2, rev: 0.5 });</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'highpass', f: 900, f2: 4000, dur: 2.2, vol: 0.08, a: 0.6 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  warpBoom(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 2000, f2: 120, dur: 1.4, vol: 0.5, r: 0.8 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 55, f2: 30, dur: 1.2, vol: 0.4, r: 0.6 });</span>
+<span class="cstat-no" title="statement not covered" >    this.tone({ type: 'sine', f: 1760, dur: 0.6, vol: 0.06, at: 0.2, rev: 0.8 });</span>
+  }
+<span class="fstat-no" title="function not covered" >  creatureCall(s</span>eed: number, dist: number): void {
+<span class="cstat-no" title="statement not covered" >    if (dist &gt; 40) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const rng = <span class="cstat-no" title="statement not covered" >U.mulberry32(seed);</span>
+    const vol = <span class="cstat-no" title="statement not covered" >0.12 * (1 - dist / 40);</span>
+    const base = <span class="cstat-no" title="statement not covered" >300 + rng() * 700;</span>
+    const n = <span class="cstat-no" title="statement not covered" >1 + Math.floor(rng() * 3);</span>
+<span class="cstat-no" title="statement not covered" >    for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; n; i++) {</span>
+<span class="cstat-no" title="statement not covered" >      this.tone({ type: rng() &lt; 0.5 ? 'sine' : 'triangle', f: base * (1 + rng() * 0.4), f2: base * (0.7 + rng() * 0.9), dur: 0.1 + rng() * 0.15, vol, at: i * (0.12 + rng() * 0.1), rev: 0.5, pan: (rng() - 0.5) });</span>
+    }
+  }
+<span class="fstat-no" title="function not covered" >  creatureHurt(p</span>an: number): void { <span class="cstat-no" title="statement not covered" >this.tone({ type: 'square', f: 500, f2: 260, dur: 0.14, vol: 0.1, pan, filter: 'lowpass', ff: 1800 }); }</span>
+<span class="fstat-no" title="function not covered" >  thunder(): void {</span>
+<span class="cstat-no" title="statement not covered" >    this.noise({ type: 'lowpass', f: 220, dur: 1.8, vol: 0.35, a: 0.02, r: 1.2, rev: 0.6 });</span>
+  }
+&nbsp;
+<span class="fstat-no" title="function not covered" >  startMusic(m</span>ode: string): void {
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >    this.stopMusic();</span>
+<span class="cstat-no" title="statement not covered" >    this.musicMode = mode;</span>
+<span class="cstat-no" title="statement not covered" >    this.chordIdx = 0;</span>
+<span class="cstat-no" title="statement not covered" >    this.padTimer = <span class="fstat-no" title="function not covered" >setInterval(() =&gt; <span class="cstat-no" title="statement not covered" >t</span>his.playPad(), 7</span>000);</span>
+<span class="cstat-no" title="statement not covered" >    this.playPad();</span>
+<span class="cstat-no" title="statement not covered" >    this.pluckTimer = <span class="fstat-no" title="function not covered" >setInterval(() =&gt; {</span> <span class="cstat-no" title="statement not covered" >if (Math.random() &lt; 0.65) <span class="cstat-no" title="statement not covered" >this.playPluck(); }</span></span>, 5200);</span>
+  }
+<span class="fstat-no" title="function not covered" >  stopMusic(): void {</span>
+<span class="cstat-no" title="statement not covered" >    if (this.padTimer !== null) <span class="cstat-no" title="statement not covered" >clearInterval(this.padTimer);</span></span>
+<span class="cstat-no" title="statement not covered" >    if (this.pluckTimer !== null) <span class="cstat-no" title="statement not covered" >clearInterval(this.pluckTimer);</span></span>
+<span class="cstat-no" title="statement not covered" >    this.padTimer = this.pluckTimer = null;</span>
+  }
+<span class="fstat-no" title="function not covered" >  playPad(): void {</span>
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const day = <span class="cstat-no" title="statement not covered" >[[0, 7, 14, 21], [-2, 5, 12, 17], [-4, 3, 10, 19], [-7, 0, 7, 16]];</span>
+    const night = <span class="cstat-no" title="statement not covered" >[[0, 3, 10, 15], [-4, 3, 8, 15], [-2, 1, 8, 13], [-7, 0, 5, 12]];</span>
+    const prog = <span class="cstat-no" title="statement not covered" >this.nightMix &gt; 0.5 ? night : day;</span>
+    const chord = <span class="cstat-no" title="statement not covered" >prog[this.chordIdx % prog.length];</span>
+<span class="cstat-no" title="statement not covered" >    this.chordIdx++;</span>
+    const root = <span class="cstat-no" title="statement not covered" >110;</span>
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx;</span>
+<span class="cstat-no" title="statement not covered" >    chord.<span class="fstat-no" title="function not covered" >forEach(s</span>emi =&gt; {</span>
+      const f = <span class="cstat-no" title="statement not covered" >root * Math.pow(2, semi / 12);</span>
+<span class="cstat-no" title="statement not covered" >      ([[-7, 'sawtooth'], [7, 'sawtooth'], [0, 'triangle']] as [number, string][]).<span class="fstat-no" title="function not covered" >forEach(([</span>det, type]) =&gt; {</span>
+        const t = <span class="cstat-no" title="statement not covered" >c.currentTime;</span>
+        const o = <span class="cstat-no" title="statement not covered" >c.createOscillator();</span>
+<span class="cstat-no" title="statement not covered" >        o.type = type as OscillatorType; <span class="cstat-no" title="statement not covered" >o</span>.frequency.value = f; <span class="cstat-no" title="statement not covered" >o</span>.detune.value = det;</span>
+        const flt = <span class="cstat-no" title="statement not covered" >c.createBiquadFilter();</span>
+<span class="cstat-no" title="statement not covered" >        flt.type = 'lowpass';</span>
+<span class="cstat-no" title="statement not covered" >        flt.frequency.setValueAtTime(300, t);</span>
+<span class="cstat-no" title="statement not covered" >        flt.frequency.linearRampToValueAtTime(750 - this.nightMix * 300, t + 3.5);</span>
+<span class="cstat-no" title="statement not covered" >        flt.frequency.linearRampToValueAtTime(300, t + 8);</span>
+        const g = <span class="cstat-no" title="statement not covered" >c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >        g.gain.setValueAtTime(0, t);</span>
+<span class="cstat-no" title="statement not covered" >        g.gain.linearRampToValueAtTime(0.028, t + 2.8);</span>
+<span class="cstat-no" title="statement not covered" >        g.gain.linearRampToValueAtTime(0.0001, t + 8.5);</span>
+<span class="cstat-no" title="statement not covered" >        o.connect(flt); <span class="cstat-no" title="statement not covered" >f</span>lt.connect(g);</span>
+<span class="cstat-no" title="statement not covered" >        g.connect(this.musicBus);</span>
+        const rg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >r</span>g.gain.value = 0.8;</span>
+<span class="cstat-no" title="statement not covered" >        g.connect(rg); <span class="cstat-no" title="statement not covered" >r</span>g.connect(this.reverb);</span>
+<span class="cstat-no" title="statement not covered" >        o.start(t); <span class="cstat-no" title="statement not covered" >o</span>.stop(t + 9);</span>
+      });
+    });
+  }
+<span class="fstat-no" title="function not covered" >  playPluck(): void {</span>
+<span class="cstat-no" title="statement not covered" >    if (!this.ok) <span class="cstat-no" title="statement not covered" >return;</span></span>
+    const scale = <span class="cstat-no" title="statement not covered" >this.nightMix &gt; 0.5 ? [0, 3, 5, 7, 10, 12, 15] : [0, 2, 4, 7, 9, 12, 14];</span>
+    const c = <span class="cstat-no" title="statement not covered" >this.ctx;</span>
+    const n = <span class="cstat-no" title="statement not covered" >1 + Math.floor(Math.random() * 3);</span>
+<span class="cstat-no" title="statement not covered" >    for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; n; i++) {</span>
+      const f = <span class="cstat-no" title="statement not covered" >440 * Math.pow(2, U.pick(scale) / 12);</span>
+      const t = <span class="cstat-no" title="statement not covered" >c.currentTime + i * (0.3 + Math.random() * 0.4);</span>
+      const o = <span class="cstat-no" title="statement not covered" >c.createOscillator();</span>
+<span class="cstat-no" title="statement not covered" >      o.type = 'sine'; <span class="cstat-no" title="statement not covered" >o</span>.frequency.value = f;</span>
+      const mod = <span class="cstat-no" title="statement not covered" >c.createOscillator(); <span class="cstat-no" title="statement not covered" >m</span>od.frequency.value = f * 2;</span>
+      const mg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >m</span>g.gain.setValueAtTime(f * 1.2, t); <span class="cstat-no" title="statement not covered" >m</span>g.gain.exponentialRampToValueAtTime(1, t + 0.4);</span>
+<span class="cstat-no" title="statement not covered" >      mod.connect(mg); <span class="cstat-no" title="statement not covered" >m</span>g.connect(o.frequency);</span>
+      const g = <span class="cstat-no" title="statement not covered" >c.createGain();</span>
+<span class="cstat-no" title="statement not covered" >      g.gain.setValueAtTime(0, t);</span>
+<span class="cstat-no" title="statement not covered" >      g.gain.linearRampToValueAtTime(0.05, t + 0.01);</span>
+<span class="cstat-no" title="statement not covered" >      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);</span>
+<span class="cstat-no" title="statement not covered" >      o.connect(g); <span class="cstat-no" title="statement not covered" >g</span>.connect(this.musicBus);</span>
+      const rg = <span class="cstat-no" title="statement not covered" >c.createGain(); <span class="cstat-no" title="statement not covered" >r</span>g.gain.value = 1.2;</span>
+<span class="cstat-no" title="statement not covered" >      g.connect(rg); <span class="cstat-no" title="statement not covered" >r</span>g.connect(this.reverb);</span>
+<span class="cstat-no" title="statement not covered" >      o.start(t); <span class="cstat-no" title="statement not covered" >o</span>.stop(t + 1.8); <span class="cstat-no" title="statement not covered" >m</span>od.start(t); <span class="cstat-no" title="statement not covered" >m</span>od.stop(t + 1.8);</span>
+    }
+  }
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-07-26T09:27:49.459Z
+            </div>
+        <script src="../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../sorter.js"></script>
+        <script src="../block-navigation.js"></script>
+    </body>
+</html>
+    
