@@ -362,11 +362,11 @@ export class World {
     const mk = (dat: MeshBuffers, mat: THREE.Material, extra?: (mesh: THREE.Mesh) => void): void => {
       if (dat.idx.length === 0) return;
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(dat.pos, 3));
-      geo.setAttribute('normal', new THREE.Float32BufferAttribute(dat.nor, 3));
-      geo.setAttribute('uv', new THREE.Float32BufferAttribute(dat.uv, 2));
-      geo.setAttribute('color', new THREE.Float32BufferAttribute(dat.col, 3));
-      if (dat.sway) geo.setAttribute('sway', new THREE.Float32BufferAttribute(dat.sway, 1));
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dat.pos), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(dat.nor), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(dat.uv), 2));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(dat.col), 3));
+      if (dat.sway) geo.setAttribute('sway', new THREE.BufferAttribute(new Float32Array(dat.sway), 1));
       geo.setIndex(dat.idx);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(ox, 0, oz);
