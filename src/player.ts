@@ -343,7 +343,7 @@ export class Player {
       }
       const key = t.x + ',' + t.y + ',' + t.z;
       if (this.mining !== key) { this.mining = key; this.mineProgress = 0; }
-      this.mineProgress += dt / def.hard!;
+      this.mineProgress += dt / (def.hard || 1);
       const tip = this.vmTipWorld();
       const hitP = new THREE.Vector3(t.x + 0.5 + t.nx * 0.52, t.y + 0.5 + t.ny * 0.52, t.z + 0.5 + t.nz * 0.52);
       g.fx.laserShow(tip, hitP, '#ff7a3c');

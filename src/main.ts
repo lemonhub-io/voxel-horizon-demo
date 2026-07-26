@@ -171,7 +171,9 @@ export class Game {
   }
 
   requestPointerLock(): void {
-    if (this.state === 'play' && !this.uiOpen()) (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock();
+    if (this.state === 'play' && !this.uiOpen()) {
+      try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch (_e) { /* requires user gesture */ }
+    }
   }
   exitPointerLock(): void { if (document.pointerLockElement) document.exitPointerLock(); }
 

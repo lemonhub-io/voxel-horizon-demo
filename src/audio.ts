@@ -228,9 +228,11 @@ export class AudioEngine {
   laserPitch(p: number): void {
     const l = this.loops.laser;
     if (!l || !l.handle) return;
+    const f1 = 92 + p * 90, f2 = 138.5 + p * 140;
+    if (!isFinite(f1) || !isFinite(f2)) return;
     const now = this.ctx.currentTime;
-    (l.handle.o1 as OscillatorNode).frequency.setTargetAtTime(92 + p * 90, now, 0.05);
-    (l.handle.o2 as OscillatorNode).frequency.setTargetAtTime(138.5 + p * 140, now, 0.05);
+    (l.handle.o1 as OscillatorNode).frequency.setTargetAtTime(f1, now, 0.05);
+    (l.handle.o2 as OscillatorNode).frequency.setTargetAtTime(f2, now, 0.05);
   }
 
   uiHover(): void { this.tone({ type: 'sine', f: 2400, dur: 0.03, vol: 0.05, r: 0.03 }); }
