@@ -760,7 +760,6 @@ export interface Player {
 
 export interface HUD {
   g: Game;
-  markers: Marker[];
   compass: HTMLCanvasElement | null;
   cctx: CanvasRenderingContext2D | null;
   initCompass(): void;

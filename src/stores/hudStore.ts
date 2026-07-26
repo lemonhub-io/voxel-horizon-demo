@@ -4,6 +4,7 @@ import { ref } from 'vue';
 interface Toast { id: string; itemId: string; name: string; n: number; timer?: ReturnType<typeof setTimeout> }
 interface Notification { id: string; text: string; kind: string; timer?: ReturnType<typeof setTimeout> }
 interface Milestone { kicker: string; title: string; sub: string }
+interface MarkerData { id: string; type: string; x: number; y: number; z: number; ttl: number }
 
 export const useHudStore = defineStore('hud', () => {
   const alertText = ref('');
@@ -20,6 +21,7 @@ export const useHudStore = defineStore('hud', () => {
   const missionDesc = ref('');
   const missionCur = ref(0);
   const missionMax = ref(0);
+  const markers = ref<MarkerData[]>([]);
 
   function addToast(itemId: string, n: number) {
     const existing = toasts.value.find(t => t.itemId === itemId);
@@ -64,11 +66,24 @@ export const useHudStore = defineStore('hud', () => {
     setTimeout(() => { planetCardInfo.value = null; }, 6000);
   }
 
+  function addMarker(type: string, x: number, y: number, z: number, ttl: number) {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+    markers.value.push({ id, type, x, y, z, ttl });
+    setTimeout(() => removeMarker(id), ttl * 1000);
+  }
+  function removeMarker(id: string) {
+    const idx = markers.value.findIndex(m => m.id === id);
+    if (idx !== -1) markers.value.splice(idx, 1);
+  }
+  function clearMarkers() {
+    markers.value = [];
+  }
+
   return {
     alertText, alertOn, flightHudOn, interactKey, interactText, interactProgress,
     toasts, notifications, milestones, planetCardInfo,
-    missionTitle, missionDesc, missionCur, missionMax,
+    missionTitle, missionDesc, missionCur, missionMax, markers,
     addToast, removeToast, addNotification, removeNotification,
-    pushMilestone, showPlanetCard
+    pushMilestone, showPlanetCard, addMarker, removeMarker, clearMarkers
   };
 });
