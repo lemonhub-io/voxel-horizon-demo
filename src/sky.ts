@@ -81,55 +81,12 @@ export class Sky {
       this._uTimeVal = uTimeU;
       this._uStarVal = uStar;
 
-      // Sky color node tree
+      // Simple test: hardcoded sky blue gradient
       const d = normalize(positionLocal);
       const h = max(d.y, float(0));
+      const skyColor = mix(uHor, uTop, pow(h, 0.45));
 
-      // Rayleigh scattering
-      const rayleigh = exp(h.negate().mul(vec3(5.5, 13.0, 22.4)));
-      const skyBase = mix(uHor, uTop, float(1).sub(rayleigh));
-      const col = mix(skyBase, mix(uHor, uTop, pow(h, 0.45)), 0.4);
-
-      // Ground blend
-      const groundFactor = min(d.y.negate().mul(2.5), 1.0);
-      const groundCol = mix(uHor, uHor.mul(0.4), groundFactor);
-      const groundMask = step(float(0), d.y);
-      const withGround = mix(col, groundCol, groundMask);
-
-      // Sun disc
-      const s = max(dot(d, uSun), float(0));
-      const horizonBoost = float(1).sub(abs(d.y));
-      const mie = pow(s, 8).mul(0.15).mul(horizonBoost);
-
-      let skyColor: TSLNode = withGround;
-      skyColor = skyColor.add(uSunCol.mul(pow(s, 900)).mul(5));
-      skyColor = skyColor.add(uSunCol.mul(pow(s, 24)).mul(0.8));
-      skyColor = skyColor.add(uSunCol.mul(pow(s, 5)).mul(0.3).mul(horizonBoost));
-      skyColor = skyColor.add(uSunCol.mul(mie));
-
-      // Dusk band
-      const duskBand = exp(abs(d.y).negate().mul(6)).mul(uNight).mul(0.4);
-      const duskCol = mix(vec3(1, 0.5, 0.2), vec3(1, 0.3, 0.1), float(1).sub(rayleigh.z));
-      skyColor = skyColor.add(duskCol.mul(duskBand).mul(max(uSun.y.add(0.2), 0)));
-
-      // Stars
-      const hash3 = Fn((args?: TSLNode[]) => {
-        const p = args![0];
-        return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
-      });
-      const cell = floor(d.mul(280));
-      const star = step(0.998, hash3(cell));
-      const tw = float(0.55).add(sin(uTimeU.mul(2.4).add(hash3(cell.add(1)).mul(40))).mul(0.45));
-      const starColHash = hash3(cell.add(2));
-      const starTint = mix(vec3(0.8, 0.9, 1), vec3(1, 0.9, 0.7), starColHash);
-      const starSize = float(0.8).add(hash3(cell.add(3)).mul(0.6));
-      skyColor = skyColor.add(starTint.mul(star).mul(tw).mul(uStar).mul(starSize));
-
-      // Night glow
-      const nightGlow = float(1).sub(h).mul(uNight).mul(0.1);
-      skyColor = skyColor.add(vec3(0.04, 0.06, 0.14).mul(nightGlow));
-
-      // Create node material — use skyColor directly
+      // Create node material
       const mat = new MatClass();
       mat.colorNode = skyColor;
       mat.side = THREE.BackSide;
