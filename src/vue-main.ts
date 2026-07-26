@@ -16,8 +16,8 @@ import { Game } from './main';
 const game = new Game();
 (window as unknown as Record<string, unknown>).game = game;
 
-// Save on page unload
+// Save on page unload (fire-and-forget, auto-save covers most cases)
 import { Save } from './save';
 addEventListener('beforeunload', () => {
-  if (game.state === 'play') Save.save(game);
+  if (game.state === 'play') Save.save(game).catch(() => {});
 });

@@ -5,16 +5,18 @@ import TitleScreen from '../../components/TitleScreen.vue';
 // happy-dom does not implement canvas getContext('2d'); provide a minimal stub
 const origGetContext = HTMLCanvasElement.prototype.getContext;
 beforeAll(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (type: string) {
-    if (type === '2d') {
-      return {
-        clearRect: vi.fn(),
-        fillRect: vi.fn(),
-        fillStyle: '',
-      } as unknown as CanvasRenderingContext2D;
-    }
-    return origGetContext.call(this, type);
-  });
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+    function (this: HTMLCanvasElement, type: string) {
+      if (type === '2d') {
+        return {
+          clearRect: vi.fn(),
+          fillRect: vi.fn(),
+          fillStyle: '',
+        } as unknown as CanvasRenderingContext2D;
+      }
+      return origGetContext.call(this, type);
+    } as typeof HTMLCanvasElement.prototype.getContext,
+  );
 });
 afterAll(() => {
   vi.restoreAllMocks();

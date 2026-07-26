@@ -77,8 +77,8 @@ const showHelp = ref(false);
 const damageFlash = ref(false);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 
-onMounted(() => {
-  hasSave.value = !!Save.load();
+onMounted(async () => {
+  hasSave.value = await Save.hasSave();
 });
 
 function getEngine() {
@@ -92,7 +92,7 @@ function onNewGame() {
 }
 function onContinue() {
   const engine = getEngine();
-  if (engine && typeof engine.continueGame === 'function') (engine.continueGame as () => void)();
+  if (engine && typeof engine.continueGame === 'function') (engine.continueGame as () => Promise<void>)();
 }
 function onIntroSkip() {
   const engine = getEngine();
@@ -124,21 +124,21 @@ function onResume() {
   const engine = getEngine();
   if (engine && typeof engine.togglePause === 'function') (engine.togglePause as (v: boolean) => void)(false);
 }
-function onSave() {
-  Save.save(getEngine() as Parameters<typeof Save.save>[0]);
+async function onSave() {
+  await Save.save(getEngine() as Parameters<typeof Save.save>[0]);
   hud.addNotification('进度已保存', 'success');
   onResume();
 }
-function onQuit() {
-  Save.save(getEngine() as Parameters<typeof Save.save>[0]);
+async function onQuit() {
+  await Save.save(getEngine() as Parameters<typeof Save.save>[0]);
   location.reload();
 }
 function onRespawn() {
   const engine = getEngine();
   if (engine && typeof engine.respawn === 'function') (engine.respawn as () => void)();
 }
-function onWipe() {
-  if (confirm('确定清除全部存档？')) { Save.clear(); location.reload(); }
+async function onWipe() {
+  if (confirm('确定清除全部存档？')) { await Save.clear(); location.reload(); }
 }
 
 function triggerDamageFlash() {

@@ -836,9 +836,10 @@ export interface U {
 }
 
 export interface Save {
-  save(g: Game): boolean;
-  load(): SaveData | null;
-  clear(): void;
+  save(g: Game): Promise<boolean>;
+  load(): Promise<SaveData | null>;
+  hasSave(): Promise<boolean>;
+  clear(): Promise<void>;
   loadSettings(): Settings;
   saveSettings(s: Settings): void;
 }

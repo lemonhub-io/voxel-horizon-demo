@@ -175,7 +175,8 @@ export function createThreeMock() {
 
   // Mock canvas getContext for happy-dom
   const origGetContext = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function (type: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (HTMLCanvasElement.prototype as any).getContext = function (type: string) {
     if (type === '2d') {
       return {
         clearRect() {}, fillRect() {}, strokeRect() {}, fillText() {}, strokeText() {},

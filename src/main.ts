@@ -185,10 +185,10 @@ export class Game {
     this.beginLoad(seed, 0, null);
   }
 
-  continueGame(): void {
+  async continueGame(): Promise<void> {
     this.audio.ensure();
     this.audio.initLoops();
-    const d = Save.load();
+    const d = await Save.load();
     if (!d) return this.newGame();
     this.beginLoad(d.seed, d.palIdx, d);
   }
@@ -586,8 +586,9 @@ export class Game {
         this.autoSaveT += dt;
         if (this.autoSaveT > 60) {
           this.autoSaveT = 0;
-          Save.save(this);
-          this.stores.hud.addNotification('自动存档完成', 'info');
+          Save.save(this).then(ok => {
+            if (ok) this.stores.hud.addNotification('自动存档完成', 'info');
+          }).catch(() => {});
         }
         this.syncPlayerStore();
       }
