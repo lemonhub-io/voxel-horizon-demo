@@ -318,14 +318,16 @@ export class Player {
     const w = 0.3, h = 1.8;
     const world = this.g.world;
     const p = this.pos;
-    this.vel.y = Math.max(this.vel.y, -46);
+    this.vel.y = Math.max(this.vel.y, -30); // Lower terminal velocity to prevent clipping
     const collide = (): boolean => world.collides(p.x - w, p.y, p.z - w, p.x + w, p.y + h - 0.001, p.z + w);
     const move = (axis: 'x' | 'y' | 'z', amt: number): void => {
       if (Math.abs(amt) < 1e-8) return;
       const dirS = Math.sign(amt);
       let rem = Math.abs(amt);
+      // Smaller step size for Y axis to prevent ground clipping
+      const maxStep = axis === 'y' ? 0.2 : 0.4;
       while (rem > 0) {
-        const st = Math.min(rem, 0.4);
+        const st = Math.min(rem, maxStep);
         rem -= st;
         p[axis] += st * dirS;
         if (!collide()) continue;
@@ -360,6 +362,12 @@ export class Player {
     move('z', this.vel.z * dt);
     const wasGround = this.onGround;
     move('y', this.vel.y * dt);
+    // Void protection — reset to surface if fallen below world
+    if (p.y < -10) {
+      const surfY = world.surfaceY(Math.floor(p.x), Math.floor(p.z));
+      p.y = surfY + 2;
+      this.vel.y = 0;
+    }
     this.onGround = this.vel.y <= 0.01 && world.collides(p.x - w, p.y - 0.12, p.z - w, p.x + w, p.y - 0.01, p.z + w);
     if (this.onGround && !wasGround) {
       const impact = this.fallVy;
