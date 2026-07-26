@@ -222,10 +222,13 @@ export class Sky {
     // Sun light — HDR values (tone-mapped by renderer)
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
 
-    // Shadow camera follows player for consistent shadow quality
+    // Shadow camera follows player, snapped to texel grid to prevent jitter
     if (g.player) {
       const p = g.player.pos;
-      this.sunLight.target.position.set(p.x, p.y, p.z);
+      const texelSize = 160 / 2048; // shadow frustum / map resolution
+      const snapX = Math.round(p.x / texelSize) * texelSize;
+      const snapZ = Math.round(p.z / texelSize) * texelSize;
+      this.sunLight.target.position.set(snapX, p.y, snapZ);
       this.sunLight.target.updateMatrixWorld();
     }
     const sunInt = 0.3 + day * 2.0 + dusk * 0.2;
