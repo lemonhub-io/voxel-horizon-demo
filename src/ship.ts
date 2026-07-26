@@ -105,6 +105,13 @@ export class Ship {
     shadow.position.y = 0.02;
     grp.add(shadow);
     this.shadow = shadow;
+
+    // Enable shadow casting on ship meshes (not glow/sprite/shadow-plane)
+    for (const child of grp.children) {
+      if (child instanceof THREE.Mesh && child !== shadow) {
+        child.castShadow = true;
+      }
+    }
   }
 
   repaired(): boolean { return !this.comps.thruster.broken && !this.comps.pulse.broken; }

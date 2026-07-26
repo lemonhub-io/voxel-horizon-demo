@@ -121,8 +121,19 @@ export class Sky {
     (this.dome as THREE.Mesh).renderOrder = -10;
     this.group.add(this.dome);
 
-    // Main directional light (sun)
+    // Main directional light (sun) with shadows
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.camera.near = 0.5;
+    this.sunLight.shadow.camera.far = 600;
+    this.sunLight.shadow.camera.left = -80;
+    this.sunLight.shadow.camera.right = 80;
+    this.sunLight.shadow.camera.top = 80;
+    this.sunLight.shadow.camera.bottom = -80;
+    this.sunLight.shadow.bias = -0.001;
+    this.sunLight.shadow.normalBias = 0.02;
+    this.sunLight.shadow.radius = 2;
     game.scene.add(this.sunLight);
 
     // Hemisphere light (sky + ground ambient)
@@ -210,6 +221,13 @@ export class Sky {
 
     // Sun light — HDR values (tone-mapped by renderer)
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
+
+    // Shadow camera follows player for consistent shadow quality
+    if (g.player) {
+      const p = g.player.pos;
+      this.sunLight.target.position.set(p.x, p.y, p.z);
+      this.sunLight.target.updateMatrixWorld();
+    }
     const sunInt = 0.3 + day * 2.0 + dusk * 0.2;
     this.sunLight.intensity = sunInt;
     const sunCol = dusk > 0.1

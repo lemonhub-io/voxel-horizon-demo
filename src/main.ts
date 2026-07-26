@@ -161,6 +161,10 @@ export class Game {
     const r = this.renderer as unknown as Record<string, unknown>;
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.8;
+
+    // Shadow maps
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);

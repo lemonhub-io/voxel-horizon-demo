@@ -96,6 +96,14 @@ export class Fauna {
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(s * 0.9, 12), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.25, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     grp.add(shadow);
+
+    // Enable shadow casting on creature body parts
+    for (const child of grp.children) {
+      if (child instanceof THREE.Mesh && child !== shadow) {
+        child.castShadow = true;
+      }
+    }
+
     const y = this.g.world.surfaceY(Math.floor(x), Math.floor(z)) + 1;
     grp.position.set(x, y, z);
     this.group.add(grp);

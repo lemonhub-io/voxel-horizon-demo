@@ -386,12 +386,13 @@ export class World {
       mesh.position.set(ox, 0, oz);
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
+      mesh.receiveShadow = true;
       if (extra) extra(mesh);
       this.group.add(mesh);
       chunk.meshes.push(mesh);
     };
     mk(opaque, this.matOpaque);
-    mk(cutout, this.matCutout);
+    mk(cutout, this.matCutout, m => { m.castShadow = true; });
     mk(water, this.matWater, m => { m.renderOrder = 2; });
     chunk.dirty = false;
   }

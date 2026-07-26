@@ -861,7 +861,7 @@ export interface Save {
 
 declare global {
 namespace THREE {
-  class Vector2 { constructor(x?: number, y?: number); x: number; y: number; }
+  class Vector2 { constructor(x?: number, y?: number); x: number; y: number; set(x: number, y: number): this; }
   class Vector3 {
     constructor(x?: number, y?: number, z?: number);
     x: number; y: number; z: number;
@@ -907,12 +907,15 @@ namespace THREE {
     quaternion: Quaternion;
     scale: Vector3;
     visible: boolean;
+    castShadow: boolean;
+    receiveShadow: boolean;
     children: Object3D[];
     matrixAutoUpdate: boolean;
     add(object: Object3D): this;
     remove(object: Object3D): this;
     lookAt(v: Vector3): void;
     updateMatrix(): void;
+    updateMatrixWorld(): void;
     getWorldPosition(target: Vector3): Vector3;
   }
   class Scene extends Object3D { fog: Fog | null; }
@@ -932,6 +935,7 @@ namespace THREE {
     outputColorSpace: string;
     toneMapping: number;
     toneMappingExposure: number;
+    shadowMap: { enabled: boolean; type: number };
   }
   class Fog { constructor(color: string, near: number, far: number); color: Color; near: number; far: number; }
   class BufferGeometry {
@@ -1057,7 +1061,27 @@ namespace THREE {
   }
   class Group extends Object3D { }
   class Light extends Object3D { intensity: number; color: Color; }
-  class DirectionalLight extends Light { constructor(color?: number | string, intensity?: number); }
+  class LightShadow {
+    camera: OrthographicCamera;
+    bias: number;
+    normalBias: number;
+    radius: number;
+    mapSize: Vector2;
+    dispose(): void;
+  }
+  class DirectionalLightShadow extends LightShadow {
+    constructor();
+  }
+  class OrthographicCamera extends Camera {
+    constructor(left: number, right: number, top: number, bottom: number, near?: number, far?: number);
+    left: number; right: number; top: number; bottom: number; near: number; far: number;
+  }
+  class DirectionalLight extends Light {
+    constructor(color?: number | string, intensity?: number);
+    shadow: DirectionalLightShadow;
+    castShadow: boolean;
+    target: Object3D;
+  }
   class HemisphereLight extends Light {
     constructor(skyColor?: number | string, groundColor?: number | string, intensity?: number);
     groundColor: Color;
@@ -1081,5 +1105,6 @@ namespace THREE {
   const AgXToneMapping: number;
   const NeutralToneMapping: number;
   const NoToneMapping: number;
+  const PCFSoftShadowMap: number;
 }
 } // declare global
