@@ -1,18 +1,10 @@
 // ============================================================
-// three-setup.ts — Import Three.js and set as global
+// three-setup.ts — Import Three.js WebGPU build as global
 // ============================================================
 
-import * as THREEModule from 'three';
-import { WebGPURenderer } from 'three/webgpu';
+// Import the WebGPU build which includes ALL classes + node material system
+import * as THREE_WEBGPU from 'three/webgpu';
 
-// Attach to window for non-module code access
-interface GameGlobals {
-  THREE: typeof THREEModule & {
-    WebGPURenderer: typeof WebGPURenderer;
-  };
-}
-
-(window as unknown as GameGlobals).THREE = {
-  ...THREEModule,
-  WebGPURenderer,
-};
+// The WebGPU build contains: THREE core + MeshBasicNodeMaterial + WebGPURenderer + TSL
+// Attach to window so all other files can use THREE.* as a global
+(window as unknown as { THREE: typeof THREE_WEBGPU }).THREE = THREE_WEBGPU;

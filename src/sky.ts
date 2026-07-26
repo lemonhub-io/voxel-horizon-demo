@@ -1,24 +1,27 @@
 // ============================================================
-// sky.ts — Sky dome with full lighting (WebGPU-compatible)
+// sky.ts — Sky dome with TSL node material (WebGPU-compatible)
 // ============================================================
 
 import { U } from './utils';
 import { CFG } from './config';
 import { Starfield } from './starfield';
 import type { Game, Palette } from './types';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
+import { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } from 'three/tsl';
+import type { TSLNode } from 'three/tsl';
 
 export class Sky {
   g: Game;
   group: THREE.Group;
-  dome: THREE.Mesh;
-  sunLight: THREE.DirectionalLight;
-  hemi: THREE.HemisphereLight;
-  ambientFill: THREE.AmbientLight;
-  celestial: THREE.Group;
-  planetBig: THREE.Mesh;
-  moon: THREE.Mesh;
-  planetGlow: THREE.Sprite;
-  sunSprite: THREE.Sprite;
+  dome!: THREE.Mesh;
+  sunLight!: THREE.DirectionalLight;
+  hemi!: THREE.HemisphereLight;
+  ambientFill!: THREE.AmbientLight;
+  celestial!: THREE.Group;
+  planetBig!: THREE.Mesh;
+  moon!: THREE.Mesh;
+  planetGlow!: THREE.Sprite;
+  sunSprite!: THREE.Sprite;
   starfield: Starfield;
   t: number;
   dayMix: number;
@@ -27,6 +30,14 @@ export class Sky {
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
 
+  // TSL uniform nodes
+  private _uTop!: { value: unknown };
+  private _uHor!: { value: unknown };
+  private _uSun!: { value: unknown };
+  private _uSunCol!: { value: unknown };
+  private _uNight!: { value: unknown };
+  private _uStar!: { value: unknown };
+
   constructor(game: Game) {
     this.g = game;
     this.group = new THREE.Group();
@@ -34,17 +45,90 @@ export class Sky {
     this.t = 0.28;
     this.dayMix = 1;
 
-    const mat = new THREE.MeshBasicMaterial({
-      side: THREE.BackSide,
-      depthWrite: false,
-      fog: false,
+    this._buildSkyDome();
+    this._buildLights();
+    this._buildCelestial();
+    this.starfield = new Starfield();
+  }
+
+  private _buildSkyDome(): void {
+    // TSL uniforms
+    const uTop = uniform('vec3'); uTop.value = new THREE.Color('#3a8fd4');
+    const uHor = uniform('vec3'); uHor.value = new THREE.Color('#bfe4ee');
+    const uSun = uniform('vec3'); uSun.value = new THREE.Vector3(0, 1, 0);
+    const uSunCol = uniform('vec3'); uSunCol.value = new THREE.Color('#fff2d0');
+    const uNight = uniform('float'); uNight.value = 0;
+    const uStar = uniform('float'); uStar.value = 0;
+
+    this._uTop = uTop;
+    this._uHor = uHor;
+    this._uSun = uSun;
+    this._uSunCol = uSunCol;
+    this._uNight = uNight;
+    this._uStar = uStar;
+
+    // Sky color node tree
+    const d = normalize(positionLocal);
+    const h = max(d.y, float(0));
+
+    // Rayleigh scattering
+    const rayleigh = exp(h.negate().mul(vec3(5.5, 13.0, 22.4)));
+    const skyBase = mix(uHor, uTop, float(1).sub(rayleigh));
+    const col = mix(skyBase, mix(uHor, uTop, pow(h, 0.45)), 0.4);
+
+    // Ground blend
+    const groundFactor = min(d.y.negate().mul(2.5), 1.0);
+    const groundCol = mix(uHor, uHor.mul(0.4), groundFactor);
+    const groundMask = step(float(0), d.y);
+    const withGround = mix(col, groundCol, groundMask);
+
+    // Sun disc
+    const s = max(dot(d, uSun), float(0));
+    const horizonBoost = float(1).sub(abs(d.y));
+    const mie = pow(s, 8).mul(0.15).mul(horizonBoost);
+
+    let skyColor: TSLNode = withGround;
+    skyColor = skyColor.add(uSunCol.mul(pow(s, 900)).mul(5));
+    skyColor = skyColor.add(uSunCol.mul(pow(s, 24)).mul(0.8));
+    skyColor = skyColor.add(uSunCol.mul(pow(s, 5)).mul(0.3).mul(horizonBoost));
+    skyColor = skyColor.add(uSunCol.mul(mie));
+
+    // Dusk band
+    const duskBand = exp(abs(d.y).negate().mul(6)).mul(uNight).mul(0.4);
+    const duskCol = mix(vec3(1, 0.5, 0.2), vec3(1, 0.3, 0.1), float(1).sub(rayleigh.z));
+    skyColor = skyColor.add(duskCol.mul(duskBand).mul(max(uSun.y.add(0.2), 0)));
+
+    // Stars
+    const hash3 = Fn((args?: TSLNode[]) => {
+      const p = args![0];
+      return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
     });
-    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
+    const cell = floor(d.mul(280));
+    const star = step(0.998, hash3(cell));
+    const tw = float(0.55).add(sin(time.mul(2.4).add(hash3(cell.add(1)).mul(40))).mul(0.45));
+    const starColHash = hash3(cell.add(2));
+    const starTint = mix(vec3(0.8, 0.9, 1), vec3(1, 0.9, 0.7), starColHash);
+    const starSize = float(0.8).add(hash3(cell.add(3)).mul(0.6));
+    skyColor = skyColor.add(starTint.mul(star).mul(tw).mul(uStar).mul(starSize));
+
+    // Night glow
+    const nightGlow = float(1).sub(h).mul(uNight).mul(0.1);
+    skyColor = skyColor.add(vec3(0.04, 0.06, 0.14).mul(nightGlow));
+
+    // Create TSL node material
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = skyColor;
+    mat.side = THREE.BackSide;
+    mat.depthWrite = false;
+    mat.fog = false;
+
+    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat as unknown as THREE.Material);
     this.dome.frustumCulled = false;
     this.dome.renderOrder = -10;
     this.group.add(this.dome);
+  }
 
-    // Sun light with shadows
+  private _buildLights(): void {
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
@@ -57,15 +141,16 @@ export class Sky {
     this.sunLight.shadow.bias = -0.001;
     this.sunLight.shadow.normalBias = 0.02;
     this.sunLight.shadow.radius = 2;
-    game.scene.add(this.sunLight);
+    this.g.scene.add(this.sunLight);
 
     this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
-    game.scene.add(this.hemi);
+    this.g.scene.add(this.hemi);
 
     this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.15);
-    game.scene.add(this.ambientFill as unknown as THREE.Object3D);
+    this.g.scene.add(this.ambientFill as unknown as THREE.Object3D);
+  }
 
-    // Celestial bodies
+  private _buildCelestial(): void {
     this.celestial = new THREE.Group();
     this.group.add(this.celestial);
     const mk = (r: number, col: string, emis: string, x: number, y: number, z: number): THREE.Mesh => {
@@ -85,8 +170,6 @@ export class Sky {
     this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
     this.sunSprite.scale.set(260, 260, 1);
     this.group.add(this.sunSprite);
-
-    this.starfield = new Starfield();
   }
 
   static makeGlow(): THREE.CanvasTexture {
@@ -124,15 +207,18 @@ export class Sky {
     const dusk = U.clamp(1 - Math.abs(sunY) * 3.5, 0, 1) * (day > 0.03 ? 1 : 0.3);
     const pal = this.pal;
 
-    // Sky dome color — Rayleigh-inspired blend
+    // Update TSL uniforms
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-    // Weighted blend: horizon has more influence near edges, top dominates at zenith
-    const domeColor = U.mixHex(hor, top, 0.55);
-    (this.dome.material as THREE.MeshBasicMaterial).color.set(domeColor);
+    this._uTop.value = new THREE.Color(top);
+    this._uHor.value = new THREE.Color(hor);
+    this._uSunCol.value = new THREE.Color(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
+    this._uSun.value = new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z);
+    this._uNight.value = 1 - day;
+    this._uStar.value = Math.max(0, 1 - day * 3) * 0.85;
 
-    // Sun light — HDR values (tone-mapped by renderer)
+    // Sun light
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
     if (g.player) {
       const p = g.player.pos;
@@ -176,10 +262,8 @@ export class Sky {
     this.celestial.rotation.y += dt * 0.002;
     if (g.audio.ok) g.audio.nightMix = 1 - day;
 
-    // Update star field overlay
+    // Star field
     const cam = g.camera;
-    const camYaw = cam.rotation.y;
-    const camPitch = cam.rotation.x;
-    this.starfield.update(g.time, camYaw, camPitch, 1 - day);
+    this.starfield.update(g.time, cam.rotation.y, cam.rotation.x, 1 - day);
   }
 }
