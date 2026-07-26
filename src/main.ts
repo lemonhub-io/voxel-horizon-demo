@@ -133,19 +133,21 @@ export class Game {
     this.discoveries = { planets: [], entries: [] };
     this.autoSaveT = 0;
     this.input = Input;
-    this.initRenderer();
     Input.init(this);
-    this.loop();
+    this.initRenderer().then(() => { this.loop(); });
   }
 
-  initRenderer(): void {
+  async initRenderer(): Promise<void> {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 
     // Use WebGPURenderer with automatic WebGL2 fallback
-    const WebGPURenderer = (THREE as unknown as Record<string, unknown>).WebGPURenderer;
-    if (WebGPURenderer) {
-      this.renderer = new (WebGPURenderer as new (opts: Record<string, unknown>) => THREE.WebGLRenderer)({ canvas, antialias: false });
-      console.log('[VoxelHorizon] WebGPURenderer initialized (WebGPU backend with WebGL2 fallback)');
+    const WGPU = (THREE as unknown as Record<string, unknown>).WebGPURenderer as
+      (new (opts: Record<string, unknown>) => { init: () => Promise<void>; setPixelRatio: (r: number) => void; setSize: (w: number, h: number) => void; outputColorSpace: string; render: (s: unknown, c: unknown) => void }) | undefined;
+
+    if (WGPU) {
+      this.renderer = new WGPU({ canvas, antialias: false }) as unknown as THREE.WebGLRenderer;
+      await (this.renderer as unknown as { init: () => Promise<void> }).init();
+      console.log('[VoxelHorizon] WebGPURenderer initialized');
     } else {
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
       console.log('[VoxelHorizon] WebGLRenderer initialized (legacy)');
@@ -153,7 +155,7 @@ export class Game {
 
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
     this.renderer.setSize(innerWidth, innerHeight);
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    (this.renderer as unknown as Record<string, unknown>).outputColorSpace = THREE.SRGBColorSpace;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);
