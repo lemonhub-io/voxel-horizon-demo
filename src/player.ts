@@ -111,26 +111,48 @@ export class Player {
   buildViewmodel(): void {
     const g = this.g;
     this.vm = new THREE.Group();
-    const dark = new THREE.MeshLambertMaterial({ color: '#2e333c' });
-    const grey = new THREE.MeshLambertMaterial({ color: '#5a616e' });
-    const acc = new THREE.MeshBasicMaterial({ color: '#ff8a5c' });
+    const dark = new THREE.MeshStandardMaterial({ color: '#2e333c', roughness: 0.6, metalness: 0.3 });
+    const grey = new THREE.MeshStandardMaterial({ color: '#5a616e', roughness: 0.5, metalness: 0.4 });
+    const acc = new THREE.MeshStandardMaterial({ color: '#ff8a5c', emissive: '#ff8a5c', emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.2 });
+    const screenMat = new THREE.MeshBasicMaterial({ color: '#66d9e8' });
+
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.42), dark);
     this.vm.add(body);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.3, 6), grey);
+
+    // Barrel — 12 segments for smooth cylinder
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.3, 12), grey);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.03, -0.32);
     this.vm.add(barrel);
+
+    // Tip — emissive accent
     const tip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.06), acc);
     tip.position.set(0, 0.03, -0.47);
     this.vm.add(tip);
     this.vmTip = tip;
+
+    // Scope/lens on top
+    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8), grey);
+    scope.position.set(0, 0.1, -0.1);
+    this.vm.add(scope);
+    const lens = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), new THREE.MeshBasicMaterial({ color: '#a8d8e8', transparent: true, opacity: 0.6 }));
+    lens.position.set(0, 0.1, -0.16);
+    this.vm.add(lens);
+
+    // Antenna
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.18, 4), grey);
+    antenna.position.set(0.05, 0.16, 0.05);
+    this.vm.add(antenna);
+
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.1), grey);
     grip.position.set(0, -0.15, 0.1);
     grip.rotation.x = 0.3;
     this.vm.add(grip);
-    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), new THREE.MeshBasicMaterial({ color: '#66d9e8' }));
+
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), screenMat);
     screen.position.set(0, 0.1, 0.05);
     this.vm.add(screen);
+
     this.blockInHand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
     this.blockInHand.position.set(-0.22, 0.05, 0);
     this.blockInHand.visible = false;

@@ -47,39 +47,69 @@ export class Ship {
   buildMesh(): void {
     const grp = this.group;
     while (grp.children.length) grp.remove(grp.children[0]);
-    const white = new THREE.MeshLambertMaterial({ color: '#e8e4dc' });
-    const red = new THREE.MeshLambertMaterial({ color: '#c8472e' });
-    const dark = new THREE.MeshLambertMaterial({ color: '#3a3f48' });
-    const glassMat = new THREE.MeshLambertMaterial({ color: '#a8d8e8', transparent: true, opacity: 0.55 });
+    // PBR materials with roughness variation
+    const white = new THREE.MeshStandardMaterial({ color: '#e8e4dc', roughness: 0.7, metalness: 0.1 });
+    const red = new THREE.MeshStandardMaterial({ color: '#c8472e', roughness: 0.6, metalness: 0.15 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#3a3f48', roughness: 0.5, metalness: 0.3 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: '#a8d8e8', transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.1 });
+    const accent = new THREE.MeshStandardMaterial({ color: '#2a2e35', roughness: 0.4, metalness: 0.4 });
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.05, 5.2, 8), white);
+    // Body — smoother cylinder (16 segments)
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.05, 5.2, 16), white);
     body.rotation.x = Math.PI / 2;
     body.position.y = 1.6;
     grp.add(body);
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.85, 2.2, 8), red);
+
+    // Nose — smoother cone
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.85, 2.2, 16), red);
     nose.rotation.x = Math.PI / 2;
     nose.position.set(0, 1.6, -3.7);
     grp.add(nose);
-    const cabin = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 10), glassMat);
+
+    // Cabin — glass sphere
+    const cabin = new THREE.Mesh(new THREE.SphereGeometry(0.85, 16, 12), glassMat);
     cabin.scale.set(1, 0.75, 1.4);
     cabin.position.set(0, 2.5, -1.1);
     grp.add(cabin);
+
+    // Spine with panel detail
     const spine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 3.4), red);
     spine.position.set(0, 2.35, 0.9);
     grp.add(spine);
+    // Panel line on spine
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.04, 3.42), accent);
+    panel.position.set(0, 2.65, 0.9);
+    grp.add(panel);
+
     for (const side of [-1, 1]) {
+      // Wing with rounded edge
       const wing = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.16, 1.9), white);
       wing.position.set(side * 2.4, 1.5, 0.6);
       wing.rotation.z = side * 0.28;
       grp.add(wing);
+      // Wing panel line
+      const wingPanel = new THREE.Mesh(new THREE.BoxGeometry(3.42, 0.04, 1.92), accent);
+      wingPanel.position.set(side * 2.4, 1.58, 0.6);
+      wingPanel.rotation.z = side * 0.28;
+      grp.add(wingPanel);
+
       const wtip = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 1.4), red);
       wtip.position.set(side * 4.0, 1.95, 0.6);
       wtip.rotation.z = side * 0.28;
       grp.add(wtip);
-      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 1.6, 8), dark);
+
+      // Engine — smoother cylinder with greeble
+      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 1.6, 12), dark);
       eng.rotation.x = Math.PI / 2;
       eng.position.set(side * 1.35, 1.45, 2.6);
       grp.add(eng);
+      // Engine ring detail
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.04, 6, 12), accent);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(side * 1.35, 1.45, 2.0);
+      grp.add(ring);
+
+      // Landing leg
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.3, 0.18), dark);
       leg.position.set(side * 1.3, 0.55, -0.4);
       grp.add(leg);

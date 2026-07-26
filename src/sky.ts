@@ -160,14 +160,43 @@ export class Sky {
   private _buildCelestial(): void {
     this.celestial = new THREE.Group();
     this.group.add(this.celestial);
-    const mk = (r: number, col: string, emis: string, x: number, y: number, z: number): THREE.Mesh => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), new THREE.MeshLambertMaterial({ color: col, emissive: emis, fog: false }));
-      m.position.set(x, y, z);
-      this.celestial.add(m);
-      return m;
-    };
-    this.planetBig = mk(120, '#8a9ab8', '#1a2438', 480, 130, -380);
-    this.moon = mk(34, '#c8c2b4', '#2a2820', -420, 200, 240);
+
+    // Planet — with procedural band pattern via vertex colors
+    const planetGeo = new THREE.SphereGeometry(120, 24, 18);
+    const planetColors = new Float32Array(planetGeo.attributes.position.count * 3);
+    for (let i = 0; i < planetGeo.attributes.position.count; i++) {
+      const y = (planetGeo.attributes.position as THREE.BufferAttribute).getY(i);
+      const band = Math.sin(y * 0.08) * 0.5 + 0.5; // horizontal bands
+      const r = 0.54 + band * 0.15;
+      const g = 0.6 + band * 0.1;
+      const b = 0.72 + band * 0.08;
+      planetColors[i * 3] = r;
+      planetColors[i * 3 + 1] = g;
+      planetColors[i * 3 + 2] = b;
+    }
+    planetGeo.setAttribute('color', new THREE.BufferAttribute(planetColors, 3));
+    this.planetBig = new THREE.Mesh(planetGeo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#1a2438', roughness: 0.8, metalness: 0.1, fog: false }));
+    this.planetBig.position.set(480, 130, -380);
+    this.celestial.add(this.planetBig);
+
+    // Moon — with dark maria patches via vertex colors
+    const moonGeo = new THREE.SphereGeometry(34, 20, 14);
+    const moonColors = new Float32Array(moonGeo.attributes.position.count * 3);
+    for (let i = 0; i < moonGeo.attributes.position.count; i++) {
+      const x = (moonGeo.attributes.position as THREE.BufferAttribute).getX(i);
+      const y = (moonGeo.attributes.position as THREE.BufferAttribute).getY(i);
+      const z = (moonGeo.attributes.position as THREE.BufferAttribute).getZ(i);
+      // Pseudo-random maria patches
+      const patch = Math.sin(x * 0.3) * Math.cos(z * 0.4) * Math.sin(y * 0.5);
+      const dark = patch > 0.3 ? 0.6 : 1.0;
+      moonColors[i * 3] = 0.78 * dark;
+      moonColors[i * 3 + 1] = 0.76 * dark;
+      moonColors[i * 3 + 2] = 0.7 * dark;
+    }
+    moonGeo.setAttribute('color', new THREE.BufferAttribute(moonColors, 3));
+    this.moon = new THREE.Mesh(moonGeo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#2a2820', roughness: 0.9, metalness: 0.05, fog: false }));
+    this.moon.position.set(-420, 200, 240);
+    this.celestial.add(this.moon);
     const glowTex = Sky.makeGlow();
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#9fc4ff', transparent: true, opacity: 0.5, fog: false, depthWrite: false }));
     glow.scale.set(400, 400, 1);

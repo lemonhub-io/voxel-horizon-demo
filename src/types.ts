@@ -950,6 +950,9 @@ namespace THREE {
     constructor(array: ArrayLike<number>, itemSize: number);
     needsUpdate: boolean;
     count: number;
+    getX(index: number): number;
+    getY(index: number): number;
+    getZ(index: number): number;
     setXY(index: number, x: number, y: number): void;
   }
   class EdgesGeometry extends BufferGeometry { constructor(geometry: BufferGeometry); }
