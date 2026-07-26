@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import pluginVue from 'eslint-plugin-vue';
 import prettier from 'eslint-config-prettier';
+import globals from 'globals';
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'libs/**'] },
@@ -13,33 +14,7 @@ export default [
     files: ['**/*.ts', '**/*.vue'],
     languageOptions: {
       globals: {
-        window: 'readonly',
-        document: 'readonly',
-        navigator: 'readonly',
-        location: 'readonly',
-        console: 'readonly',
-        setTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearTimeout: 'readonly',
-        clearInterval: 'readonly',
-        requestAnimationFrame: 'readonly',
-        cancelAnimationFrame: 'readonly',
-        confirm: 'readonly',
-        alert: 'readonly',
-        innerWidth: 'readonly',
-        innerHeight: 'readonly',
-        devicePixelRatio: 'readonly',
-        performance: 'readonly',
-        HTMLCanvasElement: 'readonly',
-        HTMLImageElement: 'readonly',
-        HTMLDivElement: 'readonly',
-        HTMLInputElement: 'readonly',
-        HTMLElement: 'readonly',
-        SVGElement: 'readonly',
-        Image: 'readonly',
-        AudioContext: 'readonly',
-        webkitAudioContext: 'readonly',
-        PointerEvent: 'readonly',
+        ...globals.browser,
         THREE: 'readonly',
       },
     },
@@ -48,10 +23,12 @@ export default [
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-unused-expressions': 'warn',
       'vue/multi-word-component-names': 'off',
       'vue/max-attributes-per-line': 'off',
       'vue/singleline-html-element-content-newline': 'off',
       'vue/attributes-order': 'warn',
+      'vue/no-v-html': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'prefer-const': 'error',
       'no-var': 'error',

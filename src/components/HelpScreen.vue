@@ -1,5 +1,5 @@
 <template>
-  <div id="help-screen" class="screen">
+  <div id="help-screen" class="screen" style="z-index:200">
     <div class="help-box panel">
       <div class="p-kicker">操作手册 // MANUAL</div>
       <div class="help-grid">

@@ -1,5 +1,5 @@
 <template>
-  <div id="settings-screen" class="screen">
+  <div id="settings-screen" class="screen" style="z-index:200">
     <div class="set-box panel">
       <div class="p-kicker">系统设置 // OPTIONS</div>
       <div class="set-row"><label>总音量</label><input type="range" :value="settings.master" @input="update('master', +$event.target.value)" min="0" max="100"><span>{{ settings.master }}</span></div>
