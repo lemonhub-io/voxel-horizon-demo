@@ -3,10 +3,16 @@
 // ============================================================
 
 import * as THREEModule from 'three';
-import { WebGPURenderer } from 'three/webgpu';
+
+// WebGPU modules loaded via dynamic import (not in @types/three)
+const webgpu = await import('three/webgpu' as string) as any;
 
 // Attach to window for non-module code access
-(window as unknown as Record<string, unknown>).THREE = {
+(window as any).THREE = {
   ...THREEModule,
-  WebGPURenderer,
+  WebGPURenderer: webgpu.WebGPURenderer,
+  MeshBasicNodeMaterial: webgpu.MeshBasicNodeMaterial,
+  MeshStandardNodeMaterial: webgpu.MeshStandardNodeMaterial,
+  TSL: webgpu.TSL,
+  PostProcessing: webgpu.PostProcessing,
 };
