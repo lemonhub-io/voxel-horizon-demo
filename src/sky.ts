@@ -53,10 +53,10 @@ export class Sky {
   }
 
   private _buildSkyDome(): void {
-    // TSL functions from the global THREE (WebGPU build)
+    // TSL functions are under THREE.TSL namespace
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const T = (THREE as any);
-    const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } = T;
+    const TSL = (THREE as any).TSL;
+    const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } = TSL;
 
     // Uniforms
     const uTop = uniform('vec3'); uTop.value = new THREE.Color('#3a8fd4');
