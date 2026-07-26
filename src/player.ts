@@ -191,7 +191,12 @@ export class Player {
       this.vel.y = Math.max(this.vel.y, -3.2);
       if (input.keys['Space']) this.vel.y = Math.min(this.vel.y + 16 * dt, 3.4);
     } else {
-      this.vel.y -= CFG.GRAVITY * dt;
+      // Only apply gravity if not on ground (prevents Y oscillation)
+      if (!this.onGround || this.vel.y > 0) {
+        this.vel.y -= CFG.GRAVITY * dt;
+      } else {
+        this.vel.y = 0;
+      }
       if (input.keys['Space']) {
         if (this.onGround) {
           this.vel.y = 8.0;
@@ -287,7 +292,7 @@ export class Player {
     move('z', this.vel.z * dt);
     const wasGround = this.onGround;
     move('y', this.vel.y * dt);
-    this.onGround = this.vel.y <= 0.01 && world.collides(p.x - w, p.y - 0.08, p.z - w, p.x + w, p.y - 0.02, p.z + w);
+    this.onGround = this.vel.y <= 0.01 && world.collides(p.x - w, p.y - 0.12, p.z - w, p.x + w, p.y - 0.01, p.z + w);
     if (this.onGround && !wasGround) {
       const impact = this.fallVy;
       if (impact < -16) {
