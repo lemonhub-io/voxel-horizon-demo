@@ -1,5 +1,5 @@
 // ============================================================
-// sky.ts — Sky dome with per-frame color update (WebGPU-compatible)
+// sky.ts — Sky dome with full lighting (WebGPU-compatible)
 // ============================================================
 
 import { U } from './utils';
@@ -32,7 +32,6 @@ export class Sky {
     this.t = 0.28;
     this.dayMix = 1;
 
-    // Sky dome — standard material, color updated per frame
     const mat = new THREE.MeshBasicMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -43,7 +42,7 @@ export class Sky {
     this.dome.renderOrder = -10;
     this.group.add(this.dome);
 
-    // Lights
+    // Sun light with shadows
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
@@ -121,15 +120,15 @@ export class Sky {
     const dusk = U.clamp(1 - Math.abs(sunY) * 3.5, 0, 1) * (day > 0.03 ? 1 : 0.3);
     const pal = this.pal;
 
-    // Sky dome color — blend top/horizon by day/night + dusk tint
+    // Sky dome color — Rayleigh-inspired blend
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-    // Blend top and horizon for dome average color
-    const domeColor = U.mixHex(hor, top, 0.45);
+    // Weighted blend: horizon has more influence near edges, top dominates at zenith
+    const domeColor = U.mixHex(hor, top, 0.55);
     (this.dome.material as THREE.MeshBasicMaterial).color.set(domeColor);
 
-    // Sun light
+    // Sun light — HDR values (tone-mapped by renderer)
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
     if (g.player) {
       const p = g.player.pos;
