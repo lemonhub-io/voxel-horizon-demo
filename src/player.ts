@@ -56,6 +56,8 @@ export class Player {
   private _lookDir = new THREE.Vector3();
   private _jumpTime = 0;
   private _landImpact = 0;
+  private _stepUpTarget = 0;
+  private _stepUpProgress = 0;
   private _fwd = new THREE.Vector3();
   private _right = new THREE.Vector3();
   private _wish = new THREE.Vector3();
@@ -234,6 +236,20 @@ export class Player {
       }
     }
 
+    // Smooth step-up interpolation
+    if (this._stepUpTarget > 0 && this._stepUpProgress < 1) {
+      this._stepUpProgress += dt * 7; // ~0.14s to complete
+      if (this._stepUpProgress >= 1) {
+        this.pos.y = this._stepUpTarget;
+        this._stepUpTarget = 0;
+        this._stepUpProgress = 0;
+      } else {
+        // Smooth ease-out interpolation
+        const t = 1 - Math.pow(1 - this._stepUpProgress, 2);
+        this.pos.y = this.pos.y + (this._stepUpTarget - this.pos.y) * t * 0.3;
+      }
+    }
+
     const cam = g.camera;
     cam.position.copy(this.eyePos());
     const moving = wish.lengthSq() > 0;
@@ -293,11 +309,18 @@ export class Player {
         if (!collide()) continue;
         if (axis !== 'y' && (this.onGround || this.inWater)) {
           const oy = p.y;
-          p.y += 1.05; // Auto-jump: step up over single blocks
+          p.y += 1.05; // Check if we can step up
           if (!collide()) {
             while (p.y > oy) {
               p.y -= 0.05;
               if (collide()) { p.y += 0.05; break; }
+            }
+            // Smooth step-up: interpolate over ~0.15s instead of instant
+            const stepHeight = p.y - oy;
+            if (stepHeight > 0.1) {
+              this._stepUpTarget = p.y;
+              p.y = oy; // Keep current position, will interpolate in update
+              this._stepUpProgress = 0;
             }
             continue;
           }
