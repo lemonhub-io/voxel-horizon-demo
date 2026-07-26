@@ -761,7 +761,9 @@ export interface Player {
 export interface HUD {
   g: Game;
   markers: Marker[];
-  init(): void;
+  compass: HTMLCanvasElement | null;
+  cctx: CanvasRenderingContext2D | null;
+  initCompass(): void;
   update(dt: number): void;
   drawCompass(): void;
   addMarker(type: string, pos: THREE.Vector3, ttl: number): void;
@@ -772,7 +774,6 @@ export interface HUD {
   notify(text: string, kind?: string): void;
   alert(text: string, on: boolean): void;
   milestone(kicker: string, title: string, sub: string): void;
-  pumpMilestone(): void;
   setMission(title: string, desc: string, cur: number, max: number): void;
   showPrompt(key: string, text: string, prog: number): void;
   hidePrompt(): void;

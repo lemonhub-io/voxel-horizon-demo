@@ -1,75 +1,46 @@
 // ============================================================
-// hud.ts — HUD, compass, markers, toasts, notifications
+// hud.ts — HUD engine logic (compass canvas, markers)
+// All DOM UI is handled by Vue components via Pinia stores
 // ============================================================
 
 import { U } from './utils';
-import { B, BLOCK_DEF, ITEMS, HAZ_ICONS, MILESTONE_DEFS } from './config';
+import { B, ITEMS } from './config';
 import type { Game, Marker, PlanetInfo } from './types';
+import { useHudStore } from './stores/hudStore';
 
 export class HUD {
   g: Game;
   markers: Marker[];
-  compass: HTMLCanvasElement;
-  cctx: CanvasRenderingContext2D;
-  toastMap: Map<string, { el: HTMLDivElement; n: number; timer: ReturnType<typeof setTimeout> }>;
-  msQueue: { kicker: string; title: string; sub: string }[];
-  msShowing: boolean;
-  alertOn: boolean;
-  pcT?: ReturnType<typeof setTimeout>;
+  compass: HTMLCanvasElement | null = null;
+  cctx: CanvasRenderingContext2D | null = null;
 
   constructor(game: Game) {
     this.g = game;
     this.markers = [];
-    this.compass = document.getElementById('compass') as HTMLCanvasElement;
-    this.cctx = this.compass.getContext('2d')!;
-    this.toastMap = new Map();
-    this.msQueue = [];
-    this.msShowing = false;
-    this.alertOn = false;
   }
 
-  init(): void {
-    const hp = document.getElementById('hp-segs')!;
-    hp.innerHTML = '';
-    for (let i = 0; i < 4; i++) {
-      const d = document.createElement('div');
-      d.className = 'hp-seg';
-      hp.appendChild(d);
-    }
-    document.getElementById('haz-ico')!.textContent = HAZ_ICONS[this.g.palette.hazard.type] || '☢';
+  /** Call after Vue has mounted and #compass canvas exists in DOM */
+  initCompass(): void {
+    this.compass = document.getElementById('compass') as HTMLCanvasElement | null;
+    if (this.compass) this.cctx = this.compass.getContext('2d');
   }
 
   update(dt: number): void {
     const g = this.g, p = g.player;
     if (!p) return;
-    const segs = document.querySelectorAll<HTMLElement>('.hp-seg');
-    const hpFrac = p.hp / 100;
-    segs.forEach((s, i) => {
-      const th = (i + 1) / 4;
-      s.classList.toggle('off', hpFrac < th - 0.24);
-      s.classList.toggle('hurt', hpFrac < 0.3);
-    });
-    const sh = document.getElementById('shield-fill')!;
-    sh.style.width = Math.max(0, Math.min(100, p.hp)) + '%';
-    const haz = document.getElementById('haz-fill')!;
-    haz.style.width = p.hazard + '%';
-    haz.classList.toggle('low', p.hazard < 25);
-    const ls = document.getElementById('ls-fill')!;
-    ls.style.width = p.ls + '%';
-    ls.classList.toggle('low', p.ls < 25);
-    document.getElementById('jet-bar')!.style.height = p.jetFuel + '%';
-
-    const night = g.sky.dayMix < 0.35;
-    document.getElementById('env-icon')!.textContent = g.stormActive ? '⚠' : night ? '☾' : '☀';
-    document.getElementById('env-label')!.textContent = g.stormActive ? g.palette.storm.label : night ? '夜晚 · ' + g.palette.hazard.nightLabel : '白昼 · ' + g.palette.hazard.label;
-
     this.drawCompass();
     this.updateMarkers(dt);
   }
 
   drawCompass(): void {
-    const g = this.g, ctx = this.cctx;
-    const W = this.compass.width, H = this.compass.height;
+    const g = this.g;
+    // Re-acquire canvas if not yet available (Vue may have mounted it)
+    if (!this.compass) this.initCompass();
+    const ctx = this.cctx;
+    const cvs = this.compass;
+    if (!ctx || !cvs) return;
+
+    const W = cvs.width, H = cvs.height;
     ctx.clearRect(0, 0, W, H);
     const yaw = g.player.inShip ? g.ship.yaw : g.player.yaw;
     let deg = (-yaw * 180 / Math.PI) % 360;
@@ -121,10 +92,12 @@ export class HUD {
 
   addMarker(type: string, pos: THREE.Vector3, ttl: number): void {
     const icons: Record<string, string> = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
+    const layer = document.getElementById('marker-layer');
+    if (!layer) return;
     const el = document.createElement('div');
     el.className = 'marker ' + type;
     el.innerHTML = `<div class="m-ico">${icons[type] || '?'}</div><div class="m-dist"></div>`;
-    document.getElementById('marker-layer')!.appendChild(el);
+    layer.appendChild(el);
     this.markers.push({ el, pos, ttl, type });
   }
 
@@ -154,15 +127,20 @@ export class HUD {
       (m.el.querySelector('.m-dist')!).textContent = U.fmtDist(d);
     }
   }
+
   clearMarkers(): void {
     for (const m of this.markers) m.el.remove();
     this.markers = [];
   }
 
+  // --- Methods delegated to Pinia stores / Vue components ---
+
   scanFlash(): void {
+    const layer = document.getElementById('hud');
+    if (!layer) return;
     const el = document.createElement('div');
     el.style.cssText = 'position:absolute;left:50%;top:50%;width:10px;height:10px;border:2px solid rgba(120,230,245,.8);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:30';
-    document.getElementById('hud')!.appendChild(el);
+    layer.appendChild(el);
     el.animate([
       { width: '10px', height: '10px', opacity: 1 },
       { width: '160vmax', height: '160vmax', opacity: 0 }
@@ -170,171 +148,64 @@ export class HUD {
   }
 
   toast(itemId: string, n: number): void {
-    const key = itemId;
-    let t = this.toastMap.get(key);
-    if (t && document.body.contains(t.el)) {
-      t.n += n;
-      (t.el.querySelector('.tc')!).textContent = '+' + t.n;
-      clearTimeout(t.timer);
-    } else {
-      const el = document.createElement('div');
-      el.className = 'toast';
-      el.innerHTML = `<img src="${this.g.atlas.icon(itemId)}"><span>${ITEMS[itemId].name}</span><span class="tc">+${n}</span>`;
-      document.getElementById('toasts')!.appendChild(el);
-      t = { el, n, timer: 0 };
-      this.toastMap.set(key, t);
-    }
-    t.timer = setTimeout(() => {
-      t!.el.classList.add('fade');
-      setTimeout(() => t!.el.remove(), 500);
-      this.toastMap.delete(key);
-    }, 1800);
+    useHudStore().addToast(itemId, n);
   }
 
   notify(text: string, kind?: string): void {
-    const g = this.g;
-    const el = document.createElement('div');
-    el.className = 'notice ' + (kind || 'info');
-    const kickers: Record<string, string> = { info: '信息 // INFO', success: '完成 // DONE', warn: '注意 // CAUTION', danger: '警报 // ALERT' };
-    el.innerHTML = `<span class="n-kicker">${kickers[kind!] || kickers.info}</span>${text}`;
-    const stack = document.getElementById('notify-stack')!;
-    stack.appendChild(el);
-    while (stack.children.length > 5) stack.firstChild!.remove();
-    g.audio.notify(kind!);
-    setTimeout(() => {
-      el.classList.add('fade');
-      setTimeout(() => el.remove(), 450);
-    }, 5200);
+    useHudStore().addNotification(text, kind || 'info');
+    this.g.audio.notify(kind || 'info');
   }
 
   alert(text: string, on: boolean): void {
-    const el = document.getElementById('alert-center')!;
-    if (on && text) {
-      el.classList.remove('hidden');
-      document.getElementById('alert-text')!.textContent = text;
-    } else el.classList.add('hidden');
+    const s = useHudStore();
+    s.alertText = text;
+    s.alertOn = on;
   }
 
   milestone(kicker: string, title: string, sub: string): void {
-    this.msQueue.push({ kicker, title, sub });
-    this.pumpMilestone();
-  }
-  pumpMilestone(): void {
-    if (this.msShowing || this.msQueue.length === 0) return;
-    const m = this.msQueue.shift()!;
-    this.msShowing = true;
-    const el = document.getElementById('milestone-pop')!;
-    document.getElementById('ms-kicker')!.textContent = m.kicker;
-    document.getElementById('ms-title')!.textContent = m.title;
-    document.getElementById('ms-sub')!.textContent = m.sub || '';
-    el.classList.remove('hidden');
-    el.style.animation = 'none';
-    void el.offsetWidth;
-    el.style.animation = '';
-    this.g.audio.milestone();
-    setTimeout(() => {
-      el.classList.add('hidden');
-      this.msShowing = false;
-      this.pumpMilestone();
-    }, 3700);
+    useHudStore().pushMilestone(kicker, title, sub);
   }
 
   setMission(title: string, desc: string, cur: number, max: number): void {
-    const card = document.getElementById('mission-card')!;
-    if (!title) { card.classList.add('hidden'); return; }
-    card.classList.remove('hidden');
-    document.getElementById('mission-title')!.textContent = title;
-    document.getElementById('mission-desc')!.textContent = desc;
-    const pw = document.getElementById('mission-prog-wrap')!;
-    if (max > 0) {
-      pw.style.display = 'flex';
-      document.getElementById('mission-prog')!.style.width = Math.min(100, cur / max * 100) + '%';
-      document.getElementById('mission-count')!.textContent = `${Math.min(cur, max)} / ${max}`;
-    } else pw.style.display = 'none';
+    const s = useHudStore();
+    s.missionTitle = title;
+    s.missionDesc = desc;
+    s.missionCur = cur;
+    s.missionMax = max;
   }
 
   showPrompt(key: string, text: string, prog: number): void {
-    const el = document.getElementById('interact-hint')!;
-    el.classList.remove('hidden');
-    document.getElementById('hint-key')!.textContent = key;
-    document.getElementById('hint-text')!.textContent = text;
-    const ring = document.getElementById('hold-ring-fg') as unknown as SVGElement;
-    ring.style.strokeDashoffset = String(113 - 113 * U.clamp(prog, 0, 1));
+    const s = useHudStore();
+    s.interactKey = key;
+    s.interactText = text;
+    s.interactProgress = prog;
   }
-  hidePrompt(): void { document.getElementById('interact-hint')!.classList.add('hidden'); }
+
+  hidePrompt(): void {
+    useHudStore().interactKey = '';
+  }
 
   setMineProgress(p: number): void {
-    const ring = document.getElementById('mine-ring-fg') as unknown as SVGElement;
-    ring.style.strokeDashoffset = String(151 - 151 * U.clamp(p, 0, 1));
+    // Rendered reactively by HudOverlay via player store
   }
+
   setHeat(h: number, hot: boolean): void {
-    const el = document.getElementById('heat-bar')!;
-    el.style.height = U.clamp(h, 0, 1) * 100 + '%';
-    el.style.background = hot ? '#ff3c2c' : '';
+    // Rendered reactively by HudOverlay via player store
   }
 
   setFlightHud(on: boolean): void {
-    document.getElementById('flight-hud')!.classList.toggle('hidden', !on);
-    document.getElementById('crosshair')!.classList.toggle('hidden', on);
-    document.getElementById('hotbar')!.classList.toggle('hidden', on);
-    document.getElementById('stats-left')!.classList.toggle('hidden', on);
-    document.getElementById('stats-right')!.classList.toggle('hidden', on);
+    useHudStore().flightHudOn = on;
   }
 
-  closeShipPanel(): void { this.g.ship.closePanel(); }
+  closeShipPanel(): void {
+    this.g.ship.closePanel();
+  }
 
   planetCard(info: PlanetInfo): void {
-    const el = document.getElementById('planet-card')!;
-    document.getElementById('pc-name')!.textContent = info.name;
-    document.getElementById('pc-climate')!.textContent = info.climate;
-    document.getElementById('pc-flora')!.textContent = info.flora;
-    document.getElementById('pc-fauna')!.textContent = info.fauna;
-    document.getElementById('pc-storm')!.textContent = info.storm;
-    const res = document.getElementById('pc-res')!;
-    res.innerHTML = '';
-    for (const r of info.res) {
-      const d = document.createElement('div');
-      d.className = 'res-chip';
-      d.style.borderColor = ITEMS[r].col || '#fff';
-      d.style.color = ITEMS[r].col || '#fff';
-      d.textContent = ITEMS[r].name;
-      res.appendChild(d);
-    }
-    el.classList.remove('hidden');
-    clearTimeout(this.pcT);
-    this.pcT = setTimeout(() => el.classList.add('hidden'), 6000);
+    useHudStore().showPlanetCard(info);
   }
 
   renderDiscoveries(): void {
-    const g = this.g;
-    const pl = document.getElementById('disc-planets')!;
-    pl.innerHTML = '';
-    for (const p of g.discoveries.planets) {
-      const d = document.createElement('div');
-      d.className = 'disc-row';
-      d.innerHTML = `<div class="d-ico">◍</div><div>${p.name}<div style="font-size:11px;opacity:.6">${p.climate}</div></div><div class="d-sub">${p.visited}次着陆</div>`;
-      pl.appendChild(d);
-    }
-    const sp = document.getElementById('disc-species')!;
-    sp.innerHTML = '';
-    if (g.discoveries.entries.length === 0) sp.innerHTML = '<div class="detail-empty">使用分析目镜 [F] 记录生物与植物</div>';
-    for (const e of g.discoveries.entries) {
-      const d = document.createElement('div');
-      d.className = 'disc-row';
-      const ico = e.kind === '生物' ? '❋' : e.kind === '植物' ? '❀' : '◆';
-      d.innerHTML = `<div class="d-ico">${ico}</div><div>${e.name}</div><div class="d-sub">${e.kind} · ${e.planet}<br>+${e.units} ◈</div>`;
-      sp.appendChild(d);
-    }
-    const mi = document.getElementById('disc-miles')!;
-    mi.innerHTML = '';
-    for (const def of MILESTONE_DEFS) {
-      const st = g.milestones.stats[def.key] || 0;
-      const tier = g.milestones.tier(def, st);
-      const next = def.tiers[Math.min(tier, def.tiers.length - 1)];
-      const d = document.createElement('div');
-      d.className = 'mile-row';
-      d.innerHTML = `<b>${def.name}</b> ${tier >= def.tiers.length ? '(满级)' : '等级 ' + tier}<span class="m-prog">${Math.floor(st)} / ${next} ${def.unit}</span>`;
-      mi.appendChild(d);
-    }
+    // Rendered reactively by InventoryScreen Vue component
   }
 }
