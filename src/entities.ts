@@ -215,9 +215,12 @@ export class Fauna {
     c.panic = 4;
     const pos = c.grp.position;
     this.g.audio.creatureHurt(0);
-    this.g.fx.spawn(pos.x, pos.y + c.sp.size, pos.z, { n: 6, col: '#c04a4a', speed: 2, life: 0.5 });
+    this.g.fx.burst(pos.x, pos.y + c.sp.size, pos.z, { n: 8, col: '#c04a4a', speed: 2.5, life: 0.5, ny: 1 });
     if (c.hp <= 0) {
-      this.g.fx.spawn(pos.x, pos.y + c.sp.size, pos.z, { n: 18, col: c.sp.col, speed: 3.2, life: 0.8 });
+      // Death burst — dramatic particle explosion
+      this.g.fx.burst(pos.x, pos.y + c.sp.size, pos.z, { n: 25, col: c.sp.col, speed: 4, life: 1.0, ny: 1 });
+      this.g.fx.burst(pos.x, pos.y + c.sp.size * 0.5, pos.z, { n: 10, col: c.sp.col2, speed: 2, life: 0.6 });
+      this.g.fx.shake(0.15);
       this.group.remove(c.grp);
       this.creatures.splice(this.creatures.indexOf(c), 1);
       const inv = this.g.inv;

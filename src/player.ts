@@ -441,7 +441,11 @@ export class Player {
       if (this.sfxT <= 0) {
         this.sfxT = 0.14;
         g.audio.mineHit(def.snd || 'stone');
-        g.fx.spawn(hitP.x, hitP.y, hitP.z, { n: 3, col: this.blockColor(t.id), speed: 1.8, life: 0.45 });
+        // Mining sparks — small burst at hit point
+        g.fx.burst(hitP.x, hitP.y, hitP.z, {
+          n: 5, col: this.blockColor(t.id), speed: 2.2, life: 0.35,
+          nx: t.nx * 0.5, ny: t.ny * 0.5, nz: t.nz * 0.5
+        });
       }
       const stage = Math.min(2, Math.floor(this.mineProgress * 3));
       this.crack.visible = true;
@@ -501,8 +505,12 @@ export class Player {
     const def = BLOCK_DEF[t.id];
     g.world.setBlock(t.x, t.y, t.z, B.AIR);
     g.audio.blockBreak(def.snd || 'stone');
-    g.fx.spawn(t.x + 0.5, t.y + 0.5, t.z + 0.5, { n: 14, col: this.blockColor(t.id), speed: 2.6, life: 0.6 });
-    g.fx.shake(0.06);
+    // Directional burst — particles fly away from the break face
+    g.fx.burst(t.x + 0.5, t.y + 0.5, t.z + 0.5, {
+      n: 20, col: this.blockColor(t.id), speed: 3.2, life: 0.7,
+      nx: t.nx, ny: t.ny, nz: t.nz
+    });
+    g.fx.shake(0.08);
     if (def.drops) {
       let pi = 0;
       for (const d of def.drops) {

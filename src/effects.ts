@@ -88,6 +88,34 @@ export class FX {
     }
   }
 
+  /** Directional burst — particles fly outward from a point */
+  burst(x: number, y: number, z: number, opts: SpawnOpts & { nx?: number; ny?: number; nz?: number }): void {
+    const n = opts.n || 12;
+    const col = parseColor(opts.col || '#ffffff');
+    const sp = opts.speed || 3;
+    const life = opts.life || 0.5;
+    const grav = opts.grav !== undefined ? opts.grav : 8;
+    const nx = opts.nx || 0, ny = opts.ny || 0, nz = opts.nz || 0;
+    for (let i = 0; i < n; i++) {
+      if (this.parts.length >= this.max) {
+        const last = this.parts.length - 1;
+        this.parts[0] = this.parts[last];
+        this.parts.length = last;
+      }
+      // Bias velocity outward from the break face
+      const out = 0.3 + Math.random() * 0.7;
+      this.parts.push({
+        x: x + U.rand(-0.3, 0.3), y: y + U.rand(-0.3, 0.3), z: z + U.rand(-0.3, 0.3),
+        vx: U.rand(-sp, sp) + nx * sp * out,
+        vy: U.rand(0.2, sp * 1.2) + ny * sp * out,
+        vz: U.rand(-sp, sp) + nz * sp * out,
+        life: U.rand(0.15, life),
+        col: col as unknown as THREE.Color,
+        grav
+      });
+    }
+  }
+
   update(dt: number): void {
     // Swap-with-last removal for dead particles
     for (let i = this.parts.length - 1; i >= 0; i--) {

@@ -619,6 +619,7 @@ export interface FX {
   shakeAmp: number;
   warpAnim: number | null;
   spawn(x: number, y: number, z: number, opts: SpawnOpts): void;
+  burst(x: number, y: number, z: number, opts: SpawnOpts & { nx?: number; ny?: number; nz?: number }): void;
   update(dt: number): void;
   laserShow(from: THREE.Vector3, to: THREE.Vector3, col?: string): void;
   laserHide(): void;
