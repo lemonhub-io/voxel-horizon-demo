@@ -4,6 +4,7 @@
 
 import { U } from './utils';
 import { CFG } from './config';
+import { Starfield } from './starfield';
 import type { Game, Palette } from './types';
 
 export class Sky {
@@ -18,6 +19,7 @@ export class Sky {
   moon: THREE.Mesh;
   planetGlow: THREE.Sprite;
   sunSprite: THREE.Sprite;
+  starfield: Starfield;
   t: number;
   dayMix: number;
   pal!: Palette;
@@ -83,6 +85,8 @@ export class Sky {
     this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
     this.sunSprite.scale.set(260, 260, 1);
     this.group.add(this.sunSprite);
+
+    this.starfield = new Starfield();
   }
 
   static makeGlow(): THREE.CanvasTexture {
@@ -171,5 +175,11 @@ export class Sky {
     this.group.position.copy(g.camera.position);
     this.celestial.rotation.y += dt * 0.002;
     if (g.audio.ok) g.audio.nightMix = 1 - day;
+
+    // Update star field overlay
+    const cam = g.camera;
+    const camYaw = cam.rotation.y;
+    const camPitch = cam.rotation.x;
+    this.starfield.update(g.time, camYaw, camPitch, 1 - day);
   }
 }

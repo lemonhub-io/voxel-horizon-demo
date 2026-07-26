@@ -19,6 +19,7 @@ import { HUD } from './hud';
 import { Missions, Milestones } from './missions';
 import { Save } from './save';
 import { PostProcessing } from './post-processing';
+import { PostFX } from './postfx';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -96,6 +97,7 @@ export class Game {
   player!: Player;
   spawnPoint!: { x: number; z: number };
   postProc!: PostProcessing;
+  postFx!: PostFX;
   missionT?: number;
   stormLeft?: number;
   private _prevX = 0;
@@ -173,6 +175,7 @@ export class Game {
     this.scene.add(this.camera);
     this.atlas = new TextureAtlas();
     this.postProc = new PostProcessing(this);
+    this.postFx = new PostFX();
     addEventListener('resize', () => {
       this.renderer.setSize(innerWidth, innerHeight);
       this.camera.aspect = innerWidth / innerHeight;
@@ -622,9 +625,11 @@ export class Game {
         // Sync to Pinia every 3 frames to reduce reactive setter overhead
         this._syncFrame++;
         if (this._syncFrame >= 3) { this._syncFrame = 0; this.syncPlayerStore(); }
+        if (this.postFx) this.postFx.update(this.player.hp, this.player.headInWater);
       }
       this.world.update(this.player.pos.x, this.player.pos.z, 6);
       this.sky.update(this.state === 'pause' ? 0 : dt);
+      this.world.updateWaterFresnel();
       this.fx.update(dt);
       this.fx.applyShake(this.camera);
       this.postProc.render();

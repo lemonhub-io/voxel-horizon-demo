@@ -108,9 +108,19 @@ export class World {
       map, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,
       roughness: 0.1, metalness: 0.3
     }) as unknown as THREE.MeshLambertMaterial;
+  }
 
-    // Water Fresnel disabled — TSL causes black screen on some setups
-    // TODO: Re-enable when TSL compatibility is confirmed
+  /** Update water Fresnel effect — more reflective at grazing angles */
+  updateWaterFresnel(): void {
+    if (!this.g.player) return;
+    const cam = this.g.camera;
+    // Camera look direction dot up vector = cos(angle from horizontal)
+    const lookY = Math.abs(Math.sin(cam.rotation.x));
+    // Fresnel: more transparent when looking straight down, more reflective at grazing
+    const fresnel = Math.pow(1 - lookY, 3);
+    const mat = this.matWater as unknown as THREE.MeshStandardMaterial;
+    mat.opacity = 0.55 + fresnel * 0.35;
+    mat.roughness = 0.25 - fresnel * 0.2;
   }
 
   key(cx: number, cz: number): string { return cx + ',' + cz; }
