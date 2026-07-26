@@ -108,40 +108,9 @@ export class World {
       roughness: 0.1, metalness: 0.3
     }) as unknown as THREE.MeshLambertMaterial;
 
-    // Foliage sway animation
-    (this.matCutout as unknown as { onBeforeCompile: (shader: THREE.Shader) => void }).onBeforeCompile = (shader: THREE.Shader) => {
-      shader.uniforms.uTime = this.g.timeUniform;
-      shader.vertexShader = 'uniform float uTime;\nattribute float sway;\n' + shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\n transformed.x += sway * sin(uTime*1.7 + position.x*0.9 + position.z*1.3)*0.07;\n transformed.z += sway * cos(uTime*1.3 + position.x*1.1)*0.07;'
-      );
-    };
-
-    // Water Fresnel + wave animation
-    (this.matWater as unknown as { onBeforeCompile: (shader: THREE.Shader) => void }).onBeforeCompile = (shader: THREE.Shader) => {
-      shader.uniforms.uTime = this.g.timeUniform;
-      const camPos = new THREE.Vector3();
-      shader.uniforms.uCamPos = { value: camPos };
-      this.waterCamPos = camPos;
-      shader.vertexShader = 'uniform float uTime;\nvarying vec3 vWorldPos;\n' + shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\n transformed.y += sin(position.x * 2.0 + uTime * 1.5) * 0.04 + cos(position.z * 1.8 + uTime * 1.2) * 0.03;'
-      );
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <worldpos_vertex>',
-        '#include <worldpos_vertex>\n vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;'
-      );
-      shader.fragmentShader = 'uniform float uTime;\nuniform vec3 uCamPos;\nvarying vec3 vWorldPos;\n' + shader.fragmentShader;
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <dithering_fragment>',
-        `// Fresnel effect
-         vec3 viewDir = normalize(uCamPos - vWorldPos);
-         float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 3.0);
-         gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * 1.4, fresnel * 0.5);
-         gl_FragColor.a = mix(0.72, 0.95, fresnel);
-         #include <dithering_fragment>`
-      );
-    };
+    // Note: foliage sway and water Fresnel used GLSL onBeforeCompile
+    // which is incompatible with WebGPU. These effects are disabled for now.
+    // TODO: Convert to TSL node-based approach for WebGPU compatibility.
   }
 
   key(cx: number, cz: number): string { return cx + ',' + cz; }

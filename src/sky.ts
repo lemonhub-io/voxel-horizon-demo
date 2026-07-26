@@ -1,5 +1,5 @@
 // ============================================================
-// sky.ts — Sky dome, sun, moon, atmosphere (HDR + optimized lighting)
+// sky.ts — Sky dome (WebGPU-compatible, no raw GLSL)
 // ============================================================
 
 import { U } from './utils';
@@ -9,15 +9,13 @@ import type { Game, Palette } from './types';
 export class Sky {
   g: Game;
   group: THREE.Group;
-  uniforms: {
-    topColor: { value: THREE.Color };
-    horColor: { value: THREE.Color };
-    sunDir: { value: THREE.Vector3 };
-    sunColor: { value: THREE.Color };
-    nightMix: { value: number };
-    uTime: { value: number };
-    starBright: { value: number };
-  };
+  uTopColor: THREE.Color;
+  uHorColor: THREE.Color;
+  uSunDir: THREE.Vector3;
+  uSunColor: THREE.Color;
+  uNightMix: number;
+  uTime: number;
+  uStarBright: number;
   dome: THREE.Mesh;
   sunLight: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
@@ -39,98 +37,26 @@ export class Sky {
     this.group = new THREE.Group();
     game.scene.add(this.group);
 
-    this.uniforms = {
-      topColor: { value: new THREE.Color('#3a8fd4') },
-      horColor: { value: new THREE.Color('#bfe4ee') },
-      sunDir: { value: new THREE.Vector3(0, 1, 0) },
-      sunColor: { value: new THREE.Color('#fff2d0') },
-      nightMix: { value: 0 },
-      uTime: { value: 0 },
-      starBright: { value: 0 },
-    };
+    this.uTopColor = new THREE.Color('#3a8fd4');
+    this.uHorColor = new THREE.Color('#bfe4ee');
+    this.uSunDir = new THREE.Vector3(0, 1, 0);
+    this.uSunColor = new THREE.Color('#fff2d0');
+    this.uNightMix = 0;
+    this.uTime = 0;
+    this.uStarBright = 0;
 
-    const mat = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
+    // Create sky dome with MeshBasicMaterial (WebGPU-compatible)
+    // The sky colors are updated per-frame via setClearColor and material color
+    const mat = new THREE.MeshBasicMaterial({
+      color: '#3a8fd4',
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      vertexShader: `
-        varying vec3 vDir;
-        void main(){
-          vDir = position;
-          vec4 mv = modelViewMatrix * vec4(position,1.0);
-          gl_Position = projectionMatrix * mv;
-        }`,
-      fragmentShader: `
-        uniform vec3 topColor, horColor, sunDir, sunColor;
-        uniform float nightMix, uTime, starBright;
-        varying vec3 vDir;
-
-        float hash3(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }
-
-        void main(){
-          vec3 d = normalize(vDir);
-          float h = max(d.y, 0.0);
-
-          // Rayleigh scattering — wavelength-dependent extinction
-          // Blue light scatters more (short λ) → sky is blue
-          // Red light scatters less (long λ) → sun is reddish at horizon
-          vec3 rayleigh = exp(-h * vec3(5.5, 13.0, 22.4));
-          vec3 skyBase = mix(horColor, topColor, 1.0 - rayleigh);
-
-          // Blend with palette colors for biome variation
-          vec3 col = mix(skyBase, mix(horColor, topColor, pow(h, 0.45)), 0.4);
-
-          // Ground reflection
-          if(d.y < 0.0){
-            col = mix(horColor, horColor * 0.4, min(-d.y * 2.5, 1.0));
-          }
-
-          // Sun disc with multiple lobes (HDR values, tone-mapped by renderer)
-          float s = max(dot(d, sunDir), 0.0);
-          float horizonBoost = 1.0 - abs(d.y);
-
-          // Mie forward scattering — atmospheric haze near sun
-          float mie = pow(s, 8.0) * 0.15 * horizonBoost;
-
-          // Core disc — very bright HDR peak
-          col += sunColor * pow(s, 900.0) * 5.0;
-          // Inner glow — bright halo
-          col += sunColor * pow(s, 24.0) * 0.8;
-          // Outer haze
-          col += sunColor * pow(s, 5.0) * 0.3 * horizonBoost;
-          // Mie scattering contribution
-          col += sunColor * mie;
-
-          // Dusk/dawn horizon band — enhanced with Rayleigh reddening
-          float duskBand = exp(-abs(d.y) * 6.0) * nightMix * 0.4;
-          vec3 duskColor = mix(vec3(1.0, 0.5, 0.2), vec3(1.0, 0.3, 0.1), 1.0 - rayleigh.z);
-          col += duskColor * duskBand * max(sunDir.y + 0.2, 0.0);
-
-          // Stars (only visible at night) — higher density grid
-          if(starBright > 0.01 && d.y > -0.05){
-            vec3 cell = floor(d * 280.0);
-            float star = step(0.998, hash3(cell));
-            float tw = 0.55 + 0.45 * sin(uTime * 2.4 + hash3(cell + 1.0) * 40.0);
-            float starCol = hash3(cell + 2.0);
-            vec3 starTint = mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 0.9, 0.7), starCol);
-            // Size variation
-            float starSize = 0.8 + hash3(cell + 3.0) * 0.6;
-            col += starTint * star * tw * starBright * starSize;
-          }
-
-          // Night sky ambient glow
-          if(nightMix > 0.3){
-            float nightGlow = (1.0 - h) * nightMix * 0.1;
-            col += vec3(0.04, 0.06, 0.14) * nightGlow;
-          }
-
-          gl_FragColor = vec4(col, 1.0);
-        }`
     });
+
     this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
-    (this.dome as THREE.Mesh).frustumCulled = false;
-    (this.dome as THREE.Mesh).renderOrder = -10;
+    this.dome.frustumCulled = false;
+    this.dome.renderOrder = -10;
     this.group.add(this.dome);
 
     // Main directional light (sun) with shadows
@@ -211,34 +137,26 @@ export class Sky {
     const ang = (this.t - 0.25) * Math.PI * 2;
     const sunY = Math.sin(ang), sunX = Math.cos(ang);
     const sunDir = this._sunDir.set(sunX * 0.7, sunY, sunX * 0.3).normalize();
-    this.uniforms.sunDir.value.copy(sunDir);
 
-    // Smooth day/night curve with wider twilight zone
     const day = U.clamp(sunY * 2.8 + 0.35, 0, 1);
     this.dayMix = day;
-    // Dusk factor: peaks when sun is near horizon
     const dusk = U.clamp(1 - Math.abs(sunY) * 3.5, 0, 1) * (day > 0.03 ? 1 : 0.3);
 
     const pal = this.pal;
 
-    // Sky colors with smooth interpolation
+    // Sky dome color — blend between night and day
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-    this.uniforms.topColor.value.set(top);
-    this.uniforms.horColor.value.set(hor);
-    this.uniforms.sunColor.value.set(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
-    this.uniforms.nightMix.value = 1 - day;
-    this.uniforms.starBright.value = Math.max(0, 1 - day * 3) * 0.85;
+    (this.dome.material as THREE.MeshBasicMaterial).color.set(top);
 
     // Sun light — HDR values (tone-mapped by renderer)
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
 
-    // Shadow camera follows player, but only snaps to new grid cell
-    // to prevent per-frame jitter from shadow map texel misalignment
+    // Shadow camera follows player, snapped to grid
     if (g.player) {
       const p = g.player.pos;
-      const cellSize = 4; // snap to 4-unit grid cells
+      const cellSize = 4;
       const snapX = Math.round(p.x / cellSize) * cellSize;
       const snapZ = Math.round(p.z / cellSize) * cellSize;
       if (snapX !== this._shadowTargetX || snapZ !== this._shadowTargetZ) {
@@ -260,7 +178,7 @@ export class Sky {
     this.hemi.color.set(top);
     this.hemi.groundColor.set(U.shade(pal.grass, 0.4 + day * 0.2));
 
-    // Ambient fill — prevents pitch black at night
+    // Ambient fill
     this.ambientFill.intensity = 0.1 + (1 - day) * 0.2;
 
     // Sun sprite
