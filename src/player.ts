@@ -51,6 +51,17 @@ export class Player {
   xWarned?: boolean;
   dfT?: ReturnType<typeof setTimeout>;
 
+  // Pre-allocated scratch vectors to avoid per-frame allocations
+  private _eyePos = new THREE.Vector3();
+  private _lookDir = new THREE.Vector3();
+  private _fwd = new THREE.Vector3();
+  private _right = new THREE.Vector3();
+  private _wish = new THREE.Vector3();
+  private _vmTipWorld = new THREE.Vector3();
+  private _hitP = new THREE.Vector3();
+  private _shelterCache = 0;
+  private _shelterVal = false;
+
   constructor(game: Game) {
     this.g = game;
     this.pos = new THREE.Vector3(8, 40, 8);
@@ -129,13 +140,12 @@ export class Player {
     this.flashOn = false;
   }
 
-  eyePos(): THREE.Vector3 { return new THREE.Vector3(this.pos.x, this.pos.y + 1.62, this.pos.z); }
+  eyePos(): THREE.Vector3 {
+    return this._eyePos.set(this.pos.x, this.pos.y + 1.62, this.pos.z);
+  }
   lookDir(): THREE.Vector3 {
-    return new THREE.Vector3(
-      -Math.sin(this.yaw) * Math.cos(this.pitch),
-      Math.sin(this.pitch),
-      -Math.cos(this.yaw) * Math.cos(this.pitch)
-    );
+    const cp = Math.cos(this.pitch);
+    return this._lookDir.set(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
   }
 
   update(dt: number): void {
@@ -153,9 +163,9 @@ export class Player {
     this.pitch = U.clamp(this.pitch, -1.55, 1.55);
     input.dx = input.dy = 0;
 
-    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-    const wish = new THREE.Vector3();
+    const fwd = this._fwd.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const right = this._right.set(-fwd.z, 0, fwd.x);
+    const wish = this._wish.set(0, 0, 0);
     if (input.keys['KeyW']) wish.add(fwd);
     if (input.keys['KeyS']) wish.sub(fwd);
     if (input.keys['KeyD']) wish.add(right);
@@ -434,9 +444,8 @@ export class Player {
   }
 
   vmTipWorld(): THREE.Vector3 {
-    const v = new THREE.Vector3();
-    this.vmTip.getWorldPosition(v);
-    return v;
+    this.vmTip.getWorldPosition(this._vmTipWorld);
+    return this._vmTipWorld;
   }
 
   placeBlock(): void {
@@ -496,12 +505,17 @@ export class Player {
   }
 
   checkShelter(): boolean {
+    // Cache result for 10 frames to reduce getBlock calls
+    this._shelterCache--;
+    if (this._shelterCache > 0) return this._shelterVal;
+    this._shelterCache = 10;
     const w = this.g.world;
     const x = Math.floor(this.pos.x), z = Math.floor(this.pos.z);
     for (let y = Math.floor(this.pos.y + 2); y < Math.min(CFG.WORLD_H, this.pos.y + 10); y++) {
       const b = w.getBlock(x, y, z);
-      if (b !== B.AIR && BLOCK_DEF[b].solid) return true;
+      if (b !== B.AIR && BLOCK_DEF[b].solid) { this._shelterVal = true; return true; }
     }
+    this._shelterVal = false;
     return false;
   }
 

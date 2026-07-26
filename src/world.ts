@@ -1,5 +1,5 @@
 // ============================================================
-// world.ts — Chunk + World class
+// world.ts — Chunk + World class (performance optimized)
 // ============================================================
 
 import { U, SimplexNoise } from './utils';
@@ -35,6 +35,7 @@ export class World {
   group: THREE.Group;
   genQueue: Chunk[];
   meshQueue: Chunk[];
+  meshQueueSet: Set<Chunk>;
   lampLights: THREE.PointLight[];
   lampPool: THREE.PointLight[];
   heightCache: Map<string, number>;
@@ -49,6 +50,7 @@ export class World {
   matOpaque!: THREE.MeshLambertMaterial;
   matCutout!: THREE.MeshLambertMaterial;
   matWater!: THREE.MeshLambertMaterial;
+  cullFrame: number;
 
   constructor(game: Game) {
     this.g = game;
@@ -58,10 +60,12 @@ export class World {
     this.g.scene.add(this.group);
     this.genQueue = [];
     this.meshQueue = [];
+    this.meshQueueSet = new Set();
     this.lampLights = [];
     this.lampPool = [];
     this.heightCache = new Map();
     this.matsReady = false;
+    this.cullFrame = 0;
   }
 
   setPlanet(seed: number, pal: Palette): void {
@@ -232,17 +236,27 @@ export class World {
     if (lz === 0) this.remesh(cx, cz - 1);
     if (lz === 15) this.remesh(cx, cz + 1);
     if (id === B.LAMP) this.lamps.push([gx + 0.5, gy + 0.5, gz + 0.5]);
-    if (old === B.LAMP) this.lamps = this.lamps.filter(l => !(Math.floor(l[0]) === gx && Math.floor(l[1]) === gy && Math.floor(l[2]) === gz));
+    if (old === B.LAMP) {
+      const idx = this.lamps.findIndex(l => Math.floor(l[0]) === gx && Math.floor(l[1]) === gy && Math.floor(l[2]) === gz);
+      if (idx >= 0) this.lamps.splice(idx, 1);
+    }
     return true;
   }
 
   remesh(cx: number, cz: number): void {
     const ch = this.chunks.get(this.key(cx, cz));
-    if (ch && ch.built && !ch.dirty) { ch.dirty = true; this.meshQueue.unshift(ch); }
+    if (ch && ch.built && !ch.dirty) {
+      ch.dirty = true;
+      this.meshQueueSet.add(ch);
+      this.meshQueue.push(ch);
+    }
   }
 
   topSolidY(gx: number, gz: number): number {
-    for (let y = CFG.WORLD_H - 1; y > 0; y--) {
+    // Fast path: use heightCache if available (surfaceY caches terrain height)
+    const surfY = this.surfaceY(gx, gz);
+    // Start from surface height instead of world top
+    for (let y = Math.min(surfY + 1, CFG.WORLD_H - 1); y > 0; y--) {
       const b = this.getBlock(gx, y, gz);
       if (b !== B.AIR && BLOCK_DEF[b].solid) return y;
     }
@@ -394,7 +408,7 @@ export class World {
       if (!ch.built) need.push(ch);
       else if (Math.abs(dx) <= R && Math.abs(dz) <= R && ch.meshes.length === 0 && !ch.dirty) {
         ch.dirty = true;
-        if (!this.meshQueue.includes(ch)) this.meshQueue.push(ch);
+        if (!this.meshQueueSet.has(ch)) { this.meshQueueSet.add(ch); this.meshQueue.push(ch); }
       }
     }
     need.sort((a, b) => (Math.abs(a.cx - pcx) + Math.abs(a.cz - pcz)) - (Math.abs(b.cx - pcx) + Math.abs(b.cz - pcz)));
@@ -403,13 +417,19 @@ export class World {
     while (need.length && performance.now() - t0 < budgetMs) this.generate(need.shift()!);
     while (this.meshQueue.length && performance.now() - t0 < budgetMs + 4) {
       const ch = this.meshQueue.shift()!;
+      this.meshQueueSet.delete(ch);
       if (ch.built && ch.dirty) this.buildMesh(ch);
     }
-    for (const [k, ch] of this.chunks) {
-      if (Math.abs(ch.cx - pcx) > R + 2 || Math.abs(ch.cz - pcz) > R + 2) {
-        for (const m of ch.meshes) { this.group.remove(m); m.geometry.dispose(); }
-        ch.meshes = [];
-        if (Math.abs(ch.cx - pcx) > R + 4 || Math.abs(ch.cz - pcz) > R + 4) this.chunks.delete(k);
+    // Defer chunk culling to every 3rd frame
+    this.cullFrame++;
+    if (this.cullFrame >= 3) {
+      this.cullFrame = 0;
+      for (const [k, ch] of this.chunks) {
+        if (Math.abs(ch.cx - pcx) > R + 2 || Math.abs(ch.cz - pcz) > R + 2) {
+          for (const m of ch.meshes) { this.group.remove(m); m.geometry.dispose(); }
+          ch.meshes = [];
+          if (Math.abs(ch.cx - pcx) > R + 4 || Math.abs(ch.cz - pcz) > R + 4) this.chunks.delete(k);
+        }
       }
     }
     this.updateLampLights(px, pz);
@@ -427,16 +447,34 @@ export class World {
     return done / total;
   }
 
+  // Single-pass partial selection: keep top-6 nearest lamps without intermediate arrays
+  private _lampBuf: { l: number[]; d: number }[] = [];
+
   updateLampLights(px: number, pz: number): void {
     if (!this.lamps) return;
-    const near = this.lamps.map(l => ({ l, d: U.dist2(l[0], l[2], px, pz) })).filter(o => o.d < 40).sort((a, b) => a.d - b.d).slice(0, 6);
-    while (this.lampPool.length < near.length) {
+    const buf = this._lampBuf;
+    buf.length = 0;
+    for (let i = 0; i < this.lamps.length; i++) {
+      const l = this.lamps[i];
+      const d = U.dist2(l[0], l[2], px, pz);
+      if (d >= 40) continue;
+      // Insert sorted by distance (keep only top 6)
+      let j = buf.length;
+      if (j >= 6) {
+        if (d >= buf[5].d) continue;
+        j = 5;
+      }
+      while (j > 0 && buf[j - 1].d > d) { buf[j] = buf[j - 1]; j--; }
+      buf[j] = { l, d };
+      if (buf.length > 6) buf.length = 6;
+    }
+    while (this.lampPool.length < buf.length) {
       const pl = new THREE.PointLight(0xffdf9e, 1.1, 13, 1.6);
       this.g.scene.add(pl);
       this.lampPool.push(pl);
     }
     this.lampPool.forEach((pl, i) => {
-      if (i < near.length) { pl.visible = true; pl.position.set(near[i].l[0], near[i].l[1], near[i].l[2]); }
+      if (i < buf.length) { pl.visible = true; pl.position.set(buf[i].l[0], buf[i].l[1], buf[i].l[2]); }
       else pl.visible = false;
     });
   }
@@ -476,6 +514,7 @@ export class World {
 
   findScanTargets(px: number, py: number, pz: number, radius: number): ScanTarget[] {
     const out: ScanTarget[] = [];
+    const r2 = radius * radius;
     const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16);
     const cr = Math.ceil(radius / 16) + 1;
     for (let dx = -cr; dx <= cr; dx++) for (let dz = -cr; dz <= cr; dz++) {
@@ -487,8 +526,9 @@ export class World {
         const def = BLOCK_DEF[id];
         if (!def.scan) continue;
         const gx = ch.cx * 16 + x + 0.5, gz = ch.cz * 16 + z + 0.5;
-        const d = Math.sqrt((gx - px) ** 2 + (y - py) ** 2 + (gz - pz) ** 2);
-        if (d < radius) out.push({ x: gx, y: y + 0.5, z: gz, type: def.scan, d, id });
+        const dx2 = gx - px, dy = y - py, dz2 = gz - pz;
+        const d2 = dx2 * dx2 + dy * dy + dz2 * dz2;
+        if (d2 < r2) out.push({ x: gx, y: y + 0.5, z: gz, type: def.scan, d: Math.sqrt(d2), id });
       }
     }
     out.sort((a, b) => a.d - b.d);
@@ -499,6 +539,7 @@ export class World {
     for (const [, ch] of this.chunks) for (const m of ch.meshes) { this.group.remove(m); m.geometry.dispose(); }
     this.chunks = new Map();
     this.meshQueue = [];
+    this.meshQueueSet.clear();
     this.heightCache = new Map();
     for (const pl of this.lampPool) pl.visible = false;
     this.lamps = [];

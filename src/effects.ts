@@ -1,10 +1,21 @@
 // ============================================================
-// effects.ts — Particle FX, laser, shake, warp
+// effects.ts — Particle FX, laser, shake, warp (optimized)
 // ============================================================
 
 import { U } from './utils';
 import { Sky } from './sky';
 import type { Game, SpawnOpts, Particle } from './types';
+
+// Color cache: hex string → {r,g,b} to avoid new THREE.Color per particle
+const _colorCache = new Map<string, { r: number; g: number; b: number }>();
+function parseColor(hex: string): { r: number; g: number; b: number } {
+  let c = _colorCache.get(hex);
+  if (c) return c;
+  const n = parseInt(hex.slice(1), 16);
+  c = { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
+  _colorCache.set(hex, c);
+  return c;
+}
 
 export class FX {
   g: Game;
@@ -55,40 +66,54 @@ export class FX {
 
   spawn(x: number, y: number, z: number, opts: SpawnOpts): void {
     const n = opts.n || 6;
+    const col = parseColor(opts.col || '#ffffff');
+    const sp = opts.speed || 2.4;
+    const up = opts.up || 0.5;
+    const life = opts.life || 0.7;
+    const grav = opts.grav !== undefined ? opts.grav : 9;
     for (let i = 0; i < n; i++) {
-      if (this.parts.length >= this.max) this.parts.shift();
-      const sp = opts.speed || 2.4;
+      // Swap-with-last eviction instead of O(n) shift
+      if (this.parts.length >= this.max) {
+        const last = this.parts.length - 1;
+        this.parts[0] = this.parts[last];
+        this.parts.length = last;
+      }
       this.parts.push({
         x, y, z,
-        vx: U.rand(-sp, sp), vy: U.rand(opts.up || 0.5, sp * 1.4), vz: U.rand(-sp, sp),
-        life: U.rand(0.25, opts.life || 0.7),
-        col: new THREE.Color(opts.col || '#ffffff'),
-        grav: opts.grav !== undefined ? opts.grav : 9
+        vx: U.rand(-sp, sp), vy: U.rand(up, sp * 1.4), vz: U.rand(-sp, sp),
+        life: U.rand(0.25, life),
+        col: col as unknown as THREE.Color,
+        grav
       });
     }
   }
 
   update(dt: number): void {
+    // Swap-with-last removal for dead particles
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i];
       p.life -= dt;
-      if (p.life <= 0) { this.parts.splice(i, 1); continue; }
+      if (p.life <= 0) {
+        const last = this.parts.length - 1;
+        if (i !== last) this.parts[i] = this.parts[last];
+        this.parts.length = last;
+        continue;
+      }
       p.vy -= p.grav * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     }
-    for (let i = 0; i < this.max; i++) {
-      if (i < this.parts.length) {
-        const p = this.parts[i];
-        this.posArr[i * 3] = p.x; this.posArr[i * 3 + 1] = p.y; this.posArr[i * 3 + 2] = p.z;
-        const f = Math.min(1, p.life * 2.5);
-        this.colArr[i * 3] = p.col.r * f; this.colArr[i * 3 + 1] = p.col.g * f; this.colArr[i * 3 + 2] = p.col.b * f;
-      } else {
-        this.posArr[i * 3 + 1] = -999;
-      }
+    // Only write active particles to buffer
+    const len = this.parts.length;
+    for (let i = 0; i < len; i++) {
+      const p = this.parts[i];
+      this.posArr[i * 3] = p.x; this.posArr[i * 3 + 1] = p.y; this.posArr[i * 3 + 2] = p.z;
+      const f = Math.min(1, p.life * 2.5);
+      const c = p.col as unknown as { r: number; g: number; b: number };
+      this.colArr[i * 3] = c.r * f; this.colArr[i * 3 + 1] = c.g * f; this.colArr[i * 3 + 2] = c.b * f;
     }
     (this.points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     (this.points.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
-    this.points.geometry.setDrawRange(0, Math.max(this.parts.length, 1));
+    this.points.geometry.setDrawRange(0, Math.max(len, 1));
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 2.2);
   }
 
@@ -130,6 +155,10 @@ export class FX {
     const stars: { a: number; r: number; sp: number; hue: number }[] = [];
     for (let i = 0; i < 340; i++) stars.push({ a: Math.random() * Math.PI * 2, r: Math.random() * 0.9 + 0.05, sp: 0.4 + Math.random() * 2.4, hue: Math.random() });
     const cx = cvs.width / 2, cy = cvs.height / 2;
+    // Pre-create gradient once
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 130);
+    grd.addColorStop(0, 'rgba(210,235,255,0.9)');
+    grd.addColorStop(1, 'rgba(120,160,255,0)');
     let last = performance.now();
     const anim = (): void => {
       const now = performance.now();
@@ -149,9 +178,6 @@ export class FX {
         s.r = r1;
         if (s.r > 1.55) { s.r = Math.random() * 0.12; s.a = Math.random() * Math.PI * 2; }
       }
-      const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 130);
-      grd.addColorStop(0, 'rgba(210,235,255,0.9)');
-      grd.addColorStop(1, 'rgba(120,160,255,0)');
       ctx.fillStyle = grd;
       ctx.fillRect(cx - 140, cy - 140, 280, 280);
       this.warpAnim = requestAnimationFrame(anim);

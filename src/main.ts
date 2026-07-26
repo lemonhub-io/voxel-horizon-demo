@@ -96,6 +96,9 @@ export class Game {
   spawnPoint!: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
+  private _prevX = 0;
+  private _prevZ = 0;
+  private _syncFrame = 0;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -581,10 +584,11 @@ export class Game {
     if (this.state === 'play' || this.state === 'warp' || this.state === 'dead' || this.state === 'pause') {
       if (this.state === 'play') {
         this.playTime += dt;
-        const prevPos = this.player.pos.clone();
+        this._prevX = this.player.pos.x;
+        this._prevZ = this.player.pos.z;
         this.player.update(dt);
         if (!this.player.inShip) {
-          const moved = U.dist2(prevPos.x, prevPos.z, this.player.pos.x, this.player.pos.z);
+          const moved = U.dist2(this._prevX, this._prevZ, this.player.pos.x, this.player.pos.z);
           if (moved < 2) this.milestones.addStat('walk', moved);
         }
         this.ship.update(dt);
@@ -600,7 +604,9 @@ export class Game {
             if (ok) this.stores.hud.addNotification('自动存档完成', 'info');
           }).catch(() => {});
         }
-        this.syncPlayerStore();
+        // Sync to Pinia every 3 frames to reduce reactive setter overhead
+        this._syncFrame++;
+        if (this._syncFrame >= 3) { this._syncFrame = 0; this.syncPlayerStore(); }
       }
       this.world.update(this.player.pos.x, this.player.pos.z, 6);
       this.sky.update(this.state === 'pause' ? 0 : dt);
