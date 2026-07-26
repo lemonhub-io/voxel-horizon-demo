@@ -1,5 +1,5 @@
 // ============================================================
-// missions.ts — Mission system + Milestones
+// missions.ts — No Man's Sky inspired mission progression
 // ============================================================
 
 import { MILESTONE_DEFS } from './config';
@@ -26,64 +26,77 @@ export class Missions {
   buildDefs(): MissionDef[] {
     const g = this.g;
     return [
+      // === PHASE 1: SURVIVAL ===
       {
-        id: 'wake', title: '寻找坠毁的星舰', desc: '沿着指南针上的白色标记，找到你的飞船。',
+        id: 'wake', title: '坠毁信号', desc: '沿指南针白色标记找到坠毁的星舰。',
         prog: () => null,
         check: () => g.player && g.player.pos.distanceTo(g.ship.group.position) < 14,
-        done: '找到了「拂晓之羽」—— 但它伤得不轻。'
+        done: '找到了「拂晓之羽」。飞船严重受损，需要修复。'
       },
       {
-        id: 'sodium', title: '危险防护告急', desc: '采集 钠 ×15：寻找黄色发光的钠光花，按住左键用激光采集。按 X 可随时消耗钠为防护充能。',
-        prog: () => [g.inv.count('sodium') + (this.sodiumUsed || 0), 15],
-        check: () => (g.inv.count('sodium') + (this.sodiumUsed || 0)) >= 15,
-        done: '防护系统重新上线。记住：按 X 充能防护。'
+        id: 'sodium', title: '防护系统', desc: '采集 钠×10（黄色钠光花）和 铁尘×10（灰色岩石）。按 X 消耗钠充能防护。',
+        prog: () => [g.inv.count('sodium') + (this.sodiumUsed || 0) + g.inv.count('ferrite'), 20],
+        check: () => (g.inv.count('sodium') + (this.sodiumUsed || 0)) >= 10 && g.inv.count('ferrite') >= 10,
+        done: '基础防护就绪。你学会了在这个星球上生存。'
       },
       {
-        id: 'ferrite', title: '校准多功能工具', desc: '采集 铁尘 ×25：开采灰色岩石或棕色铁屑岩。完成后解锁扫描脉冲 [C] 与分析目镜 [F]。',
-        prog: () => [g.inv.count('ferrite'), 25],
-        check: () => g.inv.count('ferrite') >= 25,
-        done: '扫描仪校准完毕 —— 按 C 标记周围资源，按 F 分析万物。',
+        id: 'scanner', title: '校准扫描仪', desc: '继续采集 铁尘×15，完成后解锁扫描 [C] 和分析目镜 [F]。',
+        prog: () => [g.inv.count('ferrite'), 15],
+        check: () => g.inv.count('ferrite') >= 15,
+        done: '扫描仪校准完毕。按 C 标记资源，按 F 分析万物。',
         onComplete: () => { this.scannerUnlocked = true; }
       },
       {
-        id: 'oxygen', title: '维持呼吸', desc: '采集 氧 ×20：按 C 扫描，寻找红色的呼吸红花。按 Z 可消耗氧补充生命维持。',
-        prog: () => [g.inv.count('oxygen') + (this.oxygenUsed || 0), 20],
-        check: () => (g.inv.count('oxygen') + (this.oxygenUsed || 0)) >= 20,
-        done: '生命维持稳定。这颗星球的空气并不欢迎你。'
+        id: 'oxygen', title: '生命维持', desc: '采集 氧×15（红色花朵）。按 Z 消耗氧补充生命维持。',
+        prog: () => [g.inv.count('oxygen') + (this.oxygenUsed || 0), 15],
+        check: () => (g.inv.count('oxygen') + (this.oxygenUsed || 0)) >= 15,
+        done: '生命维持稳定。你已经适应了这颗星球。'
+      },
+
+      // === PHASE 2: CRAFTING ===
+      {
+        id: 'refine', title: '材料精炼', desc: '打开合成面板 [Tab]，合成 金属镀层×1 和 碳纳米管×1。这是修复飞船的基础材料。',
+        prog: () => [g.inv.count('metal_plate') + g.inv.count('nanotube'), 2],
+        check: () => g.inv.count('metal_plate') >= 1 && g.inv.count('nanotube') >= 1,
+        done: '材料精炼完成。这些高级材料可以修复飞船组件了。'
       },
       {
-        id: 'thruster', title: '修复起飞推进器', desc: '按 Tab 打开合成面板，用 铁尘×30 合成 金属镀层，再靠近飞船按 E 修复推进器（还需铁尘×20）。',
+        id: 'thruster', title: '修复推进器', desc: '靠近飞船按 E，用 金属镀层×1 + 铁尘×20 修复起飞推进器。',
         prog: () => null,
         check: () => !g.ship.comps.thruster.broken,
-        done: '推进器修复完成，机身恢复了平衡。'
+        done: '推进器修复完成。机身恢复了平衡。'
       },
       {
-        id: 'pulse', title: '修复脉冲引擎', desc: '合成 碳纳米管（碳×40，采集树木与植物），并准备 钠×15，然后在飞船面板中修复脉冲引擎。',
+        id: 'pulse', title: '修复脉冲引擎', desc: '用 碳纳米管×1 + 钠×15 修复脉冲引擎。钠需要继续采集。',
         prog: () => null,
         check: () => !g.ship.comps.pulse.broken,
-        done: '脉冲引擎点火自检通过。'
+        done: '脉冲引擎点火自检通过。飞船可以巡航了。'
       },
+
+      // === PHASE 3: LAUNCH ===
       {
-        id: 'fuel', title: '加注启动燃料', desc: '采集蓝色双氢晶簇（双氢×25），合成 启动燃料 并在飞船面板加注。',
+        id: 'fuel', title: '加注燃料', desc: '采集蓝色双氢晶簇 [C扫描]，合成 启动燃料（双氢×25），在飞船面板加注。',
         prog: () => [Math.round(g.ship.fuel), 100],
         check: () => g.ship.fuel >= 99,
-        done: '燃料舱加注完毕 —— 可以起飞了。'
+        done: '燃料舱加注完毕。可以起飞了。'
       },
       {
-        id: 'launch', title: '起飞！', desc: '靠近飞船按 E，点击「起飞」。鼠标转向，W/S 控制油门，空格加力，E 降落。',
+        id: 'launch', title: '起飞！', desc: '靠近飞船按 E，点击「起飞」。W/S 油门，鼠标转向，空格加力，E 降落。',
         prog: () => null,
         check: () => this.launched === true,
         done: '你回到了天空。这颗星球在脚下铺展开来。'
       },
+
+      // === PHASE 4: FRONTIER ===
       {
-        id: 'frontier', title: '天际之后', desc: '完成任意目标：① 放置 15 个方块建造庇护所 ② 用目镜分析 3 种生命 ③ 合成跃迁电池并在飞行中按 J 跃迁到新星球。',
+        id: 'frontier', title: '天际之后', desc: '完成任意目标：① 建造15个方块 ② 分析3种生物 ③ 跃迁到新星球',
         prog: () => [Math.min(15, this.shelterCount) + '', ''],
         progText: () => `建造 ${Math.min(15, this.shelterCount)}/15 · 分析 ${Math.min(3, g.milestones.stats.scans || 0)}/3 · 跃迁 ${Math.min(1, g.milestones.stats.warps || 0)}/1`,
         check: () => this.shelterCount >= 15 || (g.milestones.stats.scans || 0) >= 3 || (g.milestones.stats.warps || 0) >= 1,
         done: '远行者协议完成。银河的门已经敞开。'
       },
       {
-        id: 'free', title: '无尽旅程', desc: '探索、建造、收集、跃迁。每颗星球都有自己的气候、生态与风暴。你的旅程没有终点。',
+        id: 'free', title: '无尽旅程', desc: '探索、建造、收集、跃迁。每颗星球都有独特的气候、生态与风暴。',
         prog: () => null,
         check: () => false
       }

@@ -98,7 +98,7 @@ describe('PALETTES', () => {
     }
   });
   it('hazard types are valid', () => {
-    const valid = ['heat', 'cold', 'toxic', 'freeze'];
+    const valid = ['heat', 'cold', 'toxic', 'rad'];
     for (const p of PALETTES) expect(valid).toContain(p.hazard.type);
   });
 });
@@ -108,7 +108,7 @@ describe('HAZ_ICONS', () => {
     expect(HAZ_ICONS.cold).toBeDefined();
     expect(HAZ_ICONS.heat).toBeDefined();
     expect(HAZ_ICONS.toxic).toBeDefined();
-    expect(HAZ_ICONS.freeze).toBeDefined();
+    expect(HAZ_ICONS.rad).toBeDefined();
   });
 });
 

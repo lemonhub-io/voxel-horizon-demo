@@ -33,7 +33,7 @@ describe('Missions', () => {
   it('starts at index 0', () => expect(missions.idx).toBe(0));
   it('scanner is locked initially', () => expect(missions.scannerUnlocked).toBe(false));
   it('current returns first mission', () => expect(missions.current().id).toBe('wake'));
-  it('has 10 missions', () => expect(missions.defs.length).toBe(10));
+  it('has 11 missions', () => expect(missions.defs.length).toBe(11));
 
   describe('tick', () => {
     it('does not advance when condition not met', () => {
