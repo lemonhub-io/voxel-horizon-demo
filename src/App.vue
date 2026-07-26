@@ -33,7 +33,7 @@
   />
 
   <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" />
-  <InventoryScreen v-if="inv.open" @close="onCloseInv" />
+  <InventoryScreen v-if="inv.open" @close="onCloseInv" @use-item="onUseItem" @craft="onCraft" />
   <ShipPanel v-if="ship.open" @close="onCloseShip" @repair="onRepair" @refuel="onRefuel" @launch="onLaunch" />
   <PauseScreen v-if="game.state === 'pause'" @resume="onResume" @save="onSave" @help="showHelp = true" @settings="showSettings = true" @quit="onQuit" />
   <DeathScreen v-if="game.state === 'dead'" @respawn="onRespawn" />
@@ -141,6 +141,20 @@ function onIntroSkip() {
   if (engine && typeof engine.finishLoad === 'function') (engine.finishLoad as (d: null) => void)(null);
 }
 function onCloseInv() { inv.open = false; }
+function onUseItem(id: string) {
+  const engine = getEngine();
+  if (engine?.inv && typeof (engine.inv as Record<string, unknown>).useItem === 'function') {
+    (engine.inv as { useItem: (id: string) => boolean }).useItem(id);
+    (engine.inv as { syncStore: () => void }).syncStore();
+  }
+}
+function onCraft(recipe: { id: string; req: [string, number][]; out: number }) {
+  const engine = getEngine();
+  if (engine?.inv && typeof (engine.inv as Record<string, unknown>).craft === 'function') {
+    (engine.inv as { craft: (r: typeof recipe) => void }).craft(recipe);
+    (engine.inv as { syncStore: () => void }).syncStore();
+  }
+}
 function onCloseShip() { ship.open = false; }
 function onRepair(_key: string) { /* handled by engine */ }
 function onRefuel() {
