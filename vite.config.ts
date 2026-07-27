@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
+  // Keep asset URLs valid when the game is hosted below a repository path
+  // (for example, GitHub Pages at /voxel-horizon-demo/).
+  base: './',
   plugins: [vue()],
   build: {
     outDir: 'dist',
