@@ -88,9 +88,11 @@ export class Sky {
     const col = mix(skyBase, mix(uHor, uTop, pow(h, 0.45)), 0.4);
 
     // Ground blend
-    const groundFactor = min(d.y.negate().mul(2.5), 1.0);
+    const groundFactor = max(min(d.y.negate().mul(2.5), 1.0), 0.0);
     const groundCol = mix(uHor, uHor.mul(0.4), groundFactor);
-    const groundMask = step(float(0), d.y);
+    // `step(edge, x)` is one when x >= edge. The ground must only cover
+    // the lower hemisphere; the previous argument order muted the whole sky.
+    const groundMask = step(d.y, float(0));
     const withGround = mix(col, groundCol, groundMask);
 
     // Sun disc
@@ -369,16 +371,18 @@ export class Sky {
       this._cloudMaterials[i].opacity = this._cloudOpacities[i] * (0.08 + day * 0.2) * (1 - storm * 0.45);
     }
     this.clouds.rotation.y += dt * 0.0012;
-    let fogCol = U.mixHex(pal.fogNight, pal.fogDay, day);
+    // Keep distant terrain atmospheric without washing it into a grey layer.
+    const skyHorizon = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
+    let fogCol = U.mixHex(U.mixHex(pal.fogNight, pal.fogDay, day), skyHorizon, 0.55);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
     const dist = g.settings.dist * 16;
-    let fogNear = dist * 0.6, fogFar = dist * 1.5;
+    let fogNear = dist * 0.85, fogFar = dist * 2.15;
     if (storm > 0) { fogNear = U.lerp(fogNear, 12, storm); fogFar = U.lerp(fogFar, dist * 0.7, storm); }
     if (g.player && g.player.headInWater) { fogCol = U.shade(pal.water || '#2e6f9e', 0.7); fogNear = 2; fogFar = 22; }
     (g.scene.fog as THREE.Fog).color.set(fogCol);
     (g.scene.fog as THREE.Fog).near = fogNear;
     (g.scene.fog as THREE.Fog).far = fogFar;
-    g.renderer.setClearColor(fogCol);
+    g.renderer.setClearColor(U.mixHex(skyHorizon, top, 0.35));
 
     this.group.position.copy(g.camera.position);
     if (g.audio.ok) g.audio.nightMix = 1 - day;
