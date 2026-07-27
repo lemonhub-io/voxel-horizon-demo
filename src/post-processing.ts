@@ -10,11 +10,6 @@ interface RenderPipeline {
   render(): void;
 }
 
-interface RenderPipelineApi {
-  RenderPipeline?: new (renderer: unknown) => RenderPipeline;
-  TSL?: { pass(scene: unknown, camera: unknown): unknown };
-}
-
 export class PostProcessing {
   enabled = false;
   private _renderer: THREE.WebGLRenderer;
@@ -27,15 +22,9 @@ export class PostProcessing {
     this._scene = game.scene;
     this._camera = game.camera;
 
-    const renderer = this._renderer as unknown as { isWebGPURenderer?: boolean };
-    const api = THREE as unknown as RenderPipelineApi;
-    if (renderer.isWebGPURenderer && api.RenderPipeline && api.TSL?.pass) {
-      const pipeline = new api.RenderPipeline(this._renderer);
-      pipeline.outputNode = api.TSL.pass(this._scene, this._camera);
-      pipeline.needsUpdate = true;
-      this._pipeline = pipeline;
-      this.enabled = true;
-    }
+    // Avoid TSL render-pipeline construction here. The current Three.js WebGPU
+    // build can throw while compiling a node graph, leaving the game black.
+    // The renderer's direct scene path is stable on both WebGPU and WebGL.
   }
 
   resize(_width: number, _height: number): void {
