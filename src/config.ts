@@ -186,4 +186,4 @@ export const MILESTONE_DEFS: MilestoneDef[] = [
   { key: 'survive', name: '不灭者', unit: '秒', tiers: [120, 600, 1800, 5400], subs: ['存活两分钟', '十分钟', '半小时坚守', '与星球共存'] },
 ];
 
-export const DEFAULT_SETTINGS: Settings = { master: 80, music: 60, sfx: 90, sens: 100, fov: 78, dist: 4, invert: false };
+export const DEFAULT_SETTINGS: Settings = { master: 80, music: 60, sfx: 90, sens: 100, fov: 78, dist: 4, invert: false, touchSens: 100 };

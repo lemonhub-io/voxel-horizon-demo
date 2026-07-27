@@ -198,7 +198,13 @@ export class Player {
     if (input.keys['KeyS']) wish.sub(fwd);
     if (input.keys['KeyD']) wish.add(right);
     if (input.keys['KeyA']) wish.sub(right);
-    const sprint = input.keys['ShiftLeft'] && input.keys['KeyW'] && this.ls > 5;
+    // Touch joystick movement (adds to keyboard for hybrid devices)
+    if (input.moveActive) {
+      wish.addScaledVector(fwd, -input.moveY);
+      wish.addScaledVector(right, input.moveX);
+    }
+    const sprint = (input.keys['ShiftLeft'] && input.keys['KeyW'] && this.ls > 5)
+      || (input.moveActive && -input.moveY > 0.85 && this.ls > 5 && Math.abs(input.moveX) < 0.5);
     if (wish.lengthSq() > 0) wish.normalize();
 
     const feet = this.g.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.2), Math.floor(this.pos.z));

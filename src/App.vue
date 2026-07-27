@@ -33,6 +33,7 @@
   />
 
   <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" />
+  <TouchControls v-if="(game.state === 'play' || game.state === 'warp') && isTouchDevice" />
   <InventoryScreen v-if="inv.open" @close="onCloseInv" @use-item="onUseItem" @craft="onCraft" />
   <ShipPanel v-if="ship.open" @close="onCloseShip" @repair="onRepair" @refuel="onRefuel" @launch="onLaunch" />
   <PauseScreen v-if="game.state === 'pause'" @resume="onResume" @save="onSave" @help="showHelp = true" @settings="showSettings = true" @quit="onQuit" />
@@ -60,6 +61,7 @@ import { usePlayerStore } from './stores/playerStore';
 import { useInventoryStore } from './stores/inventoryStore';
 import { useShipStore } from './stores/shipStore';
 import { useHudStore } from './stores/hudStore';
+import { Input } from './main';
 import { Save } from './save';
 import type { SaveSlotMeta } from './types';
 
@@ -67,6 +69,7 @@ import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
 import IntroScreen from './components/IntroScreen.vue';
 import HudOverlay from './components/HudOverlay.vue';
+import TouchControls from './components/TouchControls.vue';
 import InventoryScreen from './components/InventoryScreen.vue';
 import ShipPanel from './components/ShipPanel.vue';
 import PauseScreen from './components/PauseScreen.vue';
@@ -84,6 +87,7 @@ const ship = useShipStore();
 const hud = useHudStore();
 
 const hasSave = ref(false);
+const isTouchDevice = ref(false);
 const showSettings = ref(false);
 const showHelp = ref(false);
 const showSaves = ref(false);
@@ -93,6 +97,7 @@ const currentSlot = ref(0);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 
 onMounted(async () => {
+  isTouchDevice.value = Input.isTouchDevice;
   hasSave.value = await Save.hasSave();
   saveSlots.value = await Save.listSlots();
   currentSlot.value = Save.getCurrentSlot();

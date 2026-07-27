@@ -122,6 +122,7 @@ export interface Settings {
   fov: number;
   dist: number;
   invert: boolean;
+  touchSens: number;
 }
 
 // --- Game subsystem types ---
@@ -395,6 +396,11 @@ export interface InputState {
   dx: number;
   dy: number;
   dxSmooth: number;
+  isTouchDevice: boolean;
+  moveX: number;
+  moveY: number;
+  moveActive: boolean;
+  touchLookSensitivity: number;
   init(game: Game): void;
 }
 

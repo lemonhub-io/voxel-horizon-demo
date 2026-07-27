@@ -44,10 +44,32 @@
       <div v-if="hud.missionMax > 0" id="mission-prog-wrap"><div class="bar slim"><div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div></div><span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span></div>
     </div>
 
+    <!-- Scan markers — projected from 3D world to 2D screen -->
     <div id="marker-layer">
-      <div v-for="m in hud.markers" :key="m.id" class="marker" :class="m.type">
+      <div v-for="m in screenMarkers" :key="m.id" class="marker" :class="m.type" :style="{ left: m.sx + 'px', top: m.sy + 'px', opacity: m.opacity }">
         <div class="m-ico">{{ markerIcons[m.type] || '?' }}</div>
-        <div class="m-dist">{{ formatMarkerDist(m) }}</div>
+        <div class="m-dist">{{ m.dist }}</div>
+      </div>
+    </div>
+
+    <!-- Visor overlay -->
+    <div id="visor-overlay" :class="{ hidden: !player.visor }">
+      <div class="visor-ring r1"></div>
+      <div class="visor-ring r2"></div>
+      <div class="visor-corner tl"></div>
+      <div class="visor-corner tr"></div>
+      <div class="visor-corner bl"></div>
+      <div class="visor-corner br"></div>
+      <div class="visor-scanline"></div>
+      <div id="visor-side">
+        <div>目 镜</div>
+        <div id="visor-clock">T+0s // 0,0</div>
+      </div>
+      <div id="visor-info" class="hidden">
+        <div id="vi-name"></div>
+        <div id="vi-type"></div>
+        <div id="vi-extra"></div>
+        <div id="vi-hint">按住 <span class="kbd sm">左键</span> 分析</div>
       </div>
     </div>
 
@@ -84,14 +106,34 @@ const hud = useHudStore();
 const compassCanvas = ref<HTMLCanvasElement | null>(null);
 
 const markerIcons: Record<string, string> = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
-function formatMarkerDist(m: { x: number; y: number; z: number }): string {
-  // Distance from player (accessed via global game engine)
-  const g = (window as unknown as { game?: { player?: { pos: { x: number; y: number; z: number } } } }).game;
-  if (!g?.player) return '';
-  const dx = m.x - g.player.pos.x, dy = m.y - g.player.pos.y, dz = m.z - g.player.pos.z;
-  const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  return d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d) + 'm';
-}
+
+// Project 3D world markers to 2D screen positions using the Three.js camera
+const screenMarkers = computed(() => {
+  const engine = (window as unknown as { game?: { camera?: THREE.PerspectiveCamera; player?: { pos: { x: number; y: number; z: number } } } }).game;
+  const cam = engine?.camera;
+  const pp = engine?.player?.pos;
+  if (!cam || !pp) return [];
+
+  const w = innerWidth;
+  const h = innerHeight;
+
+  return hud.markers.map(m => {
+    // Project world position to NDC
+    const v = new THREE.Vector3(m.x, m.y, m.z).project(cam);
+    const sx = (v.x * 0.5 + 0.5) * w;
+    const sy = (-v.y * 0.5 + 0.5) * h;
+
+    // Distance from player
+    const dx = m.x - pp.x, dy = m.y - pp.y, dz = m.z - pp.z;
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const distStr = d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d) + 'm';
+
+    // Fade behind camera or far away
+    const opacity = v.z > 1 || v.z < -1 ? 0 : Math.max(0, 1 - d / 60);
+
+    return { ...m, sx, sy, dist: distStr, opacity };
+  }).filter(m => m.opacity > 0 && m.sx > 0 && m.sx < w && m.sy > 0 && m.sy < h);
+});
 
 const hazIcon = computed(() => HAZ_ICONS[game.palette.hazard.type] || '☢');
 const envIcon = computed(() => game.stormActive ? '⚠' : '☀');

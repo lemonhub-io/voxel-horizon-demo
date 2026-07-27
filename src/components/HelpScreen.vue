@@ -2,7 +2,7 @@
   <div id="help-screen" class="screen" style="z-index:200">
     <div class="help-box panel">
       <div class="p-kicker">操作手册 // MANUAL</div>
-      <div class="help-grid">
+      <div class="help-grid touch-hide">
         <div><span class="kbd">W A S D</span> 移动</div><div><span class="kbd">Shift</span> 冲刺</div>
         <div><span class="kbd">空格</span> 跳跃 / 按住喷气背包</div><div><span class="kbd">鼠标左键</span> 激光采集 / 攻击</div>
         <div><span class="kbd">鼠标右键</span> 放置方块 / 使用物品</div><div><span class="kbd">1-9 / 滚轮</span> 快捷栏</div>
@@ -11,6 +11,14 @@
         <div><span class="kbd">Z</span> 补充生命维持(消耗氧)</div><div><span class="kbd">X</span> 补充危险防护(消耗钠)</div>
         <div><span class="kbd">T</span> 手电</div><div><span class="kbd">Esc</span> 暂停</div>
         <div class="help-wide">飞行模式：鼠标转向 · <span class="kbd">W/S</span> 油门 · <span class="kbd">空格</span> 加力 · <span class="kbd">E</span> 降落 · <span class="kbd">J</span> 跃迁(需跃迁电池)</div>
+      </div>
+      <div class="help-grid touch-show">
+        <div><span class="kbd">左侧摇杆</span> 移动</div><div><span class="kbd">前推到底</span> 冲刺</div>
+        <div><span class="kbd">跳</span> 跳跃 / 按住喷气背包</div><div><span class="kbd">采</span> 激光采集 / 攻击</div>
+        <div><span class="kbd">放</span> 放置方块</div><div><span class="kbd">点击物品栏</span> 选择</div>
+        <div><span class="kbd">E</span> 交互 / 进入飞船</div><div><span class="kbd">背包</span> 物品 · 合成 · 发现</div>
+        <div><span class="kbd">右侧拖拽</span> 旋转视角</div><div><span class="kbd">暂停</span> 菜单</div>
+        <div class="help-wide">飞行模式：右侧拖拽转向 · 油门自动 · 点击按钮降落 · 点击按钮跃迁(需跃迁电池)</div>
       </div>
       <div class="help-flow">旅程指引：补充防护(钠·黄色荧光植物) → 校准工具(铁尘·岩石) → 生命维持(氧·红色呼吸花) → 合成金属镀层修复推进器 → 碳纳米管修复脉冲引擎 → 双氢合成启动燃料 → 起飞 → 建造庇护所 · 扫描生物 · 合成跃迁电池 → 跃迁新星球</div>
       <div class="set-actions"><button class="btn sm" @click="$emit('back')">返回</button></div>

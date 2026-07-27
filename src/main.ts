@@ -36,13 +36,24 @@ export const Input: InputState = {
   keys: {} as Record<string, boolean>,
   buttons: {} as Record<number, boolean>,
   dx: 0, dy: 0, dxSmooth: 0,
+  isTouchDevice: false,
+  moveX: 0, moveY: 0, moveActive: false,
+  touchLookSensitivity: 0.7,
   init(game: Game): void {
+    // Touch detection: use CSS pointer media query + maxTouchPoints.
+    // Do NOT use 'ontouchstart' in window — Chrome desktop has it even without a touchscreen.
+    this.isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+    if (this.isTouchDevice) document.body.classList.add('touch-device');
+
+    // --- Keyboard ---
     addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.repeat) return;
       this.keys[e.code] = true;
       game.onKey(e.code, e);
     });
     addEventListener('keyup', (e: KeyboardEvent) => { this.keys[e.code] = false; });
+
+    // --- Mouse (always active; gated by pointerLockElement, NOT by isTouchDevice) ---
     addEventListener('mousedown', (e: MouseEvent) => {
       if (document.pointerLockElement) this.buttons[e.button] = true;
       game.onMouseDown(e);
@@ -57,7 +68,24 @@ export const Input: InputState = {
     });
     addEventListener('wheel', (e: WheelEvent) => game.onWheel(e));
     addEventListener('contextmenu', (e: Event) => e.preventDefault());
-    addEventListener('blur', () => { this.keys = {} as Record<string, boolean>; this.buttons = {} as Record<number, boolean>; });
+    addEventListener('blur', () => {
+      this.keys = {} as Record<string, boolean>;
+      this.buttons = {} as Record<number, boolean>;
+      this.moveActive = false; this.moveX = 0; this.moveY = 0;
+    });
+
+    // --- Touch/gesture suppression (only on touch devices) ---
+    if (this.isTouchDevice) {
+      const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+      if (canvas) {
+        canvas.addEventListener('pointermove', (e: PointerEvent) => { e.preventDefault(); }, { passive: false });
+        canvas.addEventListener('pointerdown', (e: PointerEvent) => { e.preventDefault(); }, { passive: false });
+      }
+      // Prevent iOS Safari gesture events
+      document.addEventListener('gesturestart', (e: Event) => { e.preventDefault(); }, { passive: false } as AddEventListenerOptions);
+      document.addEventListener('gesturechange', (e: Event) => { e.preventDefault(); }, { passive: false } as AddEventListenerOptions);
+      document.addEventListener('gestureend', (e: Event) => { e.preventDefault(); }, { passive: false } as AddEventListenerOptions);
+    }
   }
 };
 
@@ -202,6 +230,7 @@ export class Game {
   }
 
   requestPointerLock(): void {
+    if (Input.isTouchDevice) return;
     if (this.state === 'play' && !this.uiOpen()) {
       try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch { /* requires user gesture */ }
     }
@@ -375,7 +404,7 @@ export class Game {
     this.missions.updateCard();
     this.requestPointerLock();
     document.addEventListener('pointerlockchange', () => {
-      if (!document.pointerLockElement && this.state === 'play' && !this.uiOpen()) {
+      if (!Input.isTouchDevice && !document.pointerLockElement && this.state === 'play' && !this.uiOpen()) {
         this.togglePause(true);
       }
     });

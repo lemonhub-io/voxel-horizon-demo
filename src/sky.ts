@@ -14,10 +14,6 @@ export class Sky {
   sunLight!: THREE.DirectionalLight;
   hemi!: THREE.HemisphereLight;
   ambientFill!: THREE.AmbientLight;
-  celestial!: THREE.Group;
-  planetBig!: THREE.Mesh;
-  moon!: THREE.Mesh;
-  planetGlow!: THREE.Sprite;
   sunSprite!: THREE.Sprite;
   starfield!: Starfield;
   t: number;
@@ -48,7 +44,7 @@ export class Sky {
 
     this._buildSkyDome();
     this._buildLights();
-    this._buildCelestial();
+    this._buildSun();
     this.starfield = new Starfield();
   }
 
@@ -157,80 +153,8 @@ export class Sky {
     this.g.scene.add(this.ambientFill as unknown as THREE.Object3D);
   }
 
-  private _buildCelestial(): void {
-    this.celestial = new THREE.Group();
-    this.group.add(this.celestial);
-
-    // Planet — procedural continents and oceans via vertex colors
-    const planetGeo = new THREE.SphereGeometry(120, 32, 24);
-    const planetColors = new Float32Array(planetGeo.attributes.position.count * 3);
-    for (let i = 0; i < planetGeo.attributes.position.count; i++) {
-      const px = (planetGeo.attributes.position as THREE.BufferAttribute).getX(i);
-      const py = (planetGeo.attributes.position as THREE.BufferAttribute).getY(i);
-      const pz = (planetGeo.attributes.position as THREE.BufferAttribute).getZ(i);
-      // Simple noise-like pattern for continents
-      const n1 = Math.sin(px * 0.05) * Math.cos(pz * 0.07) * Math.sin(py * 0.04);
-      const n2 = Math.sin(px * 0.12 + 1.5) * Math.cos(pz * 0.09 + 0.7);
-      const land = n1 + n2 * 0.5;
-      // Polar ice
-      const polar = Math.abs(py) / 120;
-      const ice = polar > 0.7 ? (polar - 0.7) / 0.3 : 0;
-      // Color: ocean blue / land green-brown / ice white
-      let r: number, g: number, b: number;
-      if (land > 0.3) {
-        // Land — green/brown
-        r = 0.35 + land * 0.2; g = 0.5 + land * 0.15; b = 0.25 + land * 0.1;
-      } else {
-        // Ocean — deep blue
-        r = 0.15 + land * 0.1; g = 0.3 + land * 0.15; b = 0.55 + land * 0.1;
-      }
-      // Mix in ice at poles
-      r = r + (0.9 - r) * ice;
-      g = g + (0.92 - g) * ice;
-      b = b + (0.95 - b) * ice;
-      planetColors[i * 3] = r;
-      planetColors[i * 3 + 1] = g;
-      planetColors[i * 3 + 2] = b;
-    }
-    planetGeo.setAttribute('color', new THREE.BufferAttribute(planetColors, 3));
-    this.planetBig = new THREE.Mesh(planetGeo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#0a1520', roughness: 0.85, metalness: 0.05, fog: false }));
-    this.planetBig.position.set(480, 130, -380);
-    this.celestial.add(this.planetBig);
-
-    // Moon — maria patches and craters via vertex colors
-    const moonGeo = new THREE.SphereGeometry(34, 24, 18);
-    const moonColors = new Float32Array(moonGeo.attributes.position.count * 3);
-    for (let i = 0; i < moonGeo.attributes.position.count; i++) {
-      const x = (moonGeo.attributes.position as THREE.BufferAttribute).getX(i);
-      const y = (moonGeo.attributes.position as THREE.BufferAttribute).getY(i);
-      const z = (moonGeo.attributes.position as THREE.BufferAttribute).getZ(i);
-      // Maria (dark patches)
-      const m1 = Math.sin(x * 0.25 + 1.0) * Math.cos(z * 0.3);
-      const m2 = Math.sin(y * 0.4 + 0.5) * Math.cos(x * 0.2 + 2.0);
-      const maria = Math.max(m1, m2);
-      // Craters (small dark circles)
-      const c1 = Math.sin(x * 0.8) * Math.sin(z * 0.8 + 1.0);
-      const c2 = Math.sin(x * 0.6 + 3.0) * Math.cos(z * 0.6 + 1.5);
-      const crater = Math.max(c1, c2) > 0.85 ? 0.7 : 1.0;
-      // Base color: warm grey
-      const base = maria > 0.4 ? 0.55 : 0.82;
-      const r = base * crater;
-      const g = (base * 0.97) * crater;
-      const b = (base * 0.9) * crater;
-      moonColors[i * 3] = r;
-      moonColors[i * 3 + 1] = g;
-      moonColors[i * 3 + 2] = b;
-    }
-    moonGeo.setAttribute('color', new THREE.BufferAttribute(moonColors, 3));
-    this.moon = new THREE.Mesh(moonGeo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#1a1810', roughness: 0.9, metalness: 0.02, fog: false }));
-    this.moon.position.set(-420, 200, 240);
-    this.celestial.add(this.moon);
+  private _buildSun(): void {
     const glowTex = Sky.makeGlow();
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#9fc4ff', transparent: true, opacity: 0.5, fog: false, depthWrite: false }));
-    glow.scale.set(400, 400, 1);
-    glow.position.copy(this.planetBig.position);
-    this.celestial.add(glow);
-    this.planetGlow = glow;
     this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
     this.sunSprite.scale.set(260, 260, 1);
     this.group.add(this.sunSprite);
@@ -251,12 +175,6 @@ export class Sky {
 
   setPalette(pal: Palette): void {
     this.pal = pal;
-    const rng = U.mulberry32(this.g.seed ^ 0x77);
-    (this.planetBig.material as THREE.MeshLambertMaterial).color.set(U.mixHex(pal.skyDayTop, '#8a9ab8', 0.5));
-    this.planetBig.position.set(300 + rng() * 400, 90 + rng() * 160, -500 + rng() * 300);
-    this.planetGlow.position.copy(this.planetBig.position);
-    (this.planetGlow.material as THREE.SpriteMaterial).color.set(pal.skyDayHor);
-    this.moon.position.set(-300 - rng() * 300, 150 + rng() * 120, 100 + rng() * 300);
   }
 
   update(dt: number): void {
@@ -323,7 +241,6 @@ export class Sky {
     g.renderer.setClearColor(fogCol);
 
     this.group.position.copy(g.camera.position);
-    this.celestial.rotation.y += dt * 0.002;
     if (g.audio.ok) g.audio.nightMix = 1 - day;
 
     // Star field
