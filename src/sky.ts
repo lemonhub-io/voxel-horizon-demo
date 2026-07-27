@@ -19,6 +19,9 @@ export class Sky {
   moon!: THREE.Mesh;
   planetGlow!: THREE.Sprite;
   sunSprite!: THREE.Sprite;
+  clouds!: THREE.Group;
+  private _cloudMaterials: THREE.SpriteMaterial[] = [];
+  private _cloudOpacities: number[] = [];
   starfield!: Starfield;
   t: number;
   dayMix: number;
@@ -49,7 +52,8 @@ export class Sky {
 
     this._buildSkyDome();
     this._buildLights();
-    this._buildCelestial();
+    this._buildSun();
+    this._buildClouds();
     this.starfield = new Starfield();
   }
 
@@ -159,7 +163,34 @@ export class Sky {
     this.g.scene.add(this.ambientFill as unknown as THREE.Object3D);
   }
 
-  private _buildCelestial(): void {
+  private _buildSun(): void {
+    const glowTex = Sky.makeGlow();
+    this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
+    this.sunSprite.scale.set(260, 260, 1);
+    this.group.add(this.sunSprite);
+  }
+
+  private _buildClouds(): void {
+    const texture = Sky.makeCloudTexture();
+    const rng = U.mulberry32(this.g.seed ^ 0x5c10d);
+    this.clouds = new THREE.Group();
+    this.group.add(this.clouds);
+
+    for (let i = 0; i < 14; i++) {
+      const angle = rng() * Math.PI * 2;
+      const radius = 360 + rng() * 230;
+      const material = new THREE.SpriteMaterial({ map: texture, color: '#e8f4ff', transparent: true, opacity: 0.2, fog: false, depthWrite: false });
+      const cloud = new THREE.Sprite(material);
+      cloud.position.set(Math.cos(angle) * radius, 55 + rng() * 155, Math.sin(angle) * radius);
+      const width = 180 + rng() * 220;
+      cloud.scale.set(width, width * (0.28 + rng() * 0.12), 1);
+      this.clouds.add(cloud);
+      this._cloudMaterials.push(material);
+      this._cloudOpacities.push(0.55 + rng() * 0.45);
+    }
+  }
+
+  private _buildLegacyCelestial(): void {
     this.celestial = new THREE.Group();
     this.group.add(this.celestial);
 
@@ -251,14 +282,27 @@ export class Sky {
     return new THREE.CanvasTexture(c);
   }
 
+  static makeCloudTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 192;
+    const context = canvas.getContext('2d')!;
+    const puffs = [[70, 112, 70], [130, 82, 88], [210, 105, 78], [286, 70, 96], [372, 105, 74], [438, 120, 55]];
+    for (const [x, y, radius] of puffs) {
+      const gradient = context.createRadialGradient(x, y, radius * 0.1, x, y, radius);
+      gradient.addColorStop(0, 'rgba(255,255,255,0.92)');
+      gradient.addColorStop(0.52, 'rgba(255,255,255,0.55)');
+      gradient.addColorStop(1, 'rgba(255,255,255,0)');
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+    }
+    return new THREE.CanvasTexture(canvas);
+  }
+
   setPalette(pal: Palette): void {
     this.pal = pal;
-    const rng = U.mulberry32(this.g.seed ^ 0x77);
-    (this.planetBig.material as THREE.MeshLambertMaterial).color.set(U.mixHex(pal.skyDayTop, '#8a9ab8', 0.5));
-    this.planetBig.position.set(300 + rng() * 400, 90 + rng() * 160, -500 + rng() * 300);
-    this.planetGlow.position.copy(this.planetBig.position);
-    (this.planetGlow.material as THREE.SpriteMaterial).color.set(pal.skyDayHor);
-    this.moon.position.set(-300 - rng() * 300, 150 + rng() * 120, 100 + rng() * 300);
   }
 
   update(dt: number): void {
@@ -319,6 +363,12 @@ export class Sky {
 
     // Fog
     const storm = g.stormFactor || 0;
+    const cloudColor = U.mixHex('#60758f', '#f4fbff', day);
+    for (let i = 0; i < this._cloudMaterials.length; i++) {
+      this._cloudMaterials[i].color.set(cloudColor);
+      this._cloudMaterials[i].opacity = this._cloudOpacities[i] * (0.08 + day * 0.2) * (1 - storm * 0.45);
+    }
+    this.clouds.rotation.y += dt * 0.0012;
     let fogCol = U.mixHex(pal.fogNight, pal.fogDay, day);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
     const dist = g.settings.dist * 16;
@@ -331,7 +381,6 @@ export class Sky {
     g.renderer.setClearColor(fogCol);
 
     this.group.position.copy(g.camera.position);
-    this.celestial.rotation.y += dt * 0.002;
     if (g.audio.ok) g.audio.nightMix = 1 - day;
 
     // Star field

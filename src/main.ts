@@ -36,7 +36,12 @@ export const Input: InputState = {
   keys: {} as Record<string, boolean>,
   buttons: {} as Record<number, boolean>,
   dx: 0, dy: 0, dxSmooth: 0,
+  isTouchDevice: false,
+  moveX: 0, moveY: 0, moveActive: false,
+  touchSprint: false,
   init(game: Game): void {
+    this.isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+    document.body.classList.toggle('touch-device', this.isTouchDevice);
     addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.repeat) return;
       this.keys[e.code] = true;
@@ -57,7 +62,13 @@ export const Input: InputState = {
     });
     addEventListener('wheel', (e: WheelEvent) => game.onWheel(e));
     addEventListener('contextmenu', (e: Event) => e.preventDefault());
-    addEventListener('blur', () => { this.keys = {} as Record<string, boolean>; this.buttons = {} as Record<number, boolean>; });
+    addEventListener('blur', () => {
+      this.keys = {} as Record<string, boolean>;
+      this.buttons = {} as Record<number, boolean>;
+      this.moveX = this.moveY = 0;
+      this.moveActive = false;
+      this.touchSprint = false;
+    });
   }
 };
 
@@ -207,6 +218,7 @@ export class Game {
   }
 
   requestPointerLock(): void {
+    if (Input.isTouchDevice) return;
     if (this.state === 'play' && !this.uiOpen()) {
       try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch { /* requires user gesture */ }
     }
@@ -380,7 +392,7 @@ export class Game {
     this.missions.updateCard();
     this.requestPointerLock();
     document.addEventListener('pointerlockchange', () => {
-      if (!document.pointerLockElement && this.state === 'play' && !this.uiOpen()) {
+      if (!Input.isTouchDevice && !document.pointerLockElement && this.state === 'play' && !this.uiOpen()) {
         this.togglePause(true);
       }
     });

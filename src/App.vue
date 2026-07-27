@@ -39,6 +39,7 @@
   />
 
   <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" />
+  <TouchControls v-if="(game.state === 'play' || game.state === 'warp') && !inv.open && !ship.open" />
   <InventoryScreen v-if="inv.open" @close="onCloseInv" @use-item="onUseItem" @craft="onCraft" />
   <ShipPanel v-if="ship.open" @close="onCloseShip" @repair="onRepair" @refuel="onRefuel" @launch="onLaunch" />
   <PauseScreen v-if="game.state === 'pause'" @resume="onResume" @save="onSave" @help="showHelp = true" @settings="showSettings = true" @quit="onQuit" />
@@ -74,6 +75,7 @@ import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
 import IntroScreen from './components/IntroScreen.vue';
 import HudOverlay from './components/HudOverlay.vue';
+import TouchControls from './components/TouchControls.vue';
 import InventoryScreen from './components/InventoryScreen.vue';
 import ShipPanel from './components/ShipPanel.vue';
 import PauseScreen from './components/PauseScreen.vue';

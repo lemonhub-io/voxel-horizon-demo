@@ -16,7 +16,7 @@ export const useGameStore = defineStore('game', () => {
   const loadProgress = ref(0);
   const introLines = ref<{ text: string; cls?: string }[]>([]);
   const discoveries = ref<Discoveries>({ planets: [], entries: [] });
-  const settings = ref<Settings>({ master: 80, music: 60, sfx: 90, sens: 100, fov: 78, dist: 4, invert: false });
+  const settings = ref<Settings>({ master: 80, music: 60, sfx: 90, sens: 100, fov: 78, dist: 4, invert: false, touchSens: 100 });
 
   const uiOpen = computed(() => {
     return state.value === 'pause' || state.value === 'dead';
