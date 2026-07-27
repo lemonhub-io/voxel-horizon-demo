@@ -32,7 +32,8 @@ export class TextureAtlas {
   uv(t: number): [number, number, number, number] {
     const s = 1 / this.size;
     const u = (t % this.size) * s, v = Math.floor(t / this.size) * s;
-    const e = 0.001;
+    // Sample from texel centres so adjacent atlas tiles never bleed into a face.
+    const e = 0.5 / (this.size * this.px);
     return [u + e, 1 - v - s + e, u + s - e, 1 - v - e];
   }
 
@@ -200,7 +201,7 @@ export class TextureAtlas {
     if (this.texture) this.texture.dispose();
     const tex = new THREE.CanvasTexture(this.canvas);
     tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.minFilter = THREE.NearestMipmapNearestFilter;
     tex.generateMipmaps = true;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     this.texture = tex;
@@ -244,8 +245,8 @@ export class TextureAtlas {
 
     normalCtx.putImageData(normal, 0, 0);
     const texture = new THREE.CanvasTexture(normalCanvas);
-    texture.magFilter = THREE.LinearFilter;
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestMipmapNearestFilter;
     texture.generateMipmaps = true;
     texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
     return texture;

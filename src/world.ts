@@ -448,7 +448,17 @@ export class World {
     need.sort((a, b) => (Math.abs(a.cx - pcx) + Math.abs(a.cz - pcz)) - (Math.abs(b.cx - pcx) + Math.abs(b.cz - pcz)));
     this.meshQueue.sort((a, b) => (Math.abs(a.cx - pcx) + Math.abs(a.cz - pcz)) - (Math.abs(b.cx - pcx) + Math.abs(b.cz - pcz)));
     const t0 = performance.now();
-    while (need.length && performance.now() - t0 < budgetMs) this.generate(need.shift()!);
+    while (need.length && performance.now() - t0 < budgetMs) {
+      const ch = need.shift()!;
+      this.generate(ch);
+      // A previously meshed neighbour may have emitted faces toward this chunk
+      // while it was still missing. Rebuild both sides to remove those overlaps.
+      this.remesh(ch.cx, ch.cz);
+      this.remesh(ch.cx - 1, ch.cz);
+      this.remesh(ch.cx + 1, ch.cz);
+      this.remesh(ch.cx, ch.cz - 1);
+      this.remesh(ch.cx, ch.cz + 1);
+    }
     while (this.meshQueue.length && performance.now() - t0 < budgetMs + 4) {
       const ch = this.meshQueue.shift()!;
       this.meshQueueSet.delete(ch);
