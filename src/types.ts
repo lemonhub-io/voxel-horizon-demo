@@ -1108,6 +1108,7 @@ namespace THREE {
     target: Object3D;
   }
   class Clock { constructor(); getDelta(): number; }
+  class Timer { constructor(); update(timestamp?: number): void; getDelta(): number; }
 
   const AdditiveBlending: number;
   const BackSide: number;

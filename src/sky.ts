@@ -30,6 +30,9 @@ export class Sky {
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
   private _shadowFrame = 0;
+  private _canvasSkyContext: CanvasRenderingContext2D | null = null;
+  private _canvasSkyTexture: THREE.CanvasTexture | null = null;
+  private _canvasSkyLastSignature = -1;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _uTop: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,6 +61,59 @@ export class Sky {
   }
 
   private _buildSkyDome(): void {
+    this._buildCanvasSkyDome();
+  }
+
+  /** Stable dynamic sky for both WebGPU and WebGL renderer backends. */
+  private _buildCanvasSkyDome(): void {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    this._canvasSkyContext = canvas.getContext('2d')!;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    this._canvasSkyTexture = texture;
+    this._paintCanvasSky('#3a8fd4', '#bfe4ee', 1, 0);
+
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, depthWrite: false, fog: false });
+    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 32, 20), material);
+    this.dome.frustumCulled = false;
+    this.dome.renderOrder = -10;
+    this.group.add(this.dome);
+  }
+
+  private _paintCanvasSky(top: string, horizon: string, day: number, dusk: number): void {
+    const ctx = this._canvasSkyContext;
+    if (!ctx || !this._canvasSkyTexture) return;
+    const { width, height } = ctx.canvas;
+    const upper = U.mixHex('#05091a', top, day);
+    const middle = U.mixHex(U.shade(upper, 1.1), horizon, 0.46);
+    const lower = U.mixHex(horizon, U.shade(horizon, 0.42), 0.58);
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, upper);
+    gradient.addColorStop(0.36, middle);
+    gradient.addColorStop(0.52, horizon);
+    gradient.addColorStop(0.64, lower);
+    gradient.addColorStop(1, U.shade(lower, 0.72));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    if (dusk > 0.01) {
+      const glow = ctx.createLinearGradient(0, height * 0.28, 0, height * 0.68);
+      glow.addColorStop(0, 'rgba(255,132,74,0)');
+      glow.addColorStop(0.52, `rgba(255,104,52,${(dusk * 0.42).toFixed(3)})`);
+      glow.addColorStop(1, 'rgba(255,104,52,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
+    }
+    (this._canvasSkyTexture as unknown as { needsUpdate: boolean }).needsUpdate = true;
+  }
+
+  /** Disabled pending a Three.js TSL compatibility update. */
+  private _buildNodeSkyDome(): void {
     // TSL functions are under THREE.TSL namespace
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const TSL = (THREE as any).TSL;
@@ -323,12 +379,11 @@ export class Sky {
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-    this._uTop.value = new THREE.Color(top);
-    this._uHor.value = new THREE.Color(hor);
-    this._uSunCol.value = new THREE.Color(U.mixHex(pal.sun, '#ff6a3a', dusk * 0.65));
-    this._uSun.value = new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z);
-    this._uNight.value = 1 - day;
-    this._uStar.value = Math.max(0, 1 - day * 2.5) * 1.0;
+    const skySignature = day + dusk * 2;
+    if (Math.abs(skySignature - this._canvasSkyLastSignature) > 0.002) {
+      this._canvasSkyLastSignature = skySignature;
+      this._paintCanvasSky(top, hor, day, dusk);
+    }
 
     // Sun light
     this.sunLight.position.copy(sunDir).multiplyScalar(300);

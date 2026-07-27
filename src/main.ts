@@ -94,7 +94,7 @@ export class Game {
   scene!: THREE.Scene;
   camera!: THREE.PerspectiveCamera;
   atlas!: TextureAtlas;
-  clock!: THREE.Clock;
+  clock!: THREE.Timer;
   seed!: number;
   palIdx!: number;
   palette!: Palette;
@@ -201,7 +201,7 @@ export class Game {
       this.camera.updateProjectionMatrix();
       this.postProc.resize(innerWidth, innerHeight);
     });
-    this.clock = new THREE.Clock();
+    this.clock = new THREE.Timer();
   }
 
   applySettings(): void {
@@ -615,6 +615,7 @@ export class Game {
 
   loop(): void {
     requestAnimationFrame(() => this.loop());
+    this.clock.update();
     const dt = Math.min(this.clock.getDelta(), 0.08);
     this.time += dt;
     this.timeUniform.value = this.time;
