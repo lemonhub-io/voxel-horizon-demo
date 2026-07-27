@@ -5,6 +5,7 @@ import type { Palette } from './types';
 export class TextureAtlas {
   size: number;
   px: number;
+  stride: number;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture | null;
@@ -15,8 +16,10 @@ export class TextureAtlas {
   constructor() {
     this.size = 8;
     this.px = 32;
+    // Leave one duplicated pixel around every tile to isolate atlas sampling.
+    this.stride = this.px + 2;
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.canvas.height = this.size * this.px;
+    this.canvas.width = this.canvas.height = this.size * this.stride;
     this.ctx = this.canvas.getContext('2d')!;
     this.texture = null;
     this.normalTexture = null;
@@ -26,15 +29,16 @@ export class TextureAtlas {
 
   tileRect(t: number): [number, number, number, number] {
     const s = this.px;
-    return [(t % this.size) * s, Math.floor(t / this.size) * s, s, s];
+    return [(t % this.size) * this.stride + 1, Math.floor(t / this.size) * this.stride + 1, s, s];
   }
 
   uv(t: number): [number, number, number, number] {
-    const s = 1 / this.size;
-    const u = (t % this.size) * s, v = Math.floor(t / this.size) * s;
-    // Sample from texel centres so adjacent atlas tiles never bleed into a face.
-    const e = 0.5 / (this.size * this.px);
-    return [u + e, 1 - v - s + e, u + s - e, 1 - v - e];
+    const atlasPx = this.size * this.stride;
+    const [x, y] = this.tileRect(t);
+    // Address texel centres inside the padded tile, never an adjacent tile.
+    const u0 = (x + 0.5) / atlasPx, u1 = (x + this.px - 0.5) / atlasPx;
+    const v0 = 1 - (y + this.px - 0.5) / atlasPx, v1 = 1 - (y + 0.5) / atlasPx;
+    return [u0, v0, u1, v1];
   }
 
   build(pal: Palette, seed: number): THREE.CanvasTexture {
@@ -49,6 +53,16 @@ export class TextureAtlas {
       ctx.translate(ox, oy);
       fn((x: number, y: number, c: string) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); });
       ctx.restore();
+      // Duplicate edge texels into the surrounding gutter. This prevents mipmaps
+      // from sampling a neighbouring tile (notably the green grass tile).
+      ctx.drawImage(this.canvas, ox, oy, px, 1, ox, oy - 1, px, 1);
+      ctx.drawImage(this.canvas, ox, oy + px - 1, px, 1, ox, oy + px, px, 1);
+      ctx.drawImage(this.canvas, ox, oy, 1, px, ox - 1, oy, 1, px);
+      ctx.drawImage(this.canvas, ox + px - 1, oy, 1, px, ox + px, oy, 1, px);
+      ctx.drawImage(this.canvas, ox, oy, 1, 1, ox - 1, oy - 1, 1, 1);
+      ctx.drawImage(this.canvas, ox + px - 1, oy, 1, 1, ox + px, oy - 1, 1, 1);
+      ctx.drawImage(this.canvas, ox, oy + px - 1, 1, 1, ox - 1, oy + px, 1, 1);
+      ctx.drawImage(this.canvas, ox + px - 1, oy + px - 1, 1, 1, ox + px, oy + px, 1, 1);
     };
     const noiseFill = (put: (x: number, y: number, c: string) => void, base: string, amt: number, holes?: number) => {
       for (let y = 0; y < px; y++) for (let x = 0; x < px; x++) {
@@ -201,8 +215,8 @@ export class TextureAtlas {
     if (this.texture) this.texture.dispose();
     const tex = new THREE.CanvasTexture(this.canvas);
     tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestMipmapNearestFilter;
-    tex.generateMipmaps = true;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     this.texture = tex;
 
@@ -223,10 +237,10 @@ export class TextureAtlas {
     const normal = normalCtx.createImageData(width, width);
 
     const heightAt = (x: number, y: number): number => {
-      const tileX = Math.floor(x / this.px) * this.px;
-      const tileY = Math.floor(y / this.px) * this.px;
-      const sx = Math.max(tileX, Math.min(tileX + this.px - 1, x));
-      const sy = Math.max(tileY, Math.min(tileY + this.px - 1, y));
+      // Tile gutters already duplicate edge pixels, so clamping to the atlas is
+      // sufficient and keeps normal-map gradients inside the correct tile.
+      const sx = Math.max(0, Math.min(width - 1, x));
+      const sy = Math.max(0, Math.min(width - 1, y));
       const i = (sy * width + sx) * 4;
       if (source[i + 3] < 16) return 0.5;
       return (source[i] * 0.2126 + source[i + 1] * 0.7152 + source[i + 2] * 0.0722) / 255;
@@ -246,8 +260,8 @@ export class TextureAtlas {
     normalCtx.putImageData(normal, 0, 0);
     const texture = new THREE.CanvasTexture(normalCanvas);
     texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestMipmapNearestFilter;
-    texture.generateMipmaps = true;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
     texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
     return texture;
   }
