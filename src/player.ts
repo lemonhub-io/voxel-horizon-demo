@@ -56,6 +56,8 @@ export class Player {
   private _eyePos = new THREE.Vector3();
   private _lookDir = new THREE.Vector3();
   private _jumpTime = 0;
+  private _jumpBufferT = 0;
+  private _coyoteT = 0;
   private _landImpact = 0;
   private _stepUpTarget = 0;
   private _stepUpFrom = 0;
@@ -185,6 +187,13 @@ export class Player {
       return;
     }
     const input = g.input;
+    if (input.jumpPressed) {
+      this._jumpBufferT = 0.12;
+      input.jumpPressed = false;
+    } else {
+      this._jumpBufferT = Math.max(0, this._jumpBufferT - dt);
+    }
+    this._coyoteT = this.onGround ? 0.1 : Math.max(0, this._coyoteT - dt);
     const sens = g.settings.sens / 100 * 0.0023;
     this.yaw -= input.dx * sens;
     this.pitch -= input.dy * sens;
@@ -203,7 +212,9 @@ export class Player {
       wish.addScaledVector(right, input.moveX);
     }
     const sprint = ((input.keys['ShiftLeft'] && input.keys['KeyW']) || input.touchSprint) && this.ls > 5;
-    if (wish.lengthSq() > 0) wish.normalize();
+    const wishLength = Math.sqrt(wish.lengthSq());
+    const wishStrength = Math.min(1, wishLength);
+    if (wishLength > 0) wish.multiplyScalar(1 / wishLength);
 
     const feet = this.g.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.2), Math.floor(this.pos.z));
     const wasInWater = this.inWater;
@@ -214,9 +225,10 @@ export class Player {
 
     let speed = sprint ? 6.6 : 4.35;
     if (this.inWater) speed *= 0.55;
-    const accel = this.onGround ? 60 : 18;
-    this.vel.x = U.lerp(this.vel.x, wish.x * speed, U.clamp(accel * dt, 0, 1));
-    this.vel.z = U.lerp(this.vel.z, wish.z * speed, U.clamp(accel * dt, 0, 1));
+    const accel = wishStrength > 0 ? (this.onGround ? 64 : 20) : (this.onGround ? 20 : 6);
+    const targetSpeed = speed * wishStrength;
+    this.vel.x = U.lerp(this.vel.x, wish.x * targetSpeed, U.clamp(accel * dt, 0, 1));
+    this.vel.z = U.lerp(this.vel.z, wish.z * targetSpeed, U.clamp(accel * dt, 0, 1));
 
     if (this.inWater) {
       this.vel.y -= 5 * dt;
@@ -230,30 +242,34 @@ export class Player {
       } else {
         this.vel.y = 0;
       }
-      if (input.keys['Space']) {
-        if (this.onGround) {
-          this.vel.y = 7.2;
-          this.onGround = false;
-          this._jumpTime = 0;
-          g.audio.jump();
-        } else if (this.jetFuel > 1) {
-          this.vel.y = Math.min(this.vel.y + 30 * dt, 6.2);
-          this.jetFuel -= 42 * dt;
-          this.ls -= 0.6 * dt;
-          g.audio.setLoop('jet', true, 0.7);
-          if (Math.random() < 0.6) {
-            const bx = this.pos.x - fwd.x * 0.2, bz = this.pos.z - fwd.z * 0.2;
-            g.fx.spawn(bx, this.pos.y + 0.35, bz, { n: 1, col: '#8fd8f4', speed: 1, life: 0.4, grav: 2, up: -2 });
-          }
-        } else g.audio.setLoop('jet', false);
+      const startJump = this._jumpBufferT > 0 && this._coyoteT > 0;
+      if (startJump) {
+        this.vel.y = 7.2;
+        this.onGround = false;
+        this._coyoteT = 0;
+        this._jumpBufferT = 0;
+        this._jumpTime = 0;
+        g.audio.jump();
+      } else if (!input.keys['Space'] && this._jumpTime < 0.18 && this.vel.y > 3.2) {
+        this.vel.y = 3.2;
+      } else if (input.keys['Space'] && !this.onGround && this.jetFuel > 1) {
+        this.vel.y = Math.min(this.vel.y + 30 * dt, 6.2);
+        this.jetFuel -= 42 * dt;
+        this.ls -= 0.6 * dt;
+        g.audio.setLoop('jet', true, 0.7);
+        if (Math.random() < 0.6) {
+          const bx = this.pos.x - fwd.x * 0.2, bz = this.pos.z - fwd.z * 0.2;
+          g.fx.spawn(bx, this.pos.y + 0.35, bz, { n: 1, col: '#8fd8f4', speed: 1, life: 0.4, grav: 2, up: -2 });
+        }
       } else g.audio.setLoop('jet', false);
     }
     if (this.onGround) this.jetFuel = Math.min(100, this.jetFuel + 30 * dt);
 
     this.fallVy = this.vel.y;
     this.moveCollide(dt);
+    if (this.onGround) this._jumpTime = 0;
 
-    if (this.onGround && wish.lengthSq() > 0) {
+    if (this.onGround && wishStrength > 0.03) {
       this.stepT -= dt * (sprint ? 1.6 : 1);
       if (this.stepT <= 0) {
         this.stepT = 0.42;
@@ -278,7 +294,7 @@ export class Player {
 
     const cam = g.camera;
     cam.position.copy(this.eyePos());
-    const moving = wish.lengthSq() > 0;
+    const moving = wishStrength > 0.03;
     const bob = this.onGround && moving ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
     // Idle sway — subtle breathing motion when standing still
     const idleSwayX = this.onGround && !moving ? Math.sin(g.time * 1.1) * 0.008 : 0;

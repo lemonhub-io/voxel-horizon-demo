@@ -401,6 +401,7 @@ export interface InputState {
   moveY: number;
   moveActive: boolean;
   touchSprint: boolean;
+  jumpPressed: boolean;
   init(game: Game): void;
 }
 

@@ -39,12 +39,14 @@ export const Input: InputState = {
   isTouchDevice: false,
   moveX: 0, moveY: 0, moveActive: false,
   touchSprint: false,
+  jumpPressed: false,
   init(game: Game): void {
     this.isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
     document.body.classList.toggle('touch-device', this.isTouchDevice);
     addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.repeat) return;
       this.keys[e.code] = true;
+      if (e.code === 'Space') this.jumpPressed = true;
       game.onKey(e.code, e);
     });
     addEventListener('keyup', (e: KeyboardEvent) => { this.keys[e.code] = false; });
@@ -68,6 +70,7 @@ export const Input: InputState = {
       this.moveX = this.moveY = 0;
       this.moveActive = false;
       this.touchSprint = false;
+      this.jumpPressed = false;
     });
   }
 };

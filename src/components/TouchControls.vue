@@ -189,6 +189,7 @@ function pressKey(code: string): void {
   const game = getGame();
   if (!game) return;
   game.input.keys[code] = true;
+  if (code === 'Space') game.input.jumpPressed = true;
   game.onKey(code, new KeyboardEvent('keydown', { code }));
 }
 function releaseKey(code: string): void { const input = getGame()?.input; if (input) input.keys[code] = false; }
