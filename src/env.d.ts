@@ -6,6 +6,16 @@ declare module '*.vue' {
   export default component;
 }
 
+declare module 'three/addons/loaders/GLTFLoader.js' {
+  export interface GLTF {
+    scene: THREE.Group;
+  }
+
+  export class GLTFLoader {
+    load(url: string, onLoad: (gltf: GLTF) => void, onProgress?: undefined, onError?: (error: unknown) => void): void;
+  }
+}
+
 // three/webgpu re-exports all of three + adds WebGPU-specific classes
 declare module 'three/webgpu' {
   export * from 'three';

@@ -4,6 +4,8 @@
 
 import { U } from './utils';
 import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
+import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
 
 export class Player {
@@ -168,6 +170,22 @@ export class Player {
     g.camera.add(this.flashlight.target);
     this.flashlight.target.position.set(0, 0, -10);
     this.flashOn = false;
+    void this.loadCC0Viewmodel();
+  }
+
+  private async loadCC0Viewmodel(): Promise<void> {
+    try {
+      const model = await loadCC0Model(CC0_MODEL_URLS.tool);
+      fitCC0Model(model, 0.42, 0.24);
+      model.rotation.y = Math.PI;
+      model.position.set(0.02, -0.02, -0.08);
+      this.vm.children.forEach(child => {
+        if (child !== this.blockInHand) child.visible = false;
+      });
+      this.vm.add(model);
+    } catch {
+      // Keep the procedural tool visible if the model cannot be loaded.
+    }
   }
 
   eyePos(): THREE.Vector3 {

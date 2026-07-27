@@ -4,6 +4,8 @@
 
 import { U } from './utils';
 import { CFG, B } from './config';
+import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, Palette, CreatureSpec, Creature, CreatureHit } from './types';
 
 export class Fauna {
@@ -12,6 +14,7 @@ export class Fauna {
   group: THREE.Group;
   speciesList: CreatureSpec[];
   callTimer: number;
+  private faunaModels: THREE.Group[];
 
   constructor(game: Game) {
     this.g = game;
@@ -20,6 +23,28 @@ export class Fauna {
     game.scene.add(this.group);
     this.speciesList = [];
     this.callTimer = 0;
+    this.faunaModels = [];
+    void this.loadCC0Fauna();
+  }
+
+  private async loadCC0Fauna(): Promise<void> {
+    try {
+      this.faunaModels = await Promise.all(CC0_MODEL_URLS.fauna.map(loadCC0Model));
+      this.creatures.forEach(creature => this.attachCC0Model(creature));
+    } catch {
+      // Generated fauna remains available while assets are unavailable.
+    }
+  }
+
+  private attachCC0Model(creature: Creature): void {
+    if (!this.faunaModels.length) return;
+    const model = (this.faunaModels[creature.seed % this.faunaModels.length] as unknown as { clone(recursive?: boolean): THREE.Group }).clone(true);
+    fitCC0Model(model, creature.sp.size * 1.9, creature.sp.size * 2.15);
+    model.rotation.y = Math.PI;
+    creature.grp.children.forEach(child => {
+      if (child !== creature.shadow) child.visible = false;
+    });
+    creature.grp.add(model);
   }
 
   spawnPlanet(seed: number, pal: Palette): void {
@@ -145,6 +170,7 @@ export class Fauna {
       seed: Math.floor((rng ? rng() : Math.random()) * 1e9)
     };
     this.creatures.push(c);
+    this.attachCC0Model(c);
     return c;
   }
 

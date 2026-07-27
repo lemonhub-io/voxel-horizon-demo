@@ -4,6 +4,8 @@
 
 import { U } from './utils';
 import { Sky } from './sky';
+import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, ShipComponent, ShipSaveData } from './types';
 
 export class Ship {
@@ -140,6 +142,20 @@ export class Ship {
       if (child instanceof THREE.Mesh && child !== shadow) {
         child.castShadow = true;
       }
+    }
+    void this.loadCC0Visual();
+  }
+
+  private async loadCC0Visual(): Promise<void> {
+    try {
+      const model = await loadCC0Model(CC0_MODEL_URLS.ship);
+      fitCC0Model(model, 8.2, 4.4);
+      model.rotation.y = Math.PI;
+      const fallbackMeshes = this.group.children.filter(child => child instanceof THREE.Mesh && child !== this.shadow);
+      fallbackMeshes.forEach(mesh => { mesh.visible = false; });
+      this.group.add(model);
+    } catch {
+      // Keep the procedural fallback available if an asset cannot be loaded.
     }
   }
 
