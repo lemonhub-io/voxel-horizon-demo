@@ -14,43 +14,51 @@ npm run dev         # start Vite dev server with HMR
 npm run build       # production build → dist/
 npm run preview     # preview production build
 npm run typecheck   # type-check only (no output)
+npm run lint        # ESLint check
+npm run lint:fix    # ESLint auto-fix
+npm run format      # Prettier format
+npm run test        # run tests (193 tests)
+npm run test:coverage # coverage report
 ```
 
-Three.js r128 is vendored at `libs/three.min.js` with a CDN fallback in `index.html`.
+Three.js r185 is installed via npm, bundled by Vite. WebGPU renderer with WebGL2 fallback.
 
 ## Architecture
 
-TypeScript (strict mode, no `any`) with Vite. ES modules with proper imports/exports. Entry point is `src/main.ts`, loaded via `<script type="module">` in `index.html`. Cross-file types are in `src/types.ts`.
+TypeScript (strict mode, no `any`) with Vite. Vue 3 + Pinia for UI. Three.js r185 with WebGPU/TSL. Entry point is `src/vue-main.ts`.
 
 ### Core Classes and Objects
 
 | Class/Object | File | Role |
 |---|---|---|
-| `Game` | main.ts | Central state machine (`title`→`loading`→`intro`→`play`, also `pause`/`dead`/`warp`). Owns the main loop (`Game.loop()` via `requestAnimationFrame`), input routing, and all subsystem instances. |
-| `Input` | main.ts | Static object. Keyboard/mouse state (`keys`, `buttons`, `dx`, `dy`). Dispatches to `Game.onKey`, `Game.onMouseDown`, `Game.onWheel`. |
-| `World` | world.ts | Chunk-based voxel terrain. Chunks are 16×64×16 (`CFG.CHUNK` × `CFG.WORLD_H`). Handles procedural terrain generation via simplex noise, mesh building (greedy-style), and block edits persistence. |
-| `Player` | player.ts | First-person controller. Movement, gravity, jetpack, mining (laser), block placement, visor analysis, survival stats (HP, hazard protection, life support). |
-| `Ship` | ship.ts | Starship mesh, flight physics, launch/land/warp sequence. Components need repair before launch. |
-| `Inventory` | inventory.ts | Item storage, crafting (`RECIPES`), hotbar (9 slots), drag-and-drop. |
-| `HUD` | hud.ts | All 2D HUD rendering: compass, stat bars, toasts, mission card, planet card, markers, milestone popups. |
-| `Sky` | sky.ts | Custom GLSL shader sky dome. Day/night cycle, stars, palette-driven colors. |
-| `FX` | effects.ts | Particle system, laser beam rendering, screen shake, warp visual effect. |
-| `Fauna` | entities.ts | Procedural creature generation from planet seed. Simple wander/flee AI. |
-| `AudioEngine` | audio.ts | All sound via Web Audio API oscillators — zero audio files. Procedural music, SFX, ambient loops. |
-| `TextureAtlas` | atlas.ts | Canvas-based procedural texture atlas. Built per-planet from palette colors and seed. |
-| `Missions` | missions.ts | Linear quest progression (repair ship → launch → warp). |
-| `Milestones` | missions.ts | Achievement tracking (walk distance, blocks mined, etc.). |
-| `Save` | save.ts | `localStorage` serialization. Single object: `Save.save(game)` / `Save.load()`. |
-| `U` | utils.ts | Math utilities, `SimplexNoise`, planet name generator, color helpers. |
+| `Game` | main.ts | Central state machine, main loop, input routing |
+| `Input` | main.ts | Keyboard/mouse state |
+| `World` | world.ts | Chunk-based voxel terrain (16×64×16 chunks) |
+| `Player` | player.ts | First-person controller, survival mechanics |
+| `Ship` | ship.ts | Starship, flight physics, launch/land/warp |
+| `Inventory` | inventory.ts | Item storage, crafting, hotbar |
+| `HUD` | hud.ts | Compass canvas, marker management |
+| `Sky` | sky.ts | TSL sky dome shader, lighting, fog |
+| `Starfield` | starfield.ts | 2D canvas star overlay |
+| `FX` | effects.ts | Particles, laser, screen shake |
+| `Fauna` | entities.ts | Creature generation and AI |
+| `AudioEngine` | audio.ts | Web Audio API procedural sound |
+| `TextureAtlas` | atlas.ts | 32×32 procedural texture atlas |
+| `PostFX` | postfx.ts | CSS post-processing effects |
+| `PostProcessing` | post-processing.ts | EffectComposer pipeline |
+| `Missions` | missions.ts | Quest progression + milestones |
+| `Save` | save.ts | OPFS multi-slot save system |
 
 ### Key Patterns
 
-- **All state lives on `Game` or its sub-instances.** `window.game` is the singleton. Access subsystems via `game.world`, `game.player`, `game.inv`, etc.
-- **Procedural everything.** Textures, terrain, creatures, planet names, flora names, and audio are all generated at runtime from seeds. There are zero external asset files (no images, audio, or 3D models).
-- **Palettes drive the planet.** `PALETTES` in config.ts defines 6 biome types (lush, scorched, frozen, exotic, toxic, barren). Each palette specifies colors, hazard type/rate, tree types, flora/fauna density, and storm behavior. `game.palette` is the active one.
-- **Block/item definitions are data-driven.** `B` enum → `BLOCK_DEF` array (block properties). `ITEMS` object (item properties). `RECIPES` array (crafting). All in config.ts.
-- **ES modules.** Files use `import`/`export`. Entry point `src/main.ts` imports everything. THREE.js is loaded via script tag as a global.
-- **Chinese UI.** All user-facing strings (block names, item descriptions, mission text, UI labels) are in Chinese. Keep new strings consistent with existing style.
+- **All state lives on `Game` or its sub-instances.** `window.game` is the singleton.
+- **Procedural everything.** Textures, terrain, creatures, planet names, flora names, and audio are all generated at runtime from seeds. Zero external asset files.
+- **Palettes drive the planet.** `PALETTES` in config.ts defines 4 biome types. Each specifies colors, hazard type, tree types, flora/fauna density, and storm behavior.
+- **Block/item definitions are data-driven.** `B` enum → `BLOCK_DEF` array. `ITEMS` object. `RECIPES` array. All in config.ts.
+- **ES modules with Vue.** Files use `import`/`export`. Entry point `src/vue-main.ts` bootstraps Vue + Pinia + Game engine.
+- **Pinia stores bridge engine and UI.** Game engine writes to stores, Vue components read reactively.
+- **Chinese UI.** All user-facing strings are in Simplified Chinese.
+- **TSL shaders.** Sky dome uses Three.js Shading Language node materials for WebGPU compatibility.
 
 ### Game State Machine
 
@@ -66,21 +74,33 @@ TypeScript (strict mode, no `any`) with Vite. ES modules with proper imports/exp
 ### World/Chunk System
 
 - Chunks: 16×64×16 voxels. Terrain height generated via `SimplexNoise` with palette-specific parameters.
-- `World.edits` is a `Map<string, Map<number, number>>` tracking player block modifications (serialized to save).
+- `World.edits` is a `Map<string, Map<number, number>>` tracking player block modifications.
 - `World.update(px, pz, radius)` loads/unloads chunks around the player. Render distance is configurable (3-6 chunks).
-- Block meshing uses face culling (only exposed faces) with palette-colored UVs from the texture atlas.
+- Block meshing uses face culling with ambient occlusion and palette-colored UVs from the texture atlas.
 
 ### Save System
 
-- `Save.save(game)` serializes: seed, palette index, player state, ship state, inventory, world edits, missions, milestones, discoveries, time.
-- Stored in `localStorage` under key `CFG.SAVE_KEY` (`voxelhorizon_save_v1`).
-- Settings stored separately under `CFG.SET_KEY`.
-- Auto-save every 60 seconds during play. Also saves on `beforeunload`.
+- Uses **OPFS (Origin Private File System)** for multi-slot saves
+- `Save.save(game, slot?)` — async write to `saves/slot-N.json`
+- `Save.load(slot?)` — async read
+- `Save.listSlots()` — list all save metadata
+- Settings stored in localStorage (sync)
+- Auto-save every 60 seconds during play
+
+### Rendering Pipeline
+
+- **Three.js r185** with `WebGPURenderer` (auto WebGL2 fallback)
+- **TSL sky shader** — Rayleigh scattering, stars, dusk band via node materials
+- **PBR materials** — `MeshStandardMaterial` with roughness/metalness
+- **Shadow maps** — 2048² PCFSoftShadowMap
+- **HDR tone mapping** — ACES Filmic, exposure 2.5
+- **32×32 pixel textures** — NearestFilter mag + LinearMipmapLinearFilter min
+- **CSS post-processing** — contrast(1.12), saturate(1.2), brightness(1.02)
 
 ## Important Conventions
 
 - **TypeScript strict mode.** No `any` types. All variables, parameters, and return types must be explicitly annotated or inferrable.
-- **Three.js r185 API with WebGPU.** Uses `WebGPURenderer` (auto-fallback to WebGL2), `outputColorSpace = SRGBColorSpace`. THREE is loaded via `<script>` tag (`libs/three.webgpu.min.js`) and declared as a global namespace in `src/types.ts`.
+- **Three.js r185 API.** Uses `WebGPURenderer`, `TSL` node materials, `outputColorSpace = SRGBColorSpace`. THREE is loaded via `three-setup.ts` and set as a global.
 - **Module references.** Classes reference each other through `this.g` (game reference passed in constructor) and explicit imports.
 - **Seed-based generation.** Use `U.mulberry32(seed)` for seeded RNG, `U.rand(min, max)` / `U.randi(min, max)` for unseeded.
 - **Type declarations.** Shared interfaces are in `src/types.ts` with `export`. THREE.js types are declared via `declare global { namespace THREE { ... } }`.

@@ -4,19 +4,16 @@
 // ============================================================
 
 import { U } from './utils';
-import { B } from './config';
-import type { Game, Marker, PlanetInfo } from './types';
+import type { Game, PlanetInfo } from './types';
 import { useHudStore } from './stores/hudStore';
 
 export class HUD {
   g: Game;
-  markers: Marker[];
   compass: HTMLCanvasElement | null = null;
   cctx: CanvasRenderingContext2D | null = null;
 
   constructor(game: Game) {
     this.g = game;
-    this.markers = [];
   }
 
   /** Call after Vue has mounted and #compass canvas exists in DOM */
@@ -91,46 +88,15 @@ export class HUD {
   }
 
   addMarker(type: string, pos: THREE.Vector3, ttl: number): void {
-    const icons: Record<string, string> = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
-    const layer = document.getElementById('marker-layer');
-    if (!layer) return;
-    const el = document.createElement('div');
-    el.className = 'marker ' + type;
-    el.innerHTML = `<div class="m-ico">${icons[type] || '?'}</div><div class="m-dist"></div>`;
-    layer.appendChild(el);
-    this.markers.push({ el, pos, ttl, type });
+    useHudStore().addMarker(type, pos.x, pos.y, pos.z, ttl);
   }
 
-  updateMarkers(dt: number): void {
-    const g = this.g;
-    const cam = g.camera;
-    const v = new THREE.Vector3();
-    for (let i = this.markers.length - 1; i >= 0; i--) {
-      const m = this.markers[i];
-      m.ttl -= dt;
-      const blockGone = g.world.getBlock(Math.floor(m.pos.x), Math.floor(m.pos.y), Math.floor(m.pos.z)) === B.AIR;
-      if (m.ttl <= 0 || blockGone) {
-        m.el.remove();
-        this.markers.splice(i, 1);
-        continue;
-      }
-      v.copy(m.pos).project(cam);
-      const behind = v.z > 1;
-      if (behind || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) {
-        m.el.style.opacity = '0';
-        continue;
-      }
-      const d = m.pos.distanceTo(g.player.pos);
-      m.el.style.opacity = m.ttl < 3 ? String(m.ttl / 3) : '1';
-      m.el.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
-      m.el.style.top = ((-v.y + 1) / 2 * innerHeight) + 'px';
-      (m.el.querySelector('.m-dist')!).textContent = U.fmtDist(d);
-    }
+  updateMarkers(_dt: number): void {
+    // Marker rendering is now handled by Vue HudOverlay component
   }
 
   clearMarkers(): void {
-    for (const m of this.markers) m.el.remove();
-    this.markers = [];
+    useHudStore().clearMarkers();
   }
 
   // --- Methods delegated to Pinia stores / Vue components ---

@@ -1,12 +1,22 @@
 <template>
   <TitleScreen
-    v-if="game.state === 'title'"
+    v-if="game.state === 'title' && !showSaves"
     ref="titleRef"
     :has-save="hasSave"
     @new-game="onNewGame"
     @continue="onContinue"
+    @saves="showSaves = true"
     @help="showHelp = true"
     @settings="showSettings = true"
+  />
+
+  <SaveSlotScreen
+    v-if="showSaves"
+    :slots="saveSlots"
+    :current-slot="currentSlot"
+    @load="onLoadSlot"
+    @delete="onDeleteSlot"
+    @back="showSaves = false"
   />
 
   <LoadingScreen
@@ -23,7 +33,7 @@
   />
 
   <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" />
-  <InventoryScreen v-if="inv.open" @close="onCloseInv" />
+  <InventoryScreen v-if="inv.open" @close="onCloseInv" @use-item="onUseItem" @craft="onCraft" />
   <ShipPanel v-if="ship.open" @close="onCloseShip" @repair="onRepair" @refuel="onRefuel" @launch="onLaunch" />
   <PauseScreen v-if="game.state === 'pause'" @resume="onResume" @save="onSave" @help="showHelp = true" @settings="showSettings = true" @quit="onQuit" />
   <DeathScreen v-if="game.state === 'dead'" @respawn="onRespawn" />
@@ -51,6 +61,7 @@ import { useInventoryStore } from './stores/inventoryStore';
 import { useShipStore } from './stores/shipStore';
 import { useHudStore } from './stores/hudStore';
 import { Save } from './save';
+import type { SaveSlotMeta } from './types';
 
 import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
@@ -64,6 +75,7 @@ import SettingsScreen from './components/SettingsScreen.vue';
 import HelpScreen from './components/HelpScreen.vue';
 import PlanetCard from './components/PlanetCard.vue';
 import MilestonePopup from './components/MilestonePopup.vue';
+import SaveSlotScreen from './components/SaveSlotScreen.vue';
 
 const game = useGameStore();
 const player = usePlayerStore();
@@ -74,12 +86,22 @@ const hud = useHudStore();
 const hasSave = ref(false);
 const showSettings = ref(false);
 const showHelp = ref(false);
+const showSaves = ref(false);
 const damageFlash = ref(false);
+const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
+const currentSlot = ref(0);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 
 onMounted(async () => {
   hasSave.value = await Save.hasSave();
+  saveSlots.value = await Save.listSlots();
+  currentSlot.value = Save.getCurrentSlot();
 });
+
+async function refreshSlots() {
+  saveSlots.value = await Save.listSlots();
+  hasSave.value = saveSlots.value.some(s => s !== null);
+}
 
 function getEngine() {
   return (window as unknown as { game: { [k: string]: unknown } }).game;
@@ -94,30 +116,70 @@ function onContinue() {
   const engine = getEngine();
   if (engine && typeof engine.continueGame === 'function') (engine.continueGame as () => Promise<void>)();
 }
+async function onLoadSlot(slot: number) {
+  Save.setCurrentSlot(slot);
+  currentSlot.value = slot;
+  // Check if slot has data
+  const data = await Save.load(slot);
+  if (data) {
+    showSaves.value = false;
+    onContinue();
+  } else {
+    // Empty slot — start new game in this slot
+    showSaves.value = false;
+    onNewGame();
+  }
+}
+async function onDeleteSlot(slot: number) {
+  if (confirm(`确定删除存档 ${slot + 1}？`)) {
+    await Save.deleteSlot(slot);
+    await refreshSlots();
+  }
+}
 function onIntroSkip() {
   const engine = getEngine();
   if (engine && typeof engine.finishLoad === 'function') (engine.finishLoad as (d: null) => void)(null);
 }
 function onCloseInv() { inv.open = false; }
-function onCloseShip() { ship.open = false; }
+function onUseItem(id: string) {
+  const engine = getEngine();
+  if (engine?.inv && typeof (engine.inv as Record<string, unknown>).useItem === 'function') {
+    (engine.inv as { useItem: (id: string) => boolean }).useItem(id);
+    (engine.inv as { syncStore: () => void }).syncStore();
+  }
+}
+function onCraft(recipe: { id: string; req: [string, number][]; out: number }) {
+  const engine = getEngine();
+  if (engine?.inv && typeof (engine.inv as Record<string, unknown>).craft === 'function') {
+    (engine.inv as { craft: (r: typeof recipe) => void }).craft(recipe);
+    (engine.inv as { syncStore: () => void }).syncStore();
+  }
+}
+function onCloseShip() {
+  const engine = getEngine();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).closePanel === 'function') {
+    (engine.ship as { closePanel: () => void }).closePanel();
+  }
+}
 function onRepair(key: string) {
   const engine = getEngine();
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>)[key] === 'object') {
-    // handled by engine
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).repair === 'function') {
+    (engine.ship as { repair: (k: string) => boolean }).repair(key);
   }
 }
 function onRefuel() {
   const engine = getEngine();
-  if (engine?.ship) {
-    const s = engine.ship as Record<string, unknown>;
-    if (typeof s.renderPanel === 'function') (s.renderPanel as () => void)();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).refuel === 'function') {
+    (engine.ship as { refuel: () => boolean }).refuel();
   }
 }
 function onLaunch() {
-  ship.open = false;
   const engine = getEngine();
+  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).closePanel === 'function') {
+    (engine.ship as { closePanel: () => void }).closePanel();
+  }
   if (engine?.ship && typeof (engine.ship as Record<string, unknown>).enter === 'function') {
-    ((engine.ship as Record<string, unknown>).enter as () => void)();
+    (engine.ship as { enter: () => void }).enter();
   }
 }
 function onResume() {
@@ -126,6 +188,7 @@ function onResume() {
 }
 async function onSave() {
   await Save.save(getEngine() as Parameters<typeof Save.save>[0]);
+  await refreshSlots();
   hud.addNotification('进度已保存', 'success');
   onResume();
 }

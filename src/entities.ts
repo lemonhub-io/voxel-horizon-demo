@@ -58,27 +58,52 @@ export class Fauna {
   spawnCreature(sp: CreatureSpec, x: number, z: number, rng: () => number): Creature {
     const grp = new THREE.Group();
     const s = sp.size;
-    const matBody = new THREE.MeshLambertMaterial({ color: sp.col });
-    const matAcc = new THREE.MeshLambertMaterial({ color: sp.col2 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(s * 1.5, s * 0.85, s * 0.9), matBody);
+    // PBR materials for better lighting
+    const matBody = new THREE.MeshStandardMaterial({ color: sp.col, roughness: 0.7, metalness: 0.05 });
+    const matAcc = new THREE.MeshStandardMaterial({ color: sp.col2, roughness: 0.65, metalness: 0.05 });
+
+    // Body — tapered cylinder for organic shape
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.4, s * 0.35, s * 1.4, 8), matBody);
+    body.rotation.z = Math.PI / 2;
     body.position.y = s * 0.95;
     grp.add(body);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(s * 0.62, s * 0.58, s * 0.6), matAcc);
-    head.position.set(s * 0.95, s * 1.3, 0);
+
+    // Head — sphere for rounded look
+    const head = new THREE.Mesh(new THREE.SphereGeometry(s * 0.35, 10, 8), matAcc);
+    head.scale.set(1.1, 0.9, 0.95);
+    head.position.set(s * 0.95, s * 1.25, 0);
     grp.add(head);
+
+    // Snout — small protruding shape
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(s * 0.25, s * 0.18, s * 0.22), matAcc);
+    snout.position.set(s * 1.25, s * 1.2, 0);
+    grp.add(snout);
+
+    // Eyes — spheres
     const eyeMat = new THREE.MeshBasicMaterial({ color: '#1a1a22' });
-    for (const dz of [-0.18, 0.18]) {
-      const eye = new THREE.Mesh(new THREE.BoxGeometry(s * 0.09, s * 0.09, s * 0.09), eyeMat);
-      eye.position.set(s * 1.27, s * 1.38, s * dz * 2);
+    for (const dz of [-0.15, 0.15]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(s * 0.06, 6, 4), eyeMat);
+      eye.position.set(s * 1.15, s * 1.32, s * dz * 2);
       grp.add(eye);
     }
+
+    // Ears — small cones
+    for (const dz of [-0.18, 0.18]) {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(s * 0.08, s * 0.2, 5), matAcc);
+      ear.position.set(s * 0.85, s * 1.6, s * dz * 2);
+      ear.rotation.z = dz > 0 ? -0.3 : 0.3;
+      grp.add(ear);
+    }
+
     if (sp.horn) {
-      const horn = new THREE.Mesh(new THREE.ConeGeometry(s * 0.1, s * 0.5, 5), matBody);
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(s * 0.1, s * 0.5, 6), matBody);
       horn.position.set(s * 0.95, s * 1.75, 0);
       grp.add(horn);
     }
+
+    // Legs — cylinders for rounded look
     const legs: THREE.Mesh[] = [];
-    const legGeo = new THREE.BoxGeometry(s * 0.2, s * 0.7, s * 0.2);
+    const legGeo = new THREE.CylinderGeometry(s * 0.08, s * 0.1, s * 0.7, 6);
     legGeo.translate(0, -s * 0.35, 0);
     const legPos: [number, number][] = sp.legs === 4 ? [[0.5, 0.3], [0.5, -0.3], [-0.5, 0.3], [-0.5, -0.3]] : [[0.25, 0.28], [0.25, -0.28]];
     for (const [lx, lz] of legPos) {
@@ -87,15 +112,26 @@ export class Fauna {
       grp.add(leg);
       legs.push(leg);
     }
+
     let tail: THREE.Mesh | null = null;
     if (sp.tail) {
-      tail = new THREE.Mesh(new THREE.BoxGeometry(s * 0.7, s * 0.16, s * 0.16), matAcc);
+      tail = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.04, s * 0.08, s * 0.7, 6), matAcc);
+      tail.rotation.z = Math.PI / 2;
       tail.position.set(-s * 1.05, s * 1.1, 0);
       grp.add(tail);
     }
+
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(s * 0.9, 12), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.25, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     grp.add(shadow);
+
+    // Enable shadow casting on creature body parts
+    for (const child of grp.children) {
+      if (child instanceof THREE.Mesh && child !== shadow) {
+        child.castShadow = true;
+      }
+    }
+
     const y = this.g.world.surfaceY(Math.floor(x), Math.floor(z)) + 1;
     grp.position.set(x, y, z);
     this.group.add(grp);
@@ -179,9 +215,12 @@ export class Fauna {
     c.panic = 4;
     const pos = c.grp.position;
     this.g.audio.creatureHurt(0);
-    this.g.fx.spawn(pos.x, pos.y + c.sp.size, pos.z, { n: 6, col: '#c04a4a', speed: 2, life: 0.5 });
+    this.g.fx.burst(pos.x, pos.y + c.sp.size, pos.z, { n: 8, col: '#c04a4a', speed: 2.5, life: 0.5, ny: 1 });
     if (c.hp <= 0) {
-      this.g.fx.spawn(pos.x, pos.y + c.sp.size, pos.z, { n: 18, col: c.sp.col, speed: 3.2, life: 0.8 });
+      // Death burst — dramatic particle explosion
+      this.g.fx.burst(pos.x, pos.y + c.sp.size, pos.z, { n: 25, col: c.sp.col, speed: 4, life: 1.0, ny: 1 });
+      this.g.fx.burst(pos.x, pos.y + c.sp.size * 0.5, pos.z, { n: 10, col: c.sp.col2, speed: 2, life: 0.6 });
+      this.g.fx.shake(0.15);
       this.group.remove(c.grp);
       this.creatures.splice(this.creatures.indexOf(c), 1);
       const inv = this.g.inv;

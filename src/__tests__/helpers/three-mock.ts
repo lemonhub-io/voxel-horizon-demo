@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+// Minimal THREE.js mock for testing engine classes without WebGL
 
 // Minimal THREE.js mock for testing engine classes without WebGL
 export function createThreeMock() {
@@ -103,6 +103,12 @@ export function createThreeMock() {
     onBeforeCompile = undefined;
     constructor(_params?: Record<string, unknown>) { super(); }
   }
+  class MeshStandardMaterial extends Material {
+    color = new Color(); emissive = new Color(); transparent = false; opacity = 1;
+    roughness = 0.8; metalness = 0.1; vertexColors = false; alphaTest = 0;
+    side = 0; fog = true; map = null; needsUpdate = false;
+    constructor(_params?: Record<string, unknown>) { super(); }
+  }
   class PointsMaterial extends Material {
     size = 1; map = null; vertexColors = false; transparent = false; depthWrite = true;
     blending = 0; sizeAttenuation = true;
@@ -150,6 +156,8 @@ export function createThreeMock() {
 
   class WebGLRenderer {
     outputColorSpace = 'srgb';
+    toneMapping = 0;
+    toneMappingExposure = 1;
     setPixelRatio() {}
     setSize() {}
     setClearColor() {}
@@ -164,10 +172,12 @@ export function createThreeMock() {
     WebGLRenderer, Fog, Clock, BufferGeometry, BufferAttribute, Float32BufferAttribute,
     EdgesGeometry: BufferGeometry, SphereGeometry: BufferGeometry, BoxGeometry: BufferGeometry,
     CylinderGeometry: BufferGeometry, ConeGeometry: BufferGeometry, CircleGeometry: BufferGeometry,
-    Material, MeshBasicMaterial, MeshLambertMaterial, PointsMaterial, LineBasicMaterial, SpriteMaterial,
+    TorusGeometry: BufferGeometry,
+    Material, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, PointsMaterial, LineBasicMaterial, SpriteMaterial,
     Texture, CanvasTexture, Mesh, Points, LineSegments, Sprite, Group,
     Light, DirectionalLight, HemisphereLight, PointLight, SpotLight,
     AdditiveBlending: 2, BackSide: 1, DoubleSide: 2, NearestFilter: 0, ClampToEdgeWrapping: 0, SRGBColorSpace: 'srgb',
+    ACESFilmicToneMapping: 4, AgXToneMapping: 6, NeutralToneMapping: 7, NoToneMapping: 0,
     ShaderMaterial: Material,
   };
 

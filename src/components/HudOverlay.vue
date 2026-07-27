@@ -44,7 +44,12 @@
       <div v-if="hud.missionMax > 0" id="mission-prog-wrap"><div class="bar slim"><div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div></div><span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span></div>
     </div>
 
-    <div id="marker-layer"></div>
+    <div id="marker-layer">
+      <div v-for="m in hud.markers" :key="m.id" class="marker" :class="m.type">
+        <div class="m-ico">{{ markerIcons[m.type] || '?' }}</div>
+        <div class="m-dist">{{ formatMarkerDist(m) }}</div>
+      </div>
+    </div>
 
     <div id="flight-hud" :class="{ hidden: !hud.flightHudOn }">
       <div id="flight-reticle"><div class="fr-c"></div><div class="fr-l"></div><div class="fr-r"></div></div>
@@ -77,6 +82,16 @@ const ship = useShipStore();
 const hud = useHudStore();
 
 const compassCanvas = ref<HTMLCanvasElement | null>(null);
+
+const markerIcons: Record<string, string> = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
+function formatMarkerDist(m: { x: number; y: number; z: number }): string {
+  // Distance from player (accessed via global game engine)
+  const g = (window as unknown as { game?: { player?: { pos: { x: number; y: number; z: number } } } }).game;
+  if (!g?.player) return '';
+  const dx = m.x - g.player.pos.x, dy = m.y - g.player.pos.y, dz = m.z - g.player.pos.z;
+  const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d) + 'm';
+}
 
 const hazIcon = computed(() => HAZ_ICONS[game.palette.hazard.type] || '☢');
 const envIcon = computed(() => game.stormActive ? '⚠' : '☀');

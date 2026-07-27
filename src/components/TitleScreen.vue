@@ -10,6 +10,7 @@
       <div class="t-menu">
         <button class="btn t-btn" @click="$emit('new-game')">新的旅程</button>
         <button v-if="hasSave" class="btn t-btn" @click="$emit('continue')">继续旅程</button>
+        <button class="btn t-btn" @click="$emit('saves')">存档管理</button>
         <button class="btn t-btn" @click="$emit('help')">操作手册</button>
         <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       </div>
@@ -22,7 +23,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 
 defineProps<{ hasSave: boolean }>();
-defineEmits(['new-game', 'continue', 'help', 'settings']);
+defineEmits(['new-game', 'continue', 'saves', 'help', 'settings']);
 const seed = ref('');
 defineExpose({ seed });
 

@@ -47,9 +47,26 @@ export class Player {
   dmgT?: number;
   zT?: number;
   xT?: number;
+  crashShield = 45; // 45 seconds of hazard immunity after crash
   zWarned?: boolean;
   xWarned?: boolean;
   dfT?: ReturnType<typeof setTimeout>;
+
+  // Pre-allocated scratch vectors to avoid per-frame allocations
+  private _eyePos = new THREE.Vector3();
+  private _lookDir = new THREE.Vector3();
+  private _jumpTime = 0;
+  private _landImpact = 0;
+  private _stepUpTarget = 0;
+  private _stepUpFrom = 0;
+  private _stepUpProgress = 0;
+  private _fwd = new THREE.Vector3();
+  private _right = new THREE.Vector3();
+  private _wish = new THREE.Vector3();
+  private _vmTipWorld = new THREE.Vector3();
+  private _hitP = new THREE.Vector3();
+  private _shelterCache = 0;
+  private _shelterVal = false;
 
   constructor(game: Game) {
     this.g = game;
@@ -95,26 +112,48 @@ export class Player {
   buildViewmodel(): void {
     const g = this.g;
     this.vm = new THREE.Group();
-    const dark = new THREE.MeshLambertMaterial({ color: '#2e333c' });
-    const grey = new THREE.MeshLambertMaterial({ color: '#5a616e' });
-    const acc = new THREE.MeshBasicMaterial({ color: '#ff8a5c' });
+    const dark = new THREE.MeshStandardMaterial({ color: '#2e333c', roughness: 0.6, metalness: 0.3 });
+    const grey = new THREE.MeshStandardMaterial({ color: '#5a616e', roughness: 0.5, metalness: 0.4 });
+    const acc = new THREE.MeshStandardMaterial({ color: '#ff8a5c', emissive: '#ff8a5c', emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.2 });
+    const screenMat = new THREE.MeshBasicMaterial({ color: '#66d9e8' });
+
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.42), dark);
     this.vm.add(body);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.3, 6), grey);
+
+    // Barrel — 12 segments for smooth cylinder
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.3, 12), grey);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.03, -0.32);
     this.vm.add(barrel);
+
+    // Tip — emissive accent
     const tip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.06), acc);
     tip.position.set(0, 0.03, -0.47);
     this.vm.add(tip);
     this.vmTip = tip;
+
+    // Scope/lens on top
+    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8), grey);
+    scope.position.set(0, 0.1, -0.1);
+    this.vm.add(scope);
+    const lens = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), new THREE.MeshBasicMaterial({ color: '#a8d8e8', transparent: true, opacity: 0.6 }));
+    lens.position.set(0, 0.1, -0.16);
+    this.vm.add(lens);
+
+    // Antenna
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.18, 4), grey);
+    antenna.position.set(0.05, 0.16, 0.05);
+    this.vm.add(antenna);
+
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.1), grey);
     grip.position.set(0, -0.15, 0.1);
     grip.rotation.x = 0.3;
     this.vm.add(grip);
-    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), new THREE.MeshBasicMaterial({ color: '#66d9e8' }));
+
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), screenMat);
     screen.position.set(0, 0.1, 0.05);
     this.vm.add(screen);
+
     this.blockInHand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
     this.blockInHand.position.set(-0.22, 0.05, 0);
     this.blockInHand.visible = false;
@@ -129,13 +168,12 @@ export class Player {
     this.flashOn = false;
   }
 
-  eyePos(): THREE.Vector3 { return new THREE.Vector3(this.pos.x, this.pos.y + 1.62, this.pos.z); }
+  eyePos(): THREE.Vector3 {
+    return this._eyePos.set(this.pos.x, this.pos.y + 1.62, this.pos.z);
+  }
   lookDir(): THREE.Vector3 {
-    return new THREE.Vector3(
-      -Math.sin(this.yaw) * Math.cos(this.pitch),
-      Math.sin(this.pitch),
-      -Math.cos(this.yaw) * Math.cos(this.pitch)
-    );
+    const cp = Math.cos(this.pitch);
+    return this._lookDir.set(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
   }
 
   update(dt: number): void {
@@ -153,9 +191,9 @@ export class Player {
     this.pitch = U.clamp(this.pitch, -1.55, 1.55);
     input.dx = input.dy = 0;
 
-    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-    const wish = new THREE.Vector3();
+    const fwd = this._fwd.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const right = this._right.set(-fwd.z, 0, fwd.x);
+    const wish = this._wish.set(0, 0, 0);
     if (input.keys['KeyW']) wish.add(fwd);
     if (input.keys['KeyS']) wish.sub(fwd);
     if (input.keys['KeyD']) wish.add(right);
@@ -181,11 +219,18 @@ export class Player {
       this.vel.y = Math.max(this.vel.y, -3.2);
       if (input.keys['Space']) this.vel.y = Math.min(this.vel.y + 16 * dt, 3.4);
     } else {
-      this.vel.y -= CFG.GRAVITY * dt;
+      // Variable gravity: lighter ascent, snappier descent
+      if (!this.onGround || this.vel.y > 0) {
+        const gravMul = this.vel.y > 0 ? 0.85 : 1.3; // ascent: 85% gravity, descent: 130%
+        this.vel.y -= CFG.GRAVITY * gravMul * dt;
+      } else {
+        this.vel.y = 0;
+      }
       if (input.keys['Space']) {
         if (this.onGround) {
-          this.vel.y = 8.0;
+          this.vel.y = 7.2;
           this.onGround = false;
+          this._jumpTime = 0;
           g.audio.jump();
         } else if (this.jetFuel > 1) {
           this.vel.y = Math.min(this.vel.y + 30 * dt, 6.2);
@@ -215,10 +260,40 @@ export class Player {
       }
     }
 
+    // Smooth step-up interpolation
+    if (this._stepUpTarget > 0 && this._stepUpProgress < 1) {
+      this._stepUpProgress = Math.min(1, this._stepUpProgress + dt * 7);
+      // Ease-out curve for natural feel
+      const t = 1 - Math.pow(1 - this._stepUpProgress, 2);
+      this.pos.y = this._stepUpFrom + (this._stepUpTarget - this._stepUpFrom) * t;
+      if (this._stepUpProgress >= 1) {
+        this.pos.y = this._stepUpTarget;
+        this._stepUpTarget = 0;
+      }
+    }
+
     const cam = g.camera;
     cam.position.copy(this.eyePos());
-    const bob = this.onGround && wish.lengthSq() > 0 ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
-    cam.position.y += bob;
+    const moving = wish.lengthSq() > 0;
+    const bob = this.onGround && moving ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
+    // Idle sway — subtle breathing motion when standing still
+    const idleSwayX = this.onGround && !moving ? Math.sin(g.time * 1.1) * 0.008 : 0;
+    const idleSwayY = this.onGround && !moving ? Math.sin(g.time * 0.7) * 0.005 : 0;
+
+    // Jump arc camera — slight pull-up at start, push-down at apex
+    let jumpCamY = 0;
+    if (!this.onGround) {
+      this._jumpTime += dt;
+      const jt = this._jumpTime;
+      // Slight upward tilt at jump start, then level off
+      jumpCamY = Math.sin(jt * 4) * 0.03 * Math.max(0, 1 - jt);
+    }
+    // Landing camera dip — decays over 0.3s
+    this._landImpact = Math.max(0, this._landImpact - dt * 0.5);
+    const landDip = this._landImpact * Math.sin(this._landImpact * 10);
+
+    cam.position.y += bob + idleSwayY + jumpCamY - landDip;
+    cam.position.x += idleSwayX;
     cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
 
     this.vm.position.y = -0.3 + bob * 0.6 + (this.mining ? Math.sin(g.time * 40) * 0.006 : 0);
@@ -243,24 +318,34 @@ export class Player {
     const w = 0.3, h = 1.8;
     const world = this.g.world;
     const p = this.pos;
-    this.vel.y = Math.max(this.vel.y, -46);
+    this.vel.y = Math.max(this.vel.y, -30); // Lower terminal velocity to prevent clipping
     const collide = (): boolean => world.collides(p.x - w, p.y, p.z - w, p.x + w, p.y + h - 0.001, p.z + w);
     const move = (axis: 'x' | 'y' | 'z', amt: number): void => {
       if (Math.abs(amt) < 1e-8) return;
       const dirS = Math.sign(amt);
       let rem = Math.abs(amt);
+      // Smaller step size for Y axis to prevent ground clipping
+      const maxStep = axis === 'y' ? 0.2 : 0.4;
       while (rem > 0) {
-        const st = Math.min(rem, 0.4);
+        const st = Math.min(rem, maxStep);
         rem -= st;
         p[axis] += st * dirS;
         if (!collide()) continue;
         if (axis !== 'y' && (this.onGround || this.inWater)) {
           const oy = p.y;
-          p.y += 0.62;
+          p.y += 1.05; // Check if we can step up
           if (!collide()) {
             while (p.y > oy) {
               p.y -= 0.05;
               if (collide()) { p.y += 0.05; break; }
+            }
+            // Smooth step-up: interpolate over ~0.15s instead of instant
+            const stepHeight = p.y - oy;
+            if (stepHeight > 0.1) {
+              this._stepUpFrom = oy;
+              this._stepUpTarget = p.y;
+              p.y = oy; // Keep current position, will interpolate in update
+              this._stepUpProgress = 0;
             }
             continue;
           }
@@ -277,7 +362,13 @@ export class Player {
     move('z', this.vel.z * dt);
     const wasGround = this.onGround;
     move('y', this.vel.y * dt);
-    this.onGround = this.vel.y <= 0.01 && world.collides(p.x - w, p.y - 0.08, p.z - w, p.x + w, p.y - 0.02, p.z + w);
+    // Void protection — reset to surface if fallen below world
+    if (p.y < -10) {
+      const surfY = world.surfaceY(Math.floor(p.x), Math.floor(p.z));
+      p.y = surfY + 2;
+      this.vel.y = 0;
+    }
+    this.onGround = this.vel.y <= 0.01 && world.collides(p.x - w, p.y - 0.12, p.z - w, p.x + w, p.y - 0.01, p.z + w);
     if (this.onGround && !wasGround) {
       const impact = this.fallVy;
       if (impact < -16) {
@@ -285,7 +376,11 @@ export class Player {
         this.damage(dmg, '坠落');
         this.g.audio.land(true);
         this.g.fx.shake(0.3);
-      } else if (impact < -6) this.g.audio.land(false);
+      } else if (impact < -6) {
+        this.g.audio.land(false);
+      }
+      // Landing camera dip — proportional to fall speed
+      this._landImpact = Math.min(Math.abs(impact) * 0.012, 0.15);
     }
   }
 
@@ -354,7 +449,11 @@ export class Player {
       if (this.sfxT <= 0) {
         this.sfxT = 0.14;
         g.audio.mineHit(def.snd || 'stone');
-        g.fx.spawn(hitP.x, hitP.y, hitP.z, { n: 3, col: this.blockColor(t.id), speed: 1.8, life: 0.45 });
+        // Mining sparks — small burst at hit point
+        g.fx.burst(hitP.x, hitP.y, hitP.z, {
+          n: 5, col: this.blockColor(t.id), speed: 2.2, life: 0.35,
+          nx: t.nx * 0.5, ny: t.ny * 0.5, nz: t.nz * 0.5
+        });
       }
       const stage = Math.min(2, Math.floor(this.mineProgress * 3));
       this.crack.visible = true;
@@ -414,8 +513,12 @@ export class Player {
     const def = BLOCK_DEF[t.id];
     g.world.setBlock(t.x, t.y, t.z, B.AIR);
     g.audio.blockBreak(def.snd || 'stone');
-    g.fx.spawn(t.x + 0.5, t.y + 0.5, t.z + 0.5, { n: 14, col: this.blockColor(t.id), speed: 2.6, life: 0.6 });
-    g.fx.shake(0.06);
+    // Directional burst — particles fly away from the break face
+    g.fx.burst(t.x + 0.5, t.y + 0.5, t.z + 0.5, {
+      n: 20, col: this.blockColor(t.id), speed: 3.2, life: 0.7,
+      nx: t.nx, ny: t.ny, nz: t.nz
+    });
+    g.fx.shake(0.08);
     if (def.drops) {
       let pi = 0;
       for (const d of def.drops) {
@@ -434,9 +537,8 @@ export class Player {
   }
 
   vmTipWorld(): THREE.Vector3 {
-    const v = new THREE.Vector3();
-    this.vmTip.getWorldPosition(v);
-    return v;
+    this.vmTip.getWorldPosition(this._vmTipWorld);
+    return this._vmTipWorld;
   }
 
   placeBlock(): void {
@@ -476,6 +578,11 @@ export class Player {
     let haz = night ? pal.hazard.night : pal.hazard.day;
     if (g.stormActive) haz *= 3.2;
     if (this.sheltered || inShip) haz = 0;
+    // Crash shield: no hazard drain for first 45 seconds
+    if (this.crashShield > 0) {
+      this.crashShield -= dt;
+      haz = 0;
+    }
     this.hazard -= haz * dt;
     if (!inShip) this.ls -= 0.10 * dt;
     if (this.headInWater) this.ls -= 0.9 * dt;
@@ -496,12 +603,17 @@ export class Player {
   }
 
   checkShelter(): boolean {
+    // Cache result for 10 frames to reduce getBlock calls
+    this._shelterCache--;
+    if (this._shelterCache > 0) return this._shelterVal;
+    this._shelterCache = 10;
     const w = this.g.world;
     const x = Math.floor(this.pos.x), z = Math.floor(this.pos.z);
     for (let y = Math.floor(this.pos.y + 2); y < Math.min(CFG.WORLD_H, this.pos.y + 10); y++) {
       const b = w.getBlock(x, y, z);
-      if (b !== B.AIR && BLOCK_DEF[b].solid) return true;
+      if (b !== B.AIR && BLOCK_DEF[b].solid) { this._shelterVal = true; return true; }
     }
+    this._shelterVal = false;
     return false;
   }
 
@@ -537,8 +649,8 @@ export class Player {
     this.pos.set(sp.x + 4, g.world.topSolidY(Math.floor(sp.x + 4), Math.floor(sp.z)) + 1.2, sp.z);
     this.vel.set(0, 0, 0);
     this.hp = 100;
-    this.hazard = 60;
-    this.ls = 60;
+    this.hazard = 40;
+    this.ls = 50;
     this.dead = false;
     g.audio.respawn();
   }

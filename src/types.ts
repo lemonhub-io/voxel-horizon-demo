@@ -341,6 +341,15 @@ export interface SaveData {
   edits: Record<string, number[]>;
 }
 
+export interface SaveSlotMeta {
+  id: number;
+  planetName: string;
+  climate: string;
+  playTime: number;
+  timestamp: number;
+  playerHp: number;
+}
+
 export interface PlayerSaveData {
   pos: number[];
   yaw: number;
@@ -426,7 +435,8 @@ export interface Game {
   spawnPoint: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
-  initRenderer(): void;
+  postProc?: { render(): void; resize(w: number, h: number): void };
+  initRenderer(): Promise<void>;
   applySettings(): void;
   uiOpen(): boolean;
   requestPointerLock(): void;
@@ -609,6 +619,7 @@ export interface FX {
   shakeAmp: number;
   warpAnim: number | null;
   spawn(x: number, y: number, z: number, opts: SpawnOpts): void;
+  burst(x: number, y: number, z: number, opts: SpawnOpts & { nx?: number; ny?: number; nz?: number }): void;
   update(dt: number): void;
   laserShow(from: THREE.Vector3, to: THREE.Vector3, col?: string): void;
   laserHide(): void;
@@ -683,7 +694,9 @@ export interface Ship {
   tryWarp(): void;
   openPanel(): void;
   closePanel(): void;
-  renderPanel(): void;
+  repair(key: string): boolean;
+  refuel(): boolean;
+  syncStore(): void;
   serialize(): ShipSaveData;
   deserialize(d: ShipSaveData | undefined): void;
 }
@@ -749,7 +762,6 @@ export interface Player {
 
 export interface HUD {
   g: Game;
-  markers: Marker[];
   compass: HTMLCanvasElement | null;
   cctx: CanvasRenderingContext2D | null;
   initCompass(): void;
@@ -836,10 +848,14 @@ export interface U {
 }
 
 export interface Save {
-  save(g: Game): Promise<boolean>;
-  load(): Promise<SaveData | null>;
+  save(g: Game, slot?: number): Promise<boolean>;
+  load(slot?: number): Promise<SaveData | null>;
   hasSave(): Promise<boolean>;
+  listSlots(): Promise<SaveSlotMeta[]>;
+  deleteSlot(slot: number): Promise<void>;
   clear(): Promise<void>;
+  getCurrentSlot(): number;
+  setCurrentSlot(slot: number): void;
   loadSettings(): Settings;
   saveSettings(s: Settings): void;
 }
@@ -848,7 +864,7 @@ export interface Save {
 
 declare global {
 namespace THREE {
-  class Vector2 { constructor(x?: number, y?: number); x: number; y: number; }
+  class Vector2 { constructor(x?: number, y?: number); x: number; y: number; set(x: number, y: number): this; }
   class Vector3 {
     constructor(x?: number, y?: number, z?: number);
     x: number; y: number; z: number;
@@ -894,12 +910,15 @@ namespace THREE {
     quaternion: Quaternion;
     scale: Vector3;
     visible: boolean;
+    castShadow: boolean;
+    receiveShadow: boolean;
     children: Object3D[];
     matrixAutoUpdate: boolean;
     add(object: Object3D): this;
     remove(object: Object3D): this;
     lookAt(v: Vector3): void;
     updateMatrix(): void;
+    updateMatrixWorld(): void;
     getWorldPosition(target: Vector3): Vector3;
   }
   class Scene extends Object3D { fog: Fog | null; }
@@ -917,6 +936,9 @@ namespace THREE {
     setClearColor(color: string | number): void;
     render(scene: Scene, camera: Camera): void;
     outputColorSpace: string;
+    toneMapping: number;
+    toneMappingExposure: number;
+    shadowMap: { enabled: boolean; type: number };
   }
   class Fog { constructor(color: string, near: number, far: number); color: Color; near: number; far: number; }
   class BufferGeometry {
@@ -930,6 +952,9 @@ namespace THREE {
     constructor(array: ArrayLike<number>, itemSize: number);
     needsUpdate: boolean;
     count: number;
+    getX(index: number): number;
+    getY(index: number): number;
+    getZ(index: number): number;
     setXY(index: number, x: number, y: number): void;
   }
   class EdgesGeometry extends BufferGeometry { constructor(geometry: BufferGeometry); }
@@ -1042,7 +1067,27 @@ namespace THREE {
   }
   class Group extends Object3D { }
   class Light extends Object3D { intensity: number; color: Color; }
-  class DirectionalLight extends Light { constructor(color?: number | string, intensity?: number); }
+  class LightShadow {
+    camera: OrthographicCamera;
+    bias: number;
+    normalBias: number;
+    radius: number;
+    mapSize: Vector2;
+    dispose(): void;
+  }
+  class DirectionalLightShadow extends LightShadow {
+    constructor();
+  }
+  class OrthographicCamera extends Camera {
+    constructor(left: number, right: number, top: number, bottom: number, near?: number, far?: number);
+    left: number; right: number; top: number; bottom: number; near: number; far: number;
+  }
+  class DirectionalLight extends Light {
+    constructor(color?: number | string, intensity?: number);
+    shadow: DirectionalLightShadow;
+    castShadow: boolean;
+    target: Object3D;
+  }
   class HemisphereLight extends Light {
     constructor(skyColor?: number | string, groundColor?: number | string, intensity?: number);
     groundColor: Color;
@@ -1062,5 +1107,32 @@ namespace THREE {
   const NearestFilter: number;
   const ClampToEdgeWrapping: number;
   const SRGBColorSpace: string;
+  const ACESFilmicToneMapping: number;
+  const AgXToneMapping: number;
+  const NeutralToneMapping: number;
+  const NoToneMapping: number;
+  const PCFSoftShadowMap: number;
+
+  // Post-processing types
+  class EffectComposer {
+    constructor(renderer: WebGLRenderer);
+    addPass(pass: unknown): void;
+    setSize(width: number, height: number): void;
+    render(): void;
+  }
+  class RenderPass {
+    constructor(scene: Scene, camera: Camera);
+  }
+  class UnrealBloomPass {
+    constructor(resolution: Vector2, strength: number, radius: number, threshold: number);
+  }
+  class FXAAPass {
+    constructor(width: number, height: number);
+  }
+  class ShaderPass {
+    constructor(shader: Record<string, unknown>);
+    uniforms: Record<string, { value: unknown }>;
+    renderToScreen: boolean;
+  }
 }
 } // declare global

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CFG, B, T, BLOCK_DEF, ITEMS, RECIPES, PALETTES, HAZ_ICONS, MILESTONE_DEFS, DEFAULT_SETTINGS } from '../config';
+import { CFG, B, BLOCK_DEF, ITEMS, RECIPES, PALETTES, HAZ_ICONS, MILESTONE_DEFS, DEFAULT_SETTINGS } from '../config';
 
 describe('CFG constants', () => {
   it('has valid chunk size', () => expect(CFG.CHUNK).toBe(16));
@@ -98,7 +98,7 @@ describe('PALETTES', () => {
     }
   });
   it('hazard types are valid', () => {
-    const valid = ['heat', 'cold', 'toxic', 'freeze'];
+    const valid = ['heat', 'cold', 'toxic', 'rad'];
     for (const p of PALETTES) expect(valid).toContain(p.hazard.type);
   });
 });
@@ -108,7 +108,7 @@ describe('HAZ_ICONS', () => {
     expect(HAZ_ICONS.cold).toBeDefined();
     expect(HAZ_ICONS.heat).toBeDefined();
     expect(HAZ_ICONS.toxic).toBeDefined();
-    expect(HAZ_ICONS.freeze).toBeDefined();
+    expect(HAZ_ICONS.rad).toBeDefined();
   });
 });
 

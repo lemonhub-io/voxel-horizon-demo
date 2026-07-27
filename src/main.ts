@@ -18,6 +18,8 @@ import { Player } from './player';
 import { HUD } from './hud';
 import { Missions, Milestones } from './missions';
 import { Save } from './save';
+import { PostProcessing } from './post-processing';
+import { PostFX } from './postfx';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -94,8 +96,13 @@ export class Game {
   milestones!: Milestones;
   player!: Player;
   spawnPoint!: { x: number; z: number };
+  postProc!: PostProcessing;
+  postFx!: PostFX;
   missionT?: number;
   stormLeft?: number;
+  private _prevX = 0;
+  private _prevZ = 0;
+  private _syncFrame = 0;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -130,36 +137,50 @@ export class Game {
     this.discoveries = { planets: [], entries: [] };
     this.autoSaveT = 0;
     this.input = Input;
-    this.initRenderer();
     Input.init(this);
-    this.loop();
+    this.initRenderer().then(() => { this.loop(); });
   }
 
-  initRenderer(): void {
+  async initRenderer(): Promise<void> {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 
     // Use WebGPURenderer with automatic WebGL2 fallback
-    const WebGPURenderer = (THREE as unknown as Record<string, unknown>).WebGPURenderer;
-    if (WebGPURenderer) {
-      this.renderer = new (WebGPURenderer as new (opts: Record<string, unknown>) => THREE.WebGLRenderer)({ canvas, antialias: false });
-      console.log('[VoxelHorizon] WebGPURenderer initialized (WebGPU backend with WebGL2 fallback)');
+    const WGPU = (THREE as unknown as Record<string, unknown>).WebGPURenderer as
+      (new (opts: Record<string, unknown>) => { init: () => Promise<void>; setPixelRatio: (r: number) => void; setSize: (w: number, h: number) => void; outputColorSpace: string; render: (s: unknown, c: unknown) => void }) | undefined;
+
+    if (WGPU) {
+      this.renderer = new WGPU({ canvas, antialias: false }) as unknown as THREE.WebGLRenderer;
+      await (this.renderer as unknown as { init: () => Promise<void> }).init();
+      console.warn('[VoxelHorizon] WebGPURenderer initialized');
     } else {
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-      console.log('[VoxelHorizon] WebGLRenderer initialized (legacy)');
+      console.warn('[VoxelHorizon] WebGLRenderer initialized (legacy)');
     }
 
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
     this.renderer.setSize(innerWidth, innerHeight);
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    (this.renderer as unknown as Record<string, unknown>).outputColorSpace = THREE.SRGBColorSpace;
+
+    // HDR tone mapping for better light range
+    const r = this.renderer as unknown as Record<string, unknown>;
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 2.5;
+
+    // Shadow maps
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);
     this.scene.add(this.camera);
     this.atlas = new TextureAtlas();
+    this.postProc = new PostProcessing(this);
+    this.postFx = new PostFX();
     addEventListener('resize', () => {
       this.renderer.setSize(innerWidth, innerHeight);
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
+      this.postProc.resize(innerWidth, innerHeight);
     });
     this.clock = new THREE.Clock();
   }
@@ -281,8 +302,8 @@ export class Game {
       this.player.pos.set(sx + 0.5, gy + 1.2, sz + 0.5);
       this.player.yaw = Math.PI * 0.25;
       this.ship.placeAt(sx + 14, sz + 9);
-      this.player.hazard = 25;
-      this.player.ls = 75;
+      this.player.hazard = 50;
+      this.player.ls = 85;
       this.inv.add('carbon', 10);
       this.discoveries.planets.push({ name: this.planetName, climate: this.palette.climate, visited: 1 });
       s.game.discoveries = this.discoveries;
@@ -581,10 +602,11 @@ export class Game {
     if (this.state === 'play' || this.state === 'warp' || this.state === 'dead' || this.state === 'pause') {
       if (this.state === 'play') {
         this.playTime += dt;
-        const prevPos = this.player.pos.clone();
+        this._prevX = this.player.pos.x;
+        this._prevZ = this.player.pos.z;
         this.player.update(dt);
         if (!this.player.inShip) {
-          const moved = U.dist2(prevPos.x, prevPos.z, this.player.pos.x, this.player.pos.z);
+          const moved = U.dist2(this._prevX, this._prevZ, this.player.pos.x, this.player.pos.z);
           if (moved < 2) this.milestones.addStat('walk', moved);
         }
         this.ship.update(dt);
@@ -600,13 +622,17 @@ export class Game {
             if (ok) this.stores.hud.addNotification('自动存档完成', 'info');
           }).catch(() => {});
         }
-        this.syncPlayerStore();
+        // Sync to Pinia every 3 frames to reduce reactive setter overhead
+        this._syncFrame++;
+        if (this._syncFrame >= 3) { this._syncFrame = 0; this.syncPlayerStore(); }
+        if (this.postFx) this.postFx.update(this.player.hp, this.player.headInWater);
       }
       this.world.update(this.player.pos.x, this.player.pos.z, 6);
       this.sky.update(this.state === 'pause' ? 0 : dt);
+      this.world.updateWaterFresnel();
       this.fx.update(dt);
       this.fx.applyShake(this.camera);
-      this.renderer.render(this.scene, this.camera);
+      this.postProc.render();
     }
   }
 }
