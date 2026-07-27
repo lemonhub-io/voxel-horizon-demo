@@ -29,16 +29,25 @@ defineExpose({ seed });
 
 const starsCanvas = ref<HTMLCanvasElement | null>(null);
 let animId = 0;
+let resizeStars: (() => void) | null = null;
 
 onMounted(() => {
   const cvs = starsCanvas.value;
   if (!cvs) return;
-  cvs.width = innerWidth; cvs.height = innerHeight;
   const ctx = cvs.getContext('2d')!;
   const stars: { x: number; y: number; r: number; p: number; s: number }[] = [];
-  for (let i = 0; i < 240; i++) stars.push({ x: Math.random() * cvs.width, y: Math.random() * cvs.height, r: Math.random() * 1.4 + 0.3, p: Math.random() * 6.28, s: 0.5 + Math.random() * 2 });
+  resizeStars = () => {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cvs.width = Math.round(innerWidth * dpr);
+    cvs.height = Math.round(innerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    stars.length = 0;
+    for (let i = 0; i < 240; i++) stars.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: Math.random() * 1.4 + 0.3, p: Math.random() * 6.28, s: 0.5 + Math.random() * 2 });
+  };
+  resizeStars();
+  addEventListener('resize', resizeStars);
   const draw = () => {
-    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
     const t = performance.now() / 1000;
     for (const s of stars) {
       const a = 0.35 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
@@ -50,5 +59,8 @@ onMounted(() => {
   draw();
 });
 
-onBeforeUnmount(() => cancelAnimationFrame(animId));
+onBeforeUnmount(() => {
+  cancelAnimationFrame(animId);
+  if (resizeStars) removeEventListener('resize', resizeStars);
+});
 </script>

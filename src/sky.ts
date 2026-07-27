@@ -26,6 +26,7 @@ export class Sky {
   private _sunDir = new THREE.Vector3();
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
+  private _shadowFrame = 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _uTop: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,7 +139,7 @@ export class Sky {
   private _buildLights(): void {
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.mapSize.set(4096, 4096);
     this.sunLight.shadow.camera.near = 0.5;
     this.sunLight.shadow.camera.far = 600;
     this.sunLight.shadow.camera.left = -80;
@@ -147,7 +148,8 @@ export class Sky {
     this.sunLight.shadow.camera.bottom = -80;
     this.sunLight.shadow.bias = -0.001;
     this.sunLight.shadow.normalBias = 0.02;
-    this.sunLight.shadow.radius = 2;
+    this.sunLight.shadow.radius = 3;
+    (this.g.renderer.shadowMap as unknown as { needsUpdate: boolean }).needsUpdate = true;
     this.g.scene.add(this.sunLight);
 
     this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
@@ -300,6 +302,12 @@ export class Sky {
     this.sunLight.color.set(dusk > 0.1
       ? U.mixHex(pal.sun, '#ff7a4a', dusk * 0.7)
       : U.mixHex('#8fa8cc', pal.sun, Math.max(day, 0.2)));
+
+    // 4096px shadows are expensive; updating at 15 Hz is smooth for this day cycle.
+    if (++this._shadowFrame >= 4) {
+      (g.renderer.shadowMap as unknown as { needsUpdate: boolean }).needsUpdate = true;
+      this._shadowFrame = 0;
+    }
 
     this.hemi.intensity = 0.5 + day * 0.7 + dusk * 0.1;
     this.hemi.color.set(top);

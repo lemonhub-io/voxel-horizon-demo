@@ -88,26 +88,35 @@ export class World {
 
   buildMaterials(): void {
     const tex = this.g.atlas.texture as unknown as THREE.Texture | null;
+    const normalMap = this.g.atlas.normalTexture;
     if (this.matOpaque) {
       this.matOpaque.map = tex; this.matCutout.map = tex; this.matWater.map = tex;
+      (this.matOpaque as unknown as { normalMap: unknown }).normalMap = normalMap;
       this.matOpaque.needsUpdate = this.matCutout.needsUpdate = this.matWater.needsUpdate = true;
       return;
     }
 
     // PBR materials for better lighting
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const map = tex as any;
     this.matOpaque = new THREE.MeshStandardMaterial({
-      map, vertexColors: true, roughness: 0.75, metalness: 0.05
+      vertexColors: true, roughness: 0.72, metalness: 0.05
     }) as unknown as THREE.MeshLambertMaterial;
+    const opaquePbr = this.matOpaque as unknown as {
+      normalMap: unknown;
+      normalScale: { set(x: number, y: number): void };
+    };
+    opaquePbr.normalMap = normalMap;
+    opaquePbr.normalScale.set(0.34, 0.34);
     this.matCutout = new THREE.MeshStandardMaterial({
-      map, vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
-      roughness: 0.8, metalness: 0.02
+      vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
+      alphaToCoverage: true, roughness: 0.8, metalness: 0.02
     }) as unknown as THREE.MeshLambertMaterial;
     this.matWater = new THREE.MeshStandardMaterial({
-      map, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,
+      vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,
       roughness: 0.1, metalness: 0.3
     }) as unknown as THREE.MeshLambertMaterial;
+    this.matOpaque.map = tex;
+    this.matCutout.map = tex;
+    this.matWater.map = tex;
   }
 
   /** Update water Fresnel effect — more reflective at grazing angles */
@@ -412,7 +421,7 @@ export class World {
       this.group.add(mesh);
       chunk.meshes.push(mesh);
     };
-    mk(opaque, this.matOpaque);
+    mk(opaque, this.matOpaque, m => { m.castShadow = true; });
     mk(cutout, this.matCutout, m => { m.castShadow = true; });
     // Use TSL water material if available, otherwise standard
     mk(water, this._waterTSLMat || this.matWater, m => { m.renderOrder = 2; });

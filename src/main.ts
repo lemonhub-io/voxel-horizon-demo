@@ -98,11 +98,13 @@ export class Game {
   spawnPoint!: { x: number; z: number };
   postProc!: PostProcessing;
   postFx!: PostFX;
+  ready: Promise<void>;
   missionT?: number;
   stormLeft?: number;
   private _prevX = 0;
   private _prevZ = 0;
   private _syncFrame = 0;
+  private _worldUpdateT = 0;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -138,7 +140,7 @@ export class Game {
     this.autoSaveT = 0;
     this.input = Input;
     Input.init(this);
-    this.initRenderer().then(() => { this.loop(); });
+    this.ready = this.initRenderer().then(() => { this.loop(); });
   }
 
   async initRenderer(): Promise<void> {
@@ -149,15 +151,15 @@ export class Game {
       (new (opts: Record<string, unknown>) => { init: () => Promise<void>; setPixelRatio: (r: number) => void; setSize: (w: number, h: number) => void; outputColorSpace: string; render: (s: unknown, c: unknown) => void }) | undefined;
 
     if (WGPU) {
-      this.renderer = new WGPU({ canvas, antialias: false }) as unknown as THREE.WebGLRenderer;
+      this.renderer = new WGPU({ canvas, antialias: true }) as unknown as THREE.WebGLRenderer;
       await (this.renderer as unknown as { init: () => Promise<void> }).init();
       console.warn('[VoxelHorizon] WebGPURenderer initialized');
     } else {
-      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
       console.warn('[VoxelHorizon] WebGLRenderer initialized (legacy)');
     }
 
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
     (this.renderer as unknown as Record<string, unknown>).outputColorSpace = THREE.SRGBColorSpace;
 
@@ -169,6 +171,9 @@ export class Game {
     // Shadow maps
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const shadowMap = this.renderer.shadowMap as unknown as { autoUpdate: boolean; needsUpdate: boolean };
+    shadowMap.autoUpdate = false;
+    shadowMap.needsUpdate = true;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);
@@ -627,7 +632,11 @@ export class Game {
         if (this._syncFrame >= 3) { this._syncFrame = 0; this.syncPlayerStore(); }
         if (this.postFx) this.postFx.update(this.player.hp, this.player.headInWater);
       }
-      this.world.update(this.player.pos.x, this.player.pos.z, 6);
+      this._worldUpdateT += dt;
+      if (this._worldUpdateT >= 1 / 30) {
+        this._worldUpdateT = 0;
+        this.world.update(this.player.pos.x, this.player.pos.z, 6);
+      }
       this.sky.update(this.state === 'pause' ? 0 : dt);
       this.world.updateWaterFresnel();
       this.fx.update(dt);

@@ -8,6 +8,7 @@ export class TextureAtlas {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture | null;
+  normalTexture: THREE.CanvasTexture | null;
   iconCache: Record<string, string>;
   avgCache: Record<string, string>;
 
@@ -18,6 +19,7 @@ export class TextureAtlas {
     this.canvas.width = this.canvas.height = this.size * this.px;
     this.ctx = this.canvas.getContext('2d')!;
     this.texture = null;
+    this.normalTexture = null;
     this.iconCache = {};
     this.avgCache = {};
   }
@@ -202,9 +204,51 @@ export class TextureAtlas {
     tex.generateMipmaps = true;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     this.texture = tex;
+
+    if (this.normalTexture) this.normalTexture.dispose();
+    this.normalTexture = this._buildNormalTexture();
     this.iconCache = {};
     this.avgCache = {};
     return tex;
+  }
+
+  /** Derive a subtle normal map from the procedural atlas for richer PBR lighting. */
+  private _buildNormalTexture(): THREE.CanvasTexture {
+    const width = this.canvas.width;
+    const source = this.ctx.getImageData(0, 0, width, this.canvas.height).data;
+    const normalCanvas = document.createElement('canvas');
+    normalCanvas.width = normalCanvas.height = width;
+    const normalCtx = normalCanvas.getContext('2d')!;
+    const normal = normalCtx.createImageData(width, width);
+
+    const heightAt = (x: number, y: number): number => {
+      const tileX = Math.floor(x / this.px) * this.px;
+      const tileY = Math.floor(y / this.px) * this.px;
+      const sx = Math.max(tileX, Math.min(tileX + this.px - 1, x));
+      const sy = Math.max(tileY, Math.min(tileY + this.px - 1, y));
+      const i = (sy * width + sx) * 4;
+      if (source[i + 3] < 16) return 0.5;
+      return (source[i] * 0.2126 + source[i + 1] * 0.7152 + source[i + 2] * 0.0722) / 255;
+    };
+
+    for (let y = 0; y < width; y++) for (let x = 0; x < width; x++) {
+      const dx = (heightAt(x - 1, y) - heightAt(x + 1, y)) * 0.6;
+      const dy = (heightAt(x, y - 1) - heightAt(x, y + 1)) * 0.6;
+      const length = Math.hypot(dx, dy, 1);
+      const i = (y * width + x) * 4;
+      normal.data[i] = Math.round((dx / length * 0.5 + 0.5) * 255);
+      normal.data[i + 1] = Math.round((dy / length * 0.5 + 0.5) * 255);
+      normal.data[i + 2] = Math.round((1 / length * 0.5 + 0.5) * 255);
+      normal.data[i + 3] = source[i + 3];
+    }
+
+    normalCtx.putImageData(normal, 0, 0);
+    const texture = new THREE.CanvasTexture(normalCanvas);
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.generateMipmaps = true;
+    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
   }
 
   tileAvg(t: number, f: number): string {

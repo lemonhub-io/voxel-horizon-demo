@@ -10,6 +10,12 @@
     @settings="showSettings = true"
   />
 
+  <div v-if="engineLoading" id="engine-loading" role="status" aria-live="polite">
+    <div class="engine-loading__spinner"></div>
+    <div>正在准备星球渲染器</div>
+    <small>INITIALIZING RENDERER</small>
+  </div>
+
   <SaveSlotScreen
     v-if="showSaves"
     :slots="saveSlots"
@@ -61,6 +67,7 @@ import { useInventoryStore } from './stores/inventoryStore';
 import { useShipStore } from './stores/shipStore';
 import { useHudStore } from './stores/hudStore';
 import { Save } from './save';
+import { loadGame } from './engine-loader';
 import type { SaveSlotMeta } from './types';
 
 import TitleScreen from './components/TitleScreen.vue';
@@ -87,6 +94,7 @@ const hasSave = ref(false);
 const showSettings = ref(false);
 const showHelp = ref(false);
 const showSaves = ref(false);
+const engineLoading = ref(false);
 const damageFlash = ref(false);
 const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
 const currentSlot = ref(0);
@@ -107,14 +115,26 @@ function getEngine() {
   return (window as unknown as { game: { [k: string]: unknown } }).game;
 }
 
-function onNewGame() {
-  const engine = getEngine();
-  const seed = titleRef.value?.seed || '';
-  if (engine && typeof engine.newGame === 'function') (engine.newGame as (s?: string) => void)(seed);
+async function onNewGame() {
+  if (engineLoading.value) return;
+  engineLoading.value = true;
+  try {
+    const engine = await loadGame();
+    const seed = titleRef.value?.seed || '';
+    engine.newGame(seed);
+  } finally {
+    engineLoading.value = false;
+  }
 }
-function onContinue() {
-  const engine = getEngine();
-  if (engine && typeof engine.continueGame === 'function') (engine.continueGame as () => Promise<void>)();
+async function onContinue() {
+  if (engineLoading.value) return;
+  engineLoading.value = true;
+  try {
+    const engine = await loadGame();
+    await engine.continueGame();
+  } finally {
+    engineLoading.value = false;
+  }
 }
 async function onLoadSlot(slot: number) {
   Save.setCurrentSlot(slot);
@@ -123,11 +143,11 @@ async function onLoadSlot(slot: number) {
   const data = await Save.load(slot);
   if (data) {
     showSaves.value = false;
-    onContinue();
+    await onContinue();
   } else {
     // Empty slot — start new game in this slot
     showSaves.value = false;
-    onNewGame();
+    await onNewGame();
   }
 }
 async function onDeleteSlot(slot: number) {

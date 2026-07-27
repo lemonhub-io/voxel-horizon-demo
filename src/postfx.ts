@@ -5,6 +5,7 @@
 export class PostFX {
   private canvas: HTMLElement;
   private vignetteEl: HTMLElement;
+  private cinematicEl: HTMLElement;
   private healthVignette = 0;
 
   constructor() {
@@ -19,6 +20,11 @@ export class PostFX {
       transition: background 0.3s;
     `;
     document.body.appendChild(this.vignetteEl);
+
+    this.cinematicEl = document.createElement('div');
+    this.cinematicEl.id = 'cinematic-overlay';
+    this.cinematicEl.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(this.cinematicEl);
   }
 
   /** Update post-processing effects. Call each frame. */
@@ -52,5 +58,6 @@ export class PostFX {
 
   dispose(): void {
     this.vignetteEl.remove();
+    this.cinematicEl.remove();
   }
 }

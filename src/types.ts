@@ -468,6 +468,7 @@ export interface TextureAtlas {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture | null;
+  normalTexture: THREE.CanvasTexture | null;
   iconCache: Record<string, string>;
   avgCache: Record<string, string>;
   tileRect(t: number): [number, number, number, number];
