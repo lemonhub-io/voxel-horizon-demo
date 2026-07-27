@@ -71,6 +71,7 @@ export class Player {
   private _wish = new THREE.Vector3();
   private _vmTipWorld = new THREE.Vector3();
   private _hitP = new THREE.Vector3();
+  private _weaponAimPoint = new THREE.Vector3();
   private _shelterCache = 0;
   private _shelterVal = false;
 
@@ -127,7 +128,6 @@ export class Player {
     this.weaponMount = new THREE.Group();
     this.weaponMount.name = 'player-rifle-mount';
     this.weaponMount.position.set(0.2, -0.12, -0.34);
-    this.weaponMount.rotation.set(0.02, Math.PI, -0.04);
     this.vm.add(this.weaponMount);
     this.vmTip = new THREE.Object3D();
     this.vmTip.name = 'rifle-muzzle-anchor';
@@ -150,6 +150,9 @@ export class Player {
       fitCC0Model(model, 0.92, 0.36);
       model.name = 'quaternius-scifi-assault-rifle';
       model.position.set(0.04, -0.19, -0.36);
+      // The source rifle is authored along +X; rotate it so its barrel uses
+      // the mount's forward axis (-Z), which is the axis used by lookAt().
+      model.rotation.y = Math.PI / 2;
       this.weaponMount.add(model);
     } catch {
       // Never restore a legacy weapon mesh if the remote model cannot load.
@@ -398,10 +401,25 @@ export class Player {
     const g = this.g;
     const hit = g.world.raycast(this.eyePos(), this.lookDir(), CFG.REACH);
     this.target = hit;
+    this.updateWeaponAim(hit);
     if (hit && !this.visor) {
       this.highlight.visible = true;
       this.highlight.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
     } else this.highlight.visible = false;
+  }
+
+  private updateWeaponAim(hit: RaycastResult | null): void {
+    const aim = this._weaponAimPoint;
+    if (hit) {
+      // Use the exposed face, matching the mining beam's actual impact point.
+      aim.set(hit.x + 0.5 + hit.nx * 0.52, hit.y + 0.5 + hit.ny * 0.52, hit.z + 0.5 + hit.nz * 0.52);
+    } else {
+      aim.copy(this.eyePos()).addScaledVector(this.lookDir(), CFG.REACH);
+    }
+    // The mount is parented to the camera. Updating the hierarchy first keeps
+    // lookAt in world space even immediately after a player turn or movement.
+    this.g.camera.updateMatrixWorld(true);
+    this.weaponMount.lookAt(aim);
   }
 
   updateMining(dt: number): void {
