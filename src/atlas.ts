@@ -1,3 +1,4 @@
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { T, ITEMS, BLOCK_DEF } from './config';
 import type { Palette } from './types';

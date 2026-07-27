@@ -30,7 +30,7 @@
   "homepage": "https://github.com/lemonhub-io/voxel-horizon-demo#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/three": "^0.128.0",
+    "@types/three": "^0.185.1",
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/devtools-api": "^8.2.1",
     "@vue/test-utils": "^2.2.7",

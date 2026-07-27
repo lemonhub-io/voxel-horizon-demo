@@ -2,6 +2,7 @@
 // sky.ts — Sky dome with TSL node material (WebGPU-compatible)
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG } from './config';
 import { Starfield } from './starfield';
@@ -33,6 +34,8 @@ export class Sky {
   private _canvasSkyContext: CanvasRenderingContext2D | null = null;
   private _canvasSkyTexture: THREE.CanvasTexture | null = null;
   private _canvasSkyLastSignature = -1;
+  // Kept for the disabled legacy-node method until it is removed in a later
+  // rendering overhaul; no runtime path assigns or reads these fields.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _uTop: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

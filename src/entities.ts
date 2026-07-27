@@ -2,6 +2,7 @@
 // entities.ts — Fauna (creatures)
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B } from './config';
 import { fitCC0Model, loadCC0Model } from './cc0-models';

@@ -2,6 +2,7 @@
 // effects.ts — Particle FX, laser, shake, warp (optimized)
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { Sky } from './sky';
 import type { Game, SpawnOpts, Particle } from './types';

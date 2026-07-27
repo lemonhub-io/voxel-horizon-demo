@@ -2,6 +2,7 @@
 // ship.ts — Ship components, flight, landing, warp
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { Sky } from './sky';
 import { fitCC0Model, loadCC0Model } from './cc0-models';

@@ -2,6 +2,7 @@
 // player.ts — First-person player controller
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
 import { fitCC0Model, loadCC0Model } from './cc0-models';

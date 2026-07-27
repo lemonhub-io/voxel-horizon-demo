@@ -2,6 +2,8 @@
 // types.ts — All shared interfaces and type definitions
 // ============================================================
 
+import type * as THREE from 'three/webgpu';
+
 // --- Block / Item / Recipe types ---
 
 export interface BlockTiles {
@@ -420,11 +422,11 @@ export interface Game {
   discoveries: Discoveries;
   autoSaveT: number;
   input: InputState;
-  renderer: THREE.WebGLRenderer;
+  renderer: THREE.WebGPURenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   atlas: TextureAtlas;
-  clock: THREE.Clock;
+  clock: THREE.Timer;
   seed: number;
   palIdx: number;
   palette: Palette;
@@ -871,7 +873,8 @@ export interface Save {
 // --- THREE.js global declaration (loaded via script tag) ---
 
 declare global {
-namespace THREE {
+// Historical declarations are isolated from the actual r185 THREE namespace.
+namespace LegacyThreeCompat {
   class Vector2 { constructor(x?: number, y?: number); x: number; y: number; set(x: number, y: number): this; }
   class Vector3 {
     constructor(x?: number, y?: number, z?: number);

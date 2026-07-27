@@ -3,6 +3,7 @@
 // All UI is handled by Vue components via Pinia stores
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import type { InputState, Settings, SaveData, Palette, PlanetInfo, Discoveries } from './types';
 import { U } from './utils';
 import { PALETTES } from './config';
@@ -90,7 +91,7 @@ export class Game {
   discoveries: Discoveries;
   autoSaveT: number;
   input: InputState;
-  renderer!: THREE.WebGLRenderer;
+  renderer!: THREE.WebGPURenderer;
   scene!: THREE.Scene;
   camera!: THREE.PerspectiveCamera;
   atlas!: TextureAtlas;
@@ -160,34 +161,23 @@ export class Game {
   async initRenderer(): Promise<void> {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 
-    // Use WebGPURenderer with automatic WebGL2 fallback
-    const WGPU = (THREE as unknown as Record<string, unknown>).WebGPURenderer as
-      (new (opts: Record<string, unknown>) => { init: () => Promise<void>; setPixelRatio: (r: number) => void; setSize: (w: number, h: number) => void; outputColorSpace: string; render: (s: unknown, c: unknown) => void }) | undefined;
-
-    if (WGPU) {
-      this.renderer = new WGPU({ canvas, antialias: true }) as unknown as THREE.WebGLRenderer;
-      await (this.renderer as unknown as { init: () => Promise<void> }).init();
-      console.warn('[VoxelHorizon] WebGPURenderer initialized');
-    } else {
-      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-      console.warn('[VoxelHorizon] WebGLRenderer initialized (legacy)');
-    }
+    // WebGPURenderer automatically selects the WebGL2 backend when WebGPU is
+    // unavailable, so a legacy WebGLRenderer branch is no longer required.
+    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    await this.renderer.init();
+    console.warn('[VoxelHorizon] WebGPURenderer initialized');
 
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
-    (this.renderer as unknown as Record<string, unknown>).outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     // HDR tone mapping for better light range
-    const r = this.renderer as unknown as Record<string, unknown>;
-    r.toneMapping = THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure = 2.5;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 2.5;
 
     // Shadow maps
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    const shadowMap = this.renderer.shadowMap as unknown as { autoUpdate: boolean; needsUpdate: boolean };
-    shadowMap.autoUpdate = false;
-    shadowMap.needsUpdate = true;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog('#cfe8f0', 30, 120);
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.08, 1600);

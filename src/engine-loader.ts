@@ -6,7 +6,6 @@ let gamePromise: Promise<Game> | null = null;
 export function loadGame(): Promise<Game> {
   if (!gamePromise) {
     gamePromise = (async () => {
-      await import('./three-setup');
       const { Game: GameEngine } = await import('./main');
       const game = new GameEngine();
       (window as unknown as { game: Game }).game = game;

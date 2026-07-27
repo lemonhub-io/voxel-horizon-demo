@@ -1,11 +1,8 @@
+import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
 const templates = new Map<string, Promise<THREE.Group>>();
-
-interface CloneableGroup extends THREE.Group {
-  clone(recursive?: boolean): THREE.Group;
-}
 
 interface ModelBounds {
   min: THREE.Vector3;
@@ -36,7 +33,7 @@ export function loadCC0Model(url: string): Promise<THREE.Group> {
     });
     templates.set(url, template);
   }
-  return template.then(scene => (scene as unknown as CloneableGroup).clone(true));
+  return template.then(scene => scene.clone(true));
 }
 
 /** Normalizes an authored model to the game's world scale and rests it on y = 0. */

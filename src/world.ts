@@ -2,6 +2,7 @@
 // world.ts — Chunk + World class (performance optimized)
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U, SimplexNoise } from './utils';
 import { CFG, B, BLOCK_DEF } from './config';
 import type { Game, Palette, RaycastResult, ScanTarget, MeshBuffers } from './types';

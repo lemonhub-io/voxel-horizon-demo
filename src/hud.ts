@@ -3,6 +3,7 @@
 // All DOM UI is handled by Vue components via Pinia stores
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import type { Game, PlanetInfo } from './types';
 import { useHudStore } from './stores/hudStore';
