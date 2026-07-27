@@ -16,6 +16,6 @@ https://cdn.jsdelivr.net/gh/lemonhub-io/voxel-horizon-demo@v0.1.0/public/models/
 | `quaternius-alien.gltf` | 异星生物 | [Cute Animated Monsters Pack](https://quaternius.com/packs/cutemonsters.html) |
 | `quaternius-crab.gltf` | 异星生物 | [Cute Animated Monsters Pack](https://quaternius.com/packs/cutemonsters.html) |
 | `quaternius-deer.gltf` | 异星生物 | [Cute Animated Monsters Pack](https://quaternius.com/packs/cutemonsters.html) |
-| `quaternius-pistol.gltf` | 玩家采集器 | [Modular Sci-Fi Guns](https://www.patreon.com/quaternius/posts/modular-sci-fi-58355913) |
+| `quaternius-scifi-assault-rifle.glb` | 玩家第一人称突击步枪 | [Scifi Assault Rifle (Poly Pizza)](https://poly.pizza/m/RGtBoJNn3N) |
 
 这些来源页明确提供 glTF 格式并标注 CC0。保留该清单是为了便于复核资产许可与后续替换。

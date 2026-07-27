@@ -38,7 +38,8 @@ export class Player {
   flashlight!: THREE.SpotLight;
   scanCd: number;
   vm!: THREE.Group;
-  vmTip!: THREE.Mesh;
+  vmTip!: THREE.Object3D;
+  weaponMount!: THREE.Group;
   blockInHand!: THREE.Mesh;
   highlight!: THREE.LineSegments;
   crackMat!: THREE.MeshBasicMaterial;
@@ -117,52 +118,21 @@ export class Player {
   buildViewmodel(): void {
     const g = this.g;
     this.vm = new THREE.Group();
-    const dark = new THREE.MeshStandardMaterial({ color: '#2e333c', roughness: 0.6, metalness: 0.3 });
-    const grey = new THREE.MeshStandardMaterial({ color: '#5a616e', roughness: 0.5, metalness: 0.4 });
-    const acc = new THREE.MeshStandardMaterial({ color: '#ff8a5c', emissive: '#ff8a5c', emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.2 });
-    const screenMat = new THREE.MeshBasicMaterial({ color: '#66d9e8' });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.42), dark);
-    this.vm.add(body);
-
-    // Barrel — 12 segments for smooth cylinder
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.3, 12), grey);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.03, -0.32);
-    this.vm.add(barrel);
-
-    // Tip — emissive accent
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.06), acc);
-    tip.position.set(0, 0.03, -0.47);
-    this.vm.add(tip);
-    this.vmTip = tip;
-
-    // Scope/lens on top
-    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8), grey);
-    scope.position.set(0, 0.1, -0.1);
-    this.vm.add(scope);
-    const lens = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), new THREE.MeshBasicMaterial({ color: '#a8d8e8', transparent: true, opacity: 0.6 }));
-    lens.position.set(0, 0.1, -0.16);
-    this.vm.add(lens);
-
-    // Antenna
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.18, 4), grey);
-    antenna.position.set(0.05, 0.16, 0.05);
-    this.vm.add(antenna);
-
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.1), grey);
-    grip.position.set(0, -0.15, 0.1);
-    grip.rotation.x = 0.3;
-    this.vm.add(grip);
-
-    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), screenMat);
-    screen.position.set(0, 0.1, 0.05);
-    this.vm.add(screen);
-
     this.blockInHand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
-    this.blockInHand.position.set(-0.22, 0.05, 0);
+    this.blockInHand.position.set(-0.28, -0.05, -0.32);
     this.blockInHand.visible = false;
     this.vm.add(this.blockInHand);
+
+    // A camera child inherits the player's position and look direction exactly.
+    this.weaponMount = new THREE.Group();
+    this.weaponMount.name = 'player-rifle-mount';
+    this.weaponMount.position.set(0.2, -0.12, -0.34);
+    this.weaponMount.rotation.set(0.02, Math.PI, -0.04);
+    this.vm.add(this.weaponMount);
+    this.vmTip = new THREE.Object3D();
+    this.vmTip.name = 'rifle-muzzle-anchor';
+    this.vmTip.position.set(0, 0.02, -0.78);
+    this.weaponMount.add(this.vmTip);
     this.vm.position.set(0.32, -0.3, -0.55);
     g.camera.add(this.vm);
     this.flashlight = new THREE.SpotLight('#cfe8f0', 0, 26, 0.6, 0.5, 1.2);
@@ -176,16 +146,13 @@ export class Player {
 
   private async loadCC0Viewmodel(): Promise<void> {
     try {
-      const model = await loadCC0Model(CC0_MODEL_URLS.tool);
-      fitCC0Model(model, 0.42, 0.24);
-      model.rotation.y = Math.PI;
-      model.position.set(0.02, -0.02, -0.08);
-      this.vm.children.forEach(child => {
-        if (child !== this.blockInHand) child.visible = false;
-      });
-      this.vm.add(model);
+      const model = await loadCC0Model(CC0_MODEL_URLS.rifle);
+      fitCC0Model(model, 0.92, 0.36);
+      model.name = 'quaternius-scifi-assault-rifle';
+      model.position.set(0.04, -0.19, -0.36);
+      this.weaponMount.add(model);
     } catch {
-      // Keep the procedural tool visible if the model cannot be loaded.
+      // Never restore a legacy weapon mesh if the remote model cannot load.
     }
   }
 
