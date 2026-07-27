@@ -128,7 +128,7 @@ function projectMarker(x: number, y: number, z: number, camera: CameraLike): { x
 }
 
 function updateScreenMarkers(): void {
-  const engine = (window as unknown as { game?: { camera?: CameraLike; player?: { pos: { x: number; y: number; z: number } } } }).game;
+  const engine = window.game;
   const camera = engine?.camera;
   const playerPos = engine?.player?.pos;
   if (!camera || !playerPos || hud.markers.length === 0) {

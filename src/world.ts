@@ -48,10 +48,9 @@ export class World {
   noiseC!: SimplexNoise;
   offA!: number;
   lamps!: number[][];
-  // Using MeshStandardMaterial (PBR) but typed as MeshLambertMaterial for compatibility
-  matOpaque!: THREE.MeshLambertMaterial;
-  matCutout!: THREE.MeshLambertMaterial;
-  matWater!: THREE.MeshLambertMaterial;
+  matOpaque!: THREE.MeshStandardMaterial;
+  matCutout!: THREE.MeshStandardMaterial;
+  matWater!: THREE.MeshStandardMaterial;
   private _waterTSLMat: THREE.Material | null = null;
   waterCamPos: THREE.Vector3 | null = null;
   cullFrame: number;
@@ -88,11 +87,11 @@ export class World {
   }
 
   buildMaterials(): void {
-    const tex = this.g.atlas.texture as unknown as THREE.Texture | null;
+    const tex = this.g.atlas.texture;
     const normalMap = this.g.atlas.normalTexture;
     if (this.matOpaque) {
       this.matOpaque.map = tex; this.matCutout.map = tex; this.matWater.map = tex;
-      (this.matOpaque as unknown as { normalMap: unknown }).normalMap = normalMap;
+      this.matOpaque.normalMap = normalMap;
       this.matOpaque.needsUpdate = this.matCutout.needsUpdate = this.matWater.needsUpdate = true;
       return;
     }
@@ -100,21 +99,17 @@ export class World {
     // PBR materials for better lighting
     this.matOpaque = new THREE.MeshStandardMaterial({
       vertexColors: true, roughness: 0.72, metalness: 0.05
-    }) as unknown as THREE.MeshLambertMaterial;
-    const opaquePbr = this.matOpaque as unknown as {
-      normalMap: unknown;
-      normalScale: { set(x: number, y: number): void };
-    };
-    opaquePbr.normalMap = normalMap;
-    opaquePbr.normalScale.set(0.34, 0.34);
+    });
+    this.matOpaque.normalMap = normalMap;
+    this.matOpaque.normalScale.set(0.34, 0.34);
     this.matCutout = new THREE.MeshStandardMaterial({
       vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
       alphaToCoverage: true, roughness: 0.8, metalness: 0.02
-    }) as unknown as THREE.MeshLambertMaterial;
+    });
     this.matWater = new THREE.MeshStandardMaterial({
       vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,
       roughness: 0.1, metalness: 0.3
-    }) as unknown as THREE.MeshLambertMaterial;
+    });
     this.matOpaque.map = tex;
     this.matCutout.map = tex;
     this.matWater.map = tex;
@@ -128,9 +123,8 @@ export class World {
     const lookY = Math.abs(Math.sin(cam.rotation.x));
     // Fresnel: more transparent when looking straight down, more reflective at grazing
     const fresnel = Math.pow(1 - lookY, 3);
-    const mat = this.matWater as unknown as THREE.MeshStandardMaterial;
-    mat.opacity = 0.55 + fresnel * 0.35;
-    mat.roughness = 0.25 - fresnel * 0.2;
+    this.matWater.opacity = 0.55 + fresnel * 0.35;
+    this.matWater.roughness = 0.25 - fresnel * 0.2;
   }
 
   key(cx: number, cz: number): string { return cx + ',' + cz; }

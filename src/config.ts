@@ -4,7 +4,7 @@
 
 import type { BlockDef, ItemDef, Recipe, Palette, MilestoneDef, Settings } from './types';
 
-export const CFG = {
+export const CFG = Object.freeze({
   VERSION: '1.0',
   CHUNK: 16,
   WORLD_H: 64,
@@ -14,7 +14,7 @@ export const CFG = {
   REACH: 6,
   SAVE_KEY: 'voxelhorizon_save_v1',
   SET_KEY: 'voxelhorizon_settings_v1'
-} as const;
+});
 
 export const B = {
   AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, SAND: 4, LOG: 5, LEAVES: 6, PLANKS: 7,

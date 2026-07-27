@@ -78,7 +78,7 @@ const joyBaseStyle = computed(() => ({ left: `${joyBaseX.value}px`, top: `${joyB
 const joyThumbStyle = computed(() => ({ transform: `translate(${joyThumbX.value}px, ${joyThumbY.value}px)` }));
 
 function getGame(): RuntimeGame | undefined {
-  return (window as unknown as { game?: RuntimeGame }).game;
+  return window.game;
 }
 
 function releasePointer(element: HTMLElement, pointerId: number): void {
@@ -93,7 +93,8 @@ function syncFlightThrottle(input: TouchInput, shipActive: boolean): void {
 
 function onJoyStart(event: PointerEvent): void {
   if (joyPointer !== -1) return;
-  const element = event.currentTarget as HTMLElement;
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
   element.setPointerCapture(event.pointerId);
   joyPointer = event.pointerId;
   joyBaseX.value = event.clientX - joyRadius;
@@ -138,7 +139,9 @@ function onJoyMove(event: PointerEvent): void {
 
 function onJoyEnd(event: PointerEvent): void {
   if (event.pointerId !== joyPointer) return;
-  releasePointer(event.currentTarget as HTMLElement, event.pointerId);
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
+  releasePointer(element, event.pointerId);
   const input = getGame()?.input;
   if (input) {
     input.moveActive = false;
@@ -156,7 +159,8 @@ function onJoyEnd(event: PointerEvent): void {
 
 function onLookStart(event: PointerEvent): void {
   if (lookPointer !== -1) return;
-  const element = event.currentTarget as HTMLElement;
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
   element.setPointerCapture(event.pointerId);
   lookPointer = event.pointerId;
   lookX = event.clientX;
@@ -180,7 +184,9 @@ function onLookMove(event: PointerEvent): void {
 
 function onLookEnd(event: PointerEvent): void {
   if (event.pointerId !== lookPointer) return;
-  releasePointer(event.currentTarget as HTMLElement, event.pointerId);
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
+  releasePointer(element, event.pointerId);
   if (!lookMoved) tapMine();
   lookPointer = -1;
 }

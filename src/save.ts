@@ -23,12 +23,50 @@ async function getSavesDir(create = false): Promise<FileSystemDirectoryHandle> {
   return root.getDirectoryHandle(SAVES_DIR, { create });
 }
 
-async function readJson<T>(dir: FileSystemDirectoryHandle, name: string): Promise<T | null> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isSaveData(value: unknown): value is SaveData {
+  return isRecord(value)
+    && typeof value.v === 'number'
+    && typeof value.seed === 'number'
+    && typeof value.palIdx === 'number'
+    && typeof value.planetName === 'string'
+    && typeof value.time === 'number'
+    && typeof value.playTime === 'number'
+    && isRecord(value.player)
+    && isRecord(value.inv)
+    && isRecord(value.ship)
+    && isRecord(value.missions)
+    && isRecord(value.milestones)
+    && isRecord(value.discoveries)
+    && isRecord(value.edits);
+}
+
+function isSaveSlotMeta(value: unknown): value is SaveSlotMeta {
+  return isRecord(value)
+    && typeof value.id === 'number'
+    && typeof value.planetName === 'string'
+    && typeof value.climate === 'string'
+    && typeof value.playTime === 'number'
+    && typeof value.timestamp === 'number'
+    && typeof value.playerHp === 'number';
+}
+
+function isPartialSettings(value: unknown): value is Partial<Settings> {
+  if (!isRecord(value)) return false;
+  const numericKeys: (keyof Omit<Settings, 'invert'>)[] = ['master', 'music', 'sfx', 'sens', 'fov', 'dist', 'touchSens'];
+  return numericKeys.every(key => value[key] === undefined || typeof value[key] === 'number')
+    && (value.invert === undefined || typeof value.invert === 'boolean');
+}
+
+async function readJson(dir: FileSystemDirectoryHandle, name: string): Promise<unknown | null> {
   try {
     const fh = await dir.getFileHandle(name);
     const file = await fh.getFile();
     const text = await file.text();
-    return JSON.parse(text) as T;
+    return JSON.parse(text);
   } catch {
     return null;
   }
@@ -73,7 +111,7 @@ function extractMeta(slot: number, data: SaveData): SaveSlotMeta {
   return {
     id: slot,
     planetName: data.planetName,
-    climate: (data as unknown as Record<string, unknown>).climate as string || '',
+    climate: '',
     playTime: data.playTime,
     timestamp: Date.now(),
     playerHp: data.player.hp,
@@ -120,7 +158,8 @@ export const Save = {
     try {
       const s = slot ?? this.getCurrentSlot();
       const dir = await getSavesDir(false);
-      return await readJson<SaveData>(dir, slotFileName(s));
+      const data = await readJson(dir, slotFileName(s));
+      return isSaveData(data) ? data : null;
     } catch {
       return null;
     }
@@ -138,7 +177,7 @@ export const Save = {
   },
 
   /** List all save slot metadata */
-  async listSlots(): Promise<SaveSlotMeta[]> {
+  async listSlots(): Promise<(SaveSlotMeta | null)[]> {
     try {
       const dir = await getSavesDir(false);
       return await this._loadMetas(dir);
@@ -153,7 +192,7 @@ export const Save = {
       const dir = await getSavesDir(false);
       await removeEntry(dir, slotFileName(slot));
       const metas = await this._loadMetas(dir);
-      metas[slot] = null as unknown as SaveSlotMeta;
+      metas[slot] = null;
       await writeJson(dir, '_meta.json', metas);
     } catch {
       // ignore
@@ -172,10 +211,10 @@ export const Save = {
   },
 
   /** Internal: load meta array */
-  async _loadMetas(dir: FileSystemDirectoryHandle): Promise<SaveSlotMeta[]> {
-    const raw = await readJson<SaveSlotMeta[]>(dir, '_meta.json');
-    if (raw && Array.isArray(raw)) return raw;
-    return new Array(MAX_SLOTS).fill(null) as unknown as SaveSlotMeta[];
+  async _loadMetas(dir: FileSystemDirectoryHandle): Promise<(SaveSlotMeta | null)[]> {
+    const raw = await readJson(dir, '_meta.json');
+    if (Array.isArray(raw) && raw.every(entry => entry === null || isSaveSlotMeta(entry))) return raw;
+    return Array.from({ length: MAX_SLOTS }, () => null);
   },
 
   // Settings stay on localStorage (sync, small data)
@@ -184,7 +223,8 @@ export const Save = {
     try {
       const raw = localStorage.getItem(CFG.SET_KEY);
       if (!raw) return { ...DEFAULT_SETTINGS };
-      return Object.assign({ ...DEFAULT_SETTINGS }, JSON.parse(raw)) as Settings;
+      const settings = JSON.parse(raw);
+      return isPartialSettings(settings) ? { ...DEFAULT_SETTINGS, ...settings } : { ...DEFAULT_SETTINGS };
     } catch {
       return { ...DEFAULT_SETTINGS };
     }

@@ -83,7 +83,7 @@ export class FX {
         x, y, z,
         vx: U.rand(-sp, sp), vy: U.rand(up, sp * 1.4), vz: U.rand(-sp, sp),
         life: U.rand(0.25, life),
-        col: col as unknown as THREE.Color,
+        col,
         grav
       });
     }
@@ -111,7 +111,7 @@ export class FX {
         vy: U.rand(0.2, sp * 1.2) + ny * sp * out,
         vz: U.rand(-sp, sp) + nz * sp * out,
         life: U.rand(0.15, life),
-        col: col as unknown as THREE.Color,
+        col,
         grav
       });
     }
@@ -137,11 +137,11 @@ export class FX {
       const p = this.parts[i];
       this.posArr[i * 3] = p.x; this.posArr[i * 3 + 1] = p.y; this.posArr[i * 3 + 2] = p.z;
       const f = Math.min(1, p.life * 2.5);
-      const c = p.col as unknown as { r: number; g: number; b: number };
+      const c = p.col;
       this.colArr[i * 3] = c.r * f; this.colArr[i * 3 + 1] = c.g * f; this.colArr[i * 3 + 2] = c.b * f;
     }
-    (this.points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (this.points.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+    this.points.geometry.getAttribute('position').needsUpdate = true;
+    this.points.geometry.getAttribute('color').needsUpdate = true;
     this.points.geometry.setDrawRange(0, Math.max(len, 1));
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 2.2);
   }
@@ -153,7 +153,7 @@ export class FX {
     this.laser.position.copy(from);
     this.laser.scale.set(1, 1, len);
     this.laser.lookAt(to);
-    if (col) (this.laser.material as THREE.MeshBasicMaterial).color.set(col);
+    if (col && this.laser.material instanceof THREE.MeshBasicMaterial) this.laser.material.color.set(col);
     this.laserGlow.position.copy(to);
     this.laserGlow.scale.setScalar(0.7 + Math.random() * 0.5);
     this.laserLight.position.copy(to);
@@ -176,11 +176,13 @@ export class FX {
   }
 
   startWarp(): void {
-    const cvs = document.getElementById('warp-canvas') as HTMLCanvasElement;
-    const ovl = document.getElementById('warp-overlay')!;
+    const cvs = document.getElementById('warp-canvas');
+    const ovl = document.getElementById('warp-overlay');
+    if (!(cvs instanceof HTMLCanvasElement) || !ovl) return;
     ovl.classList.remove('hidden');
     cvs.width = innerWidth; cvs.height = innerHeight;
-    const ctx = cvs.getContext('2d')!;
+    const ctx = cvs.getContext('2d');
+    if (!ctx) return;
     const stars: { a: number; r: number; sp: number; hue: number }[] = [];
     for (let i = 0; i < 340; i++) stars.push({ a: Math.random() * Math.PI * 2, r: Math.random() * 0.9 + 0.05, sp: 0.4 + Math.random() * 2.4, hue: Math.random() });
     const cx = cvs.width / 2, cy = cvs.height / 2;

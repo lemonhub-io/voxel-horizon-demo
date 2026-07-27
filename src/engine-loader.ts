@@ -8,7 +8,7 @@ export function loadGame(): Promise<Game> {
     gamePromise = (async () => {
       const { Game: GameEngine } = await import('./main');
       const game = new GameEngine();
-      (window as unknown as { game: Game }).game = game;
+  window.game = game;
       await game.ready;
       return game;
     })();

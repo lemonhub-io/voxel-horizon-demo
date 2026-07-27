@@ -14,6 +14,6 @@ app.mount('#vue-app');
 // Save on page unload (fire-and-forget, auto-save covers most cases)
 import { Save } from './save';
 addEventListener('beforeunload', () => {
-  const game = (window as unknown as { game?: { state: string } }).game;
-  if (game?.state === 'play') Save.save(game as Parameters<typeof Save.save>[0]).catch(() => {});
+  const game = window.game;
+  if (game?.state === 'play') Save.save(game).catch(() => {});
 });

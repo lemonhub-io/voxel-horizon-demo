@@ -240,7 +240,8 @@ export class Player {
     this.inWater = feet === B.WATER;
     this.headInWater = this.g.world.isWater(this.pos.x, this.pos.y + 1.62, this.pos.z);
     if (this.inWater && !wasInWater && this.vel.y < -3) g.audio.splash();
-    (document.getElementById('water-tint') as HTMLElement).style.opacity = this.headInWater ? '1' : '0';
+    const waterTint = document.getElementById('water-tint');
+    if (waterTint) waterTint.style.opacity = this.headInWater ? '1' : '0';
 
     let speed = sprint ? 6.6 : 4.35;
     if (this.inWater) speed *= 0.55;
@@ -342,7 +343,10 @@ export class Player {
     this.blockInHand.visible = !!isBlock;
     if (isBlock && this.lastHandItem !== selItem!.id) {
       this.lastHandItem = selItem!.id;
-      (this.blockInHand.material as THREE.MeshLambertMaterial).color.set(this.blockColor(ITEMS[selItem!.id].place!));
+    const item = selItem ? ITEMS[selItem.id] : undefined;
+    if (item?.place !== undefined && this.blockInHand.material instanceof THREE.MeshLambertMaterial) {
+      this.blockInHand.material.color.set(this.blockColor(item.place));
+    }
     }
 
     this.updateTargeting(dt);
@@ -520,7 +524,7 @@ export class Player {
 
   applyCrackUV(uv: [number, number, number, number]): void {
     const [u0, v0, u1, v1] = uv;
-    const attr = this.crack.geometry.attributes.uv as THREE.BufferAttribute;
+    const attr = this.crack.geometry.getAttribute('uv');
     for (let i = 0; i < attr.count; i += 4) {
       attr.setXY(i, u0, v1);
       attr.setXY(i + 1, u1, v1);

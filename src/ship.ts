@@ -189,7 +189,7 @@ export class Ship {
         }
       }
       const glow = this.repaired() ? 0.5 + Math.sin(g.time * 3) * 0.15 : 0;
-      this.engineGlows.forEach(s => { (s.material as THREE.SpriteMaterial).opacity = glow; });
+    this.engineGlows.forEach(s => { s.material.opacity = glow; });
       return;
     }
 
@@ -224,7 +224,7 @@ export class Ship {
     this.group.quaternion.slerp(q, dt * 5);
 
     this.engineGlows.forEach(s => {
-      (s.material as THREE.SpriteMaterial).opacity = 0.5 + this.throttle * 0.5 + boost * 0.4;
+    s.material.opacity = 0.5 + this.throttle * 0.5 + boost * 0.4;
       s.scale.setScalar(1.2 + this.throttle * 1.2 + boost * 1 + Math.random() * 0.2);
     });
     if (boost || this.throttle > 0.5) {
@@ -353,7 +353,7 @@ export class Ship {
 
   /** Sync ship state to Pinia store */
   syncStore(): void {
-    const s = (this.g as unknown as { stores: { ship: { comps: Record<string, ShipComponent>; fuel: number; open: boolean; flying: boolean; speed: number; throttle: number } } }).stores;
+    const s = this.g.stores;
     if (!s) return;
     s.ship.comps = { ...this.comps };
     s.ship.fuel = this.fuel;

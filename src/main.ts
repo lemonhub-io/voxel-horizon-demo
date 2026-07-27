@@ -34,8 +34,8 @@ import { useMilestonesStore } from './stores/milestonesStore';
 // --- Input singleton ---
 
 export const Input: InputState = {
-  keys: {} as Record<string, boolean>,
-  buttons: {} as Record<number, boolean>,
+  keys: {},
+  buttons: {},
   dx: 0, dy: 0, dxSmooth: 0,
   isTouchDevice: false,
   moveX: 0, moveY: 0, moveActive: false,
@@ -66,8 +66,8 @@ export const Input: InputState = {
     addEventListener('wheel', (e: WheelEvent) => game.onWheel(e));
     addEventListener('contextmenu', (e: Event) => e.preventDefault());
     addEventListener('blur', () => {
-      this.keys = {} as Record<string, boolean>;
-      this.buttons = {} as Record<number, boolean>;
+      this.keys = {};
+      this.buttons = {};
       this.moveX = this.moveY = 0;
       this.moveActive = false;
       this.touchSprint = false;
@@ -159,7 +159,8 @@ export class Game {
   }
 
   async initRenderer(): Promise<void> {
-    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const canvas = document.getElementById('game-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Game canvas is missing');
 
     // WebGPURenderer automatically selects the WebGL2 backend when WebGPU is
     // unavailable, so a legacy WebGLRenderer branch is no longer required.
@@ -213,7 +214,10 @@ export class Game {
   requestPointerLock(): void {
     if (Input.isTouchDevice) return;
     if (this.state === 'play' && !this.uiOpen()) {
-      try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch { /* requires user gesture */ }
+      const canvas = document.getElementById('game-canvas');
+      if (canvas instanceof HTMLCanvasElement) {
+        try { canvas.requestPointerLock(); } catch { /* requires user gesture */ }
+      }
     }
   }
   exitPointerLock(): void { if (document.pointerLockElement) document.exitPointerLock(); }

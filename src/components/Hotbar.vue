@@ -15,6 +15,6 @@ import { useInventoryStore } from '../stores/inventoryStore';
 defineProps<{ items: (SlotItem | null)[]; sel: number }>();
 const inventory = useInventoryStore();
 
-function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
+function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
 function selectSlot(index: number) { inventory.sel = index; }
 </script>

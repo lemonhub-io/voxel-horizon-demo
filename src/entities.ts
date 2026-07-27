@@ -39,7 +39,9 @@ export class Fauna {
 
   private attachCC0Model(creature: Creature): void {
     if (!this.faunaModels.length) return;
-    const model = (this.faunaModels[creature.seed % this.faunaModels.length] as unknown as { clone(recursive?: boolean): THREE.Group }).clone(true);
+    const template = this.faunaModels[creature.seed % this.faunaModels.length];
+    if (!template) return;
+    const model = template.clone(true);
     fitCC0Model(model, creature.sp.size * 1.9, creature.sp.size * 2.15);
     model.rotation.y = Math.PI;
     creature.grp.children.forEach(child => {

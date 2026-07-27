@@ -34,20 +34,6 @@ export class Sky {
   private _canvasSkyContext: CanvasRenderingContext2D | null = null;
   private _canvasSkyTexture: THREE.CanvasTexture | null = null;
   private _canvasSkyLastSignature = -1;
-  // Kept for the disabled legacy-node method until it is removed in a later
-  // rendering overhaul; no runtime path assigns or reads these fields.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uTop: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uHor: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uSun: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uSunCol: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uNight: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _uStar: any;
 
   constructor(game: Game) {
     this.g = game;
@@ -72,7 +58,9 @@ export class Sky {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 512;
-    this._canvasSkyContext = canvas.getContext('2d')!;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas 2D context is unavailable');
+    this._canvasSkyContext = context;
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.magFilter = THREE.LinearFilter;
@@ -112,14 +100,14 @@ export class Sky {
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, width, height);
     }
-    (this._canvasSkyTexture as unknown as { needsUpdate: boolean }).needsUpdate = true;
+    this._canvasSkyTexture.needsUpdate = true;
   }
 
   /** Disabled pending a Three.js TSL compatibility update. */
-  private _buildNodeSkyDome(): void {
+  private _buildNodeSkyDome(): void { /*
     // TSL functions are under THREE.TSL namespace
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const TSL = (THREE as any).TSL;
+    const TSL = THREE.TSL;
     const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } = TSL;
 
     // Uniforms
@@ -188,17 +176,18 @@ export class Sky {
 
     // Create node material (MeshBasicNodeMaterial is from the WebGPU build)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const MeshBasicNodeMaterial = (THREE as any).MeshBasicNodeMaterial;
+    const MeshBasicNodeMaterial = THREE.MeshBasicNodeMaterial;
     const mat = new MeshBasicNodeMaterial();
     mat.colorNode = skyColor;
     mat.side = THREE.BackSide;
     mat.depthWrite = false;
     mat.fog = false;
 
-    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat as unknown as THREE.Material);
+    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
     this.dome.frustumCulled = false;
     this.dome.renderOrder = -10;
     this.group.add(this.dome);
+    */
   }
 
   private _buildLights(): void {
@@ -214,14 +203,13 @@ export class Sky {
     this.sunLight.shadow.bias = -0.001;
     this.sunLight.shadow.normalBias = 0.02;
     this.sunLight.shadow.radius = 3;
-    (this.g.renderer.shadowMap as unknown as { needsUpdate: boolean }).needsUpdate = true;
     this.g.scene.add(this.sunLight);
 
     this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
     this.g.scene.add(this.hemi);
 
     this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.15);
-    this.g.scene.add(this.ambientFill as unknown as THREE.Object3D);
+    this.g.scene.add(this.ambientFill);
   }
 
   private _buildSun(): void {
@@ -259,9 +247,9 @@ export class Sky {
     const planetGeo = new THREE.SphereGeometry(120, 32, 24);
     const planetColors = new Float32Array(planetGeo.attributes.position.count * 3);
     for (let i = 0; i < planetGeo.attributes.position.count; i++) {
-      const px = (planetGeo.attributes.position as THREE.BufferAttribute).getX(i);
-      const py = (planetGeo.attributes.position as THREE.BufferAttribute).getY(i);
-      const pz = (planetGeo.attributes.position as THREE.BufferAttribute).getZ(i);
+    const px = planetGeo.getAttribute('position').getX(i);
+    const py = planetGeo.getAttribute('position').getY(i);
+    const pz = planetGeo.getAttribute('position').getZ(i);
       // Simple noise-like pattern for continents
       const n1 = Math.sin(px * 0.05) * Math.cos(pz * 0.07) * Math.sin(py * 0.04);
       const n2 = Math.sin(px * 0.12 + 1.5) * Math.cos(pz * 0.09 + 0.7);
@@ -295,9 +283,9 @@ export class Sky {
     const moonGeo = new THREE.SphereGeometry(34, 24, 18);
     const moonColors = new Float32Array(moonGeo.attributes.position.count * 3);
     for (let i = 0; i < moonGeo.attributes.position.count; i++) {
-      const x = (moonGeo.attributes.position as THREE.BufferAttribute).getX(i);
-      const y = (moonGeo.attributes.position as THREE.BufferAttribute).getY(i);
-      const z = (moonGeo.attributes.position as THREE.BufferAttribute).getZ(i);
+    const x = moonGeo.getAttribute('position').getX(i);
+    const y = moonGeo.getAttribute('position').getY(i);
+    const z = moonGeo.getAttribute('position').getZ(i);
       // Maria (dark patches)
       const m1 = Math.sin(x * 0.25 + 1.0) * Math.cos(z * 0.3);
       const m2 = Math.sin(y * 0.4 + 0.5) * Math.cos(x * 0.2 + 2.0);
@@ -409,7 +397,6 @@ export class Sky {
 
     // 4096px shadows are expensive; updating at 15 Hz is smooth for this day cycle.
     if (++this._shadowFrame >= 4) {
-      (g.renderer.shadowMap as unknown as { needsUpdate: boolean }).needsUpdate = true;
       this._shadowFrame = 0;
     }
 
@@ -419,7 +406,7 @@ export class Sky {
     this.ambientFill.intensity = 0.35 + (1 - day) * 0.3;
 
     this.sunSprite.position.copy(sunDir).multiplyScalar(650);
-    (this.sunSprite.material as THREE.SpriteMaterial).opacity = 0.4 + day * 0.5 + dusk * 0.15;
+    this.sunSprite.material.opacity = 0.4 + day * 0.5 + dusk * 0.15;
 
     // Fog
     const storm = g.stormFactor || 0;
@@ -437,9 +424,11 @@ export class Sky {
     let fogNear = dist * 0.85, fogFar = dist * 2.15;
     if (storm > 0) { fogNear = U.lerp(fogNear, 12, storm); fogFar = U.lerp(fogFar, dist * 0.7, storm); }
     if (g.player && g.player.headInWater) { fogCol = U.shade(pal.water || '#2e6f9e', 0.7); fogNear = 2; fogFar = 22; }
-    (g.scene.fog as THREE.Fog).color.set(fogCol);
-    (g.scene.fog as THREE.Fog).near = fogNear;
-    (g.scene.fog as THREE.Fog).far = fogFar;
+    if (g.scene.fog instanceof THREE.Fog) {
+      g.scene.fog.color.set(fogCol);
+      g.scene.fog.near = fogNear;
+      g.scene.fog.far = fogFar;
+    }
     g.renderer.setClearColor(U.mixHex(skyHorizon, top, 0.35));
 
     this.group.position.copy(g.camera.position);

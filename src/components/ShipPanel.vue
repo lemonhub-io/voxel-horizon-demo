@@ -36,5 +36,5 @@ import { ITEMS } from '../config';
 defineEmits(['close', 'repair', 'refuel', 'launch']);
 const ship = useShipStore();
 const inventory = useInventoryStore();
-function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
+function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
 </script>

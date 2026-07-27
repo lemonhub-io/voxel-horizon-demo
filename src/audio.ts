@@ -29,7 +29,7 @@ export class AudioEngine {
 
   ensure(): void {
     if (this.ok) return;
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
     const c = this.ctx;
@@ -60,7 +60,7 @@ export class AudioEngine {
     this.sfxBus.gain.value = this.vol.sfx;
     this.musicBus.gain.value = this.vol.music * 0.8;
   }
-  setVol(k: string, v: number): void { (this.vol as Record<string, number>)[k] = v; this.applyVol(); }
+  setVol(k: keyof AudioEngine['vol'], v: number): void { this.vol[k] = v; this.applyVol(); }
 
   makeImpulse(dur: number, decay: number): AudioBuffer {
     const c = this.ctx, rate = c.sampleRate, len = rate * dur;
@@ -180,7 +180,7 @@ export class AudioEngine {
       const g2 = c.createGain(); g2.gain.value = 0.14;
       o1.connect(f); o2.connect(f); f.connect(g2); g2.connect(out);
       o1.start(); o2.start(); lfo.start();
-      return { o1, o2 } as unknown as LoopHandle;
+      return { o1, o2 };
     });
     this.mkLoop('jet', (c, out) => {
       const src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
@@ -203,7 +203,7 @@ export class AudioEngine {
       src.connect(nf); nf.connect(ng); ng.connect(g2);
       g2.connect(out);
       o1.start(); o2.start(); src.start();
-      return { o1, o2, f, nf } as unknown as LoopHandle;
+      return { o1, o2, f, nf };
     });
     this.mkLoop('storm', (c, out) => {
       const src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
@@ -221,9 +221,10 @@ export class AudioEngine {
     const l = this.loops.ship;
     if (!l || !l.handle) return;
     const now = this.ctx.currentTime;
-    (l.handle.o1 as OscillatorNode).frequency.setTargetAtTime(48 + t * 60, now, 0.1);
-    (l.handle.o2 as OscillatorNode).frequency.setTargetAtTime(96.5 + t * 120, now, 0.1);
-    (l.handle.f as BiquadFilterNode).frequency.setTargetAtTime(300 + t * 1400, now, 0.1);
+    if (!l.handle.o1 || !l.handle.o2 || !l.handle.f) return;
+    l.handle.o1.frequency.setTargetAtTime(48 + t * 60, now, 0.1);
+    l.handle.o2.frequency.setTargetAtTime(96.5 + t * 120, now, 0.1);
+    l.handle.f.frequency.setTargetAtTime(300 + t * 1400, now, 0.1);
   }
   laserPitch(p: number): void {
     const l = this.loops.laser;
@@ -231,8 +232,9 @@ export class AudioEngine {
     const f1 = 92 + p * 90, f2 = 138.5 + p * 140;
     if (!isFinite(f1) || !isFinite(f2)) return;
     const now = this.ctx.currentTime;
-    (l.handle.o1 as OscillatorNode).frequency.setTargetAtTime(f1, now, 0.05);
-    (l.handle.o2 as OscillatorNode).frequency.setTargetAtTime(f2, now, 0.05);
+    if (!l.handle.o1 || !l.handle.o2) return;
+    l.handle.o1.frequency.setTargetAtTime(f1, now, 0.05);
+    l.handle.o2.frequency.setTargetAtTime(f2, now, 0.05);
   }
 
   uiHover(): void { this.tone({ type: 'sine', f: 2400, dur: 0.03, vol: 0.05, r: 0.03 }); }
@@ -282,12 +284,14 @@ export class AudioEngine {
     this.tone({ type: 'sine', f: 55, f2: 38, dur: 0.08, vol: 0.22, at: 0.16 });
   }
   mineHit(snd: string, pan?: number): void {
-    const m = ({ stone: [1500, 0.05], grass: [650, 0.07], wood: [950, 0.06], sand: [480, 0.08], crystal: [2600, 0.06], glass: [2900, 0.05], metal: [2100, 0.05] } as Record<string, number[]>)[snd] || [1200, 0.06];
+    const tones: Record<string, [number, number]> = { stone: [1500, 0.05], grass: [650, 0.07], wood: [950, 0.06], sand: [480, 0.08], crystal: [2600, 0.06], glass: [2900, 0.05], metal: [2100, 0.05] };
+    const m = tones[snd] || [1200, 0.06];
     this.noise({ type: 'bandpass', f: m[0], q: 1.5, dur: m[1], vol: 0.14, pan });
     if (snd === 'crystal' || snd === 'glass') this.tone({ type: 'sine', f: 1800 + Math.random() * 900, dur: 0.06, vol: 0.06, pan });
   }
   blockBreak(snd: string, pan?: number): void {
-    const base = ({ stone: 320, grass: 260, wood: 300, sand: 220, crystal: 900, glass: 1200, metal: 500 } as Record<string, number>)[snd] || 300;
+    const bases: Record<string, number> = { stone: 320, grass: 260, wood: 300, sand: 220, crystal: 900, glass: 1200, metal: 500 };
+    const base = bases[snd] || 300;
     this.noise({ type: 'lowpass', f: base * 3, dur: 0.16, vol: 0.3, pan });
     this.tone({ type: 'sine', f: base * 0.4, f2: base * 0.2, dur: 0.12, vol: 0.18, pan });
     if (snd === 'crystal' || snd === 'glass') [1, 1.4, 1.9].forEach((m, i) => this.tone({ type: 'sine', f: 1600 * m, dur: 0.09, vol: 0.05, at: i * 0.03, pan }));
@@ -297,7 +301,8 @@ export class AudioEngine {
     this.tone({ type: 'sine', f: 240, f2: 170, dur: 0.08, vol: 0.14, pan });
   }
   step(snd: string, run: boolean): void {
-    const m = ({ grass: [500, 0.05], stone: [1300, 0.04], sand: [380, 0.07], wood: [800, 0.045], metal: [1600, 0.04] } as Record<string, number[]>)[snd] || [500, 0.05];
+    const tones: Record<string, [number, number]> = { grass: [500, 0.05], stone: [1300, 0.04], sand: [380, 0.07], wood: [800, 0.045], metal: [1600, 0.04] };
+    const m = tones[snd] || [500, 0.05];
     this.noise({ type: 'bandpass', f: m[0] * (0.9 + Math.random() * 0.25), q: 1.1, dur: m[1], vol: run ? 0.09 : 0.06 });
     if (snd === 'stone' || snd === 'metal') this.tone({ type: 'sine', f: 900 + Math.random() * 300, dur: 0.02, vol: 0.02 });
   }
@@ -395,10 +400,11 @@ export class AudioEngine {
     const c = this.ctx;
     chord.forEach(semi => {
       const f = root * Math.pow(2, semi / 12);
-      ([[-7, 'sawtooth'], [7, 'sawtooth'], [0, 'triangle']] as [number, string][]).forEach(([det, type]) => {
+      const detunes: [number, OscillatorType][] = [[-7, 'sawtooth'], [7, 'sawtooth'], [0, 'triangle']];
+      detunes.forEach(([det, type]) => {
         const t = c.currentTime;
         const o = c.createOscillator();
-        o.type = type as OscillatorType; o.frequency.value = f; o.detune.value = det;
+        o.type = type; o.frequency.value = f; o.detune.value = det;
         const flt = c.createBiquadFilter();
         flt.type = 'lowpass';
         flt.frequency.setValueAtTime(300, t);

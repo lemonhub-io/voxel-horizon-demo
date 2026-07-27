@@ -95,7 +95,7 @@ const tabs = [
   { key: 'disc', label: '发现', en: 'DISCOVERIES' }
 ];
 
-function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
+function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
 function tier(def: MilestoneDef, val: number) { let t = 0; for (const th of def.tiers) if (val >= th) t++; return t; }
 
 defineExpose({ detailItem });

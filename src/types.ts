@@ -194,7 +194,7 @@ export interface Particle {
   vy: number;
   vz: number;
   life: number;
-  col: THREE.Color;
+  col: { r: number; g: number; b: number };
   grav: number;
 }
 
@@ -296,7 +296,10 @@ export interface AudioNoiseOpts {
 }
 
 export interface LoopHandle {
-  [key: string]: AudioNode | undefined;
+  o1?: OscillatorNode;
+  o2?: OscillatorNode;
+  f?: BiquadFilterNode;
+  nf?: BiquadFilterNode;
 }
 
 export interface LoopEntry {
@@ -441,6 +444,16 @@ export interface Game {
   missions: Missions;
   milestones: Milestones;
   player: Player;
+  stores: {
+    ship: {
+      comps: Record<string, ShipComponent>;
+      fuel: number;
+      open: boolean;
+      flying: boolean;
+      speed: number;
+      throttle: number;
+    };
+  };
   spawnPoint: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
@@ -467,6 +480,13 @@ export interface Game {
   respawn(): void;
   syncPlayerStore(): void;
   loop(): void;
+}
+
+declare global {
+  interface Window {
+    game?: Game;
+    webkitAudioContext?: typeof AudioContext;
+  }
 }
 
 // Forward references for classes defined in other modules
@@ -574,9 +594,9 @@ export interface World {
   noiseC: SimplexNoise;
   offA: number;
   lamps: number[][];
-  matOpaque: THREE.MeshLambertMaterial;
-  matCutout: THREE.MeshLambertMaterial;
-  matWater: THREE.MeshLambertMaterial;
+  matOpaque: THREE.MeshStandardMaterial;
+  matCutout: THREE.MeshStandardMaterial;
+  matWater: THREE.MeshStandardMaterial;
   setPlanet(seed: number, pal: Palette): void;
   buildMaterials(): void;
   key(cx: number, cz: number): string;
