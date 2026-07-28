@@ -569,6 +569,24 @@ export class Player {
     return this._vmTipWorld;
   }
 
+  tryOpenShipPanel(clientX: number, clientY: number): boolean {
+    const g = this.g;
+    if (this.inShip || g.uiOpen() || this.pos.distanceTo(g.ship.group.position) >= 5) return false;
+    const canvas = document.getElementById('game-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) return false;
+    const rect = canvas.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return false;
+    const pointer = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    g.ship.group.updateMatrixWorld(true);
+    raycaster.setFromCamera(pointer, g.camera);
+    if (raycaster.intersectObject(g.ship.group, true).length === 0) return false;
+    g.ship.openPanel();
+    return true;
+  }
   placeBlock(): void {
     const g = this.g;
     const sel = g.inv.selected();
@@ -690,7 +708,13 @@ export class Player {
     if (!this.inShip) {
       const shipD = this.pos.distanceTo(g.ship.group.position);
       if (shipD < 5) {
-        prompt = { key: 'E', text: g.ship.canLaunch() ? '进入飞船 · 起飞' : '检查飞船（修复 / 加注）', hold: 0.5, action: () => g.ship.openPanel() };
+        const touchPrompt = input.isTouchDevice;
+        prompt = {
+          key: touchPrompt ? '点击飞船' : 'E',
+          text: touchPrompt ? '查看飞船状态 / 修复 / 加注 / 登舰' : (g.ship.canLaunch() ? '进入飞船 · 起飞' : '检查飞船（修复 / 加注）'),
+          hold: touchPrompt ? 0 : 0.5,
+          action: () => g.ship.openPanel()
+        };
       }
     }
     if (input.keys['KeyZ'] && this.ls < 99) {
@@ -720,13 +744,14 @@ export class Player {
       } else if (!this.xWarned) { g.hud.notify('没有 钠 —— 采集黄色钠光花', 'warn'); this.xWarned = true; setTimeout(() => this.xWarned = false, 3000); }
     }
 
-    if (prompt && prompt.key === 'E') {
+    const interactAction = prompt?.action;
+    if (prompt && interactAction) {
       if (input.keys['KeyE']) {
         this.holdE += dt;
         if (this.holdE >= prompt.hold) {
           this.holdE = 0;
           input.keys['KeyE'] = false;
-          prompt.action!();
+          interactAction();
         }
       } else this.holdE = 0;
       g.hud.showPrompt(prompt.key, prompt.text, prompt.hold > 0 ? this.holdE / prompt.hold : (prompt.progress || 0));

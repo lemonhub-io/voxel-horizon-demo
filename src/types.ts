@@ -773,6 +773,7 @@ export interface Player {
   blockColor(id: number): string;
   breakBlock(t: RaycastResult): void;
   vmTipWorld(): THREE.Vector3;
+  tryOpenShipPanel(clientX: number, clientY: number): boolean;
   placeBlock(): void;
   statsTick(dt: number, inShip: boolean): void;
   checkShelter(): boolean;

@@ -5,7 +5,7 @@
       @pointerdown.prevent="onLookStart"
       @pointermove.prevent="onLookMove"
       @pointerup.prevent="onLookEnd"
-      @pointercancel.prevent="onLookEnd"
+      @pointercancel.prevent="onLookCancel"
     />
 
     <div
@@ -20,11 +20,10 @@
       </div>
     </div>
 
-    <div id="touch-actions" aria-label="游戏操作">
-      <button class="touch-btn touch-btn-primary" aria-label="持续采集或攻击" @pointerdown.prevent="pressButton(0)" @pointerup.prevent="releaseButton(0)" @pointercancel.prevent="releaseButton(0)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4m0 10v4M3 12h4m10 0h4M7.1 7.1l2.8 2.8m4.2 4.2l2.8 2.8m0-9.7-2.8 2.8m-4.2 4.2-2.8 2.8"/><circle cx="12" cy="12" r="3.4"/></svg></button>
-      <button class="touch-btn touch-btn-jump" aria-label="跳跃或喷气" @pointerdown.prevent="pressKey('Space')" @pointerup.prevent="releaseKey('Space')" @pointercancel.prevent="releaseKey('Space')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V5m0 0-5 5m5-5 5 5M5 21h14"/></svg></button>
-      <button class="touch-btn" aria-label="交互或降落" @pointerdown.prevent="pressKey('KeyE')" @pointerup.prevent="releaseKey('KeyE')" @pointercancel.prevent="releaseKey('KeyE')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10v18H5zM15 12h5m-2-3 3 3-3 3M10 12h.01"/></svg></button>
-      <button class="touch-btn" aria-label="放置方块" @pointerdown.prevent="placeBlock"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 4v10l-7 4-7-4V7zM5 7l7 4 7-4m-7 4v10"/></svg></button>
+    <div id="touch-actions" aria-label="移动操作">
+      <button class="touch-btn touch-btn-jump" aria-label="跳跃或喷气" @pointerdown.prevent="pressKey('Space')" @pointerup.prevent="releaseKey('Space')" @pointercancel.prevent="releaseKey('Space')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V5m0 0-5 5m5-5 5 5M5 21h14"/></svg>
+      </button>
     </div>
 
     <div id="touch-utilities" aria-label="功能操作">
@@ -50,11 +49,17 @@ interface TouchInput {
   moveY: number;
   moveActive: boolean;
   touchSprint: boolean;
+  jumpPressed: boolean;
 }
 interface RuntimeGame {
   input: TouchInput;
   settings: { touchSens: number };
-  player?: { inShip: boolean; visor: boolean; placeBlock: () => void };
+  player?: {
+    inShip: boolean;
+    visor: boolean;
+    placeBlock: () => void;
+    tryOpenShipPanel: (clientX: number, clientY: number) => boolean;
+  };
   onKey: (code: string, event: KeyboardEvent) => void;
 }
 
@@ -67,6 +72,8 @@ const joyBaseY = ref(0);
 const joyThumbX = ref(0);
 const joyThumbY = ref(0);
 const joyRadius = 58;
+const longPressDelay = 360;
+const lookMoveThreshold = 12;
 let joyPointer = -1;
 let lastJoyTap = 0;
 let joyCenterX = 0;
@@ -74,7 +81,11 @@ let joyCenterY = 0;
 let lookPointer = -1;
 let lookX = 0;
 let lookY = 0;
+let lookStartX = 0;
+let lookStartY = 0;
 let lookMoved = false;
+let lookMining = false;
+let longPressTimer: number | undefined;
 
 const joyBaseStyle = computed(() => ({ left: `${joyBaseX.value}px`, top: `${joyBaseY.value}px` }));
 const joyThumbStyle = computed(() => ({ transform: `translate(${joyThumbX.value}px, ${joyThumbY.value}px)` }));
@@ -159,7 +170,31 @@ function onJoyEnd(event: PointerEvent): void {
   joySnapping.value = true;
   joyThumbX.value = joyThumbY.value = 0;
   if (input && !input.touchSprint) sprintActive.value = false;
-  setTimeout(() => { joySnapping.value = false; }, 120);
+  window.setTimeout(() => { joySnapping.value = false; }, 120);
+}
+
+function clearLongPressTimer(): void {
+  if (longPressTimer !== undefined) {
+    window.clearTimeout(longPressTimer);
+    longPressTimer = undefined;
+  }
+}
+
+function startMining(pointerId: number): void {
+  if (lookPointer !== pointerId || lookMoved) return;
+  const game = getGame();
+  const player = game?.player;
+  if (!game || !player || player.inShip || player.visor) return;
+  game.input.buttons[0] = true;
+  lookMining = true;
+}
+
+function stopMining(): void {
+  if (lookMining) {
+    const input = getGame()?.input;
+    if (input) input.buttons[0] = false;
+  }
+  lookMining = false;
 }
 
 function onLookStart(event: PointerEvent): void {
@@ -168,9 +203,12 @@ function onLookStart(event: PointerEvent): void {
   if (!(element instanceof HTMLElement)) return;
   element.setPointerCapture(event.pointerId);
   lookPointer = event.pointerId;
-  lookX = event.clientX;
-  lookY = event.clientY;
+  lookX = lookStartX = event.clientX;
+  lookY = lookStartY = event.clientY;
   lookMoved = false;
+  lookMining = false;
+  clearLongPressTimer();
+  longPressTimer = window.setTimeout(() => startMining(event.pointerId), longPressDelay);
 }
 
 function onLookMove(event: PointerEvent): void {
@@ -181,19 +219,40 @@ function onLookMove(event: PointerEvent): void {
   const dy = event.clientY - lookY;
   lookX = event.clientX;
   lookY = event.clientY;
-  if (Math.abs(dx) > 1 || Math.abs(dy) > 1) lookMoved = true;
+  if (Math.hypot(event.clientX - lookStartX, event.clientY - lookStartY) > lookMoveThreshold) {
+    lookMoved = true;
+    clearLongPressTimer();
+    stopMining();
+  }
   const sensitivity = (getGame()?.settings.touchSens ?? 100) / 100 * 0.78;
   input.dx += dx * sensitivity;
   input.dy += dy * sensitivity;
 }
 
-function onLookEnd(event: PointerEvent): void {
+function placeOrOpenShip(event: PointerEvent): void {
+  const player = getGame()?.player;
+  if (!player || player.inShip || player.visor) return;
+  if (!player.tryOpenShipPanel(event.clientX, event.clientY)) player.placeBlock();
+}
+
+function finishLook(event: PointerEvent, placeOnRelease: boolean): void {
   if (event.pointerId !== lookPointer) return;
   const element = event.currentTarget;
   if (!(element instanceof HTMLElement)) return;
   releasePointer(element, event.pointerId);
-  if (!lookMoved) tapMine();
+  clearLongPressTimer();
+  const shouldPlace = placeOnRelease && !lookMoved && !lookMining;
+  stopMining();
   lookPointer = -1;
+  if (shouldPlace) placeOrOpenShip(event);
+}
+
+function onLookEnd(event: PointerEvent): void {
+  finishLook(event, true);
+}
+
+function onLookCancel(event: PointerEvent): void {
+  finishLook(event, false);
 }
 
 function pressKey(code: string): void {
@@ -203,18 +262,16 @@ function pressKey(code: string): void {
   if (code === 'Space') game.input.jumpPressed = true;
   game.onKey(code, new KeyboardEvent('keydown', { code }));
 }
-function releaseKey(code: string): void { const input = getGame()?.input; if (input) input.keys[code] = false; }
+function releaseKey(code: string): void {
+  const input = getGame()?.input;
+  if (input) input.keys[code] = false;
+}
 function triggerKey(code: string): void {
   pressKey(code);
-  setTimeout(() => releaseKey(code), 80);
+  window.setTimeout(() => releaseKey(code), 80);
 }
-function scanOrWarp(): void { triggerKey(getGame()?.player?.inShip ? 'KeyJ' : 'KeyC'); }
-function pressButton(button: number): void { const input = getGame()?.input; if (input) input.buttons[button] = true; }
-function releaseButton(button: number): void { const input = getGame()?.input; if (input) input.buttons[button] = false; }
-function tapMine(): void { pressButton(0); setTimeout(() => releaseButton(0), 140); }
-function placeBlock(): void {
-  const player = getGame()?.player;
-  if (player && !player.inShip && !player.visor) player.placeBlock();
+function scanOrWarp(): void {
+  triggerKey(getGame()?.player?.inShip ? 'KeyJ' : 'KeyC');
 }
 
 onMounted(() => {
