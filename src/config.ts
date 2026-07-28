@@ -4,6 +4,10 @@
 
 import type { BlockDef, ItemDef, Recipe, Palette, MilestoneDef, Settings } from './types';
 
+enum CsmMode {
+  Practical = 'practical',
+}
+
 export const CFG = Object.freeze({
   VERSION: '1.0',
   CHUNK: 16,
@@ -13,7 +17,29 @@ export const CFG = Object.freeze({
   GRAVITY: 24,
   REACH: 6,
   SAVE_KEY: 'voxelhorizon_save_v1',
-  SET_KEY: 'voxelhorizon_settings_v1'
+  SET_KEY: 'voxelhorizon_settings_v1',
+  /** Cascaded Shadow Maps — near / mid / far (WebGPU + TSL CSMShadowNode). */
+  CSM: Object.freeze({
+    cascades: 3,
+    /** Practical split prefers near resolution (clear block contact shadows). */
+    mode: CsmMode.Practical,
+    mapSize: 2048,
+    /** Orthographic depth range for each cascade light camera. */
+    shadowNear: 0.5,
+    shadowFar: 500,
+    /** Extra light-space depth pull to capture casters above the frustum. */
+    lightMargin: 72,
+    bias: -0.0004,
+    normalBias: 0.035,
+    /** Softness per cascade: sharp near → soft far (PCF radius). */
+    radiusNear: 1.0,
+    radiusMid: 2.0,
+    radiusFar: 3.5,
+    /** maxFar = clamp(dist * CHUNK * farScale, minFar, hardCap). */
+    farScale: 2.4,
+    minFar: 96,
+    hardCap: 220,
+  }),
 });
 
 export const B = {

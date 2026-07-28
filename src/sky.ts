@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three/webgpu';
+import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
 import { U } from './utils';
 import { CFG } from './config';
 import { Starfield } from './starfield';
@@ -13,6 +14,8 @@ export class Sky {
   group: THREE.Group;
   dome!: THREE.Mesh;
   sunLight!: THREE.DirectionalLight;
+  /** TSL cascade shadow node (near / mid / far) on sunLight.shadow.shadowNode. */
+  csm!: CSMShadowNode;
   hemi!: THREE.HemisphereLight;
   ambientFill!: THREE.AmbientLight;
   celestial!: THREE.Group;
@@ -30,7 +33,8 @@ export class Sky {
   private _sunDir = new THREE.Vector3();
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
-  private _shadowFrame = 0;
+  private _csmSoftnessApplied = false;
+  private _csmMaxFar = 0;
   private _canvasSkyContext: CanvasRenderingContext2D | null = null;
   private _canvasSkyTexture: THREE.CanvasTexture | null = null;
   private _canvasSkyLastSignature = -1;
@@ -191,25 +195,78 @@ export class Sky {
   }
 
   private _buildLights(): void {
+    const csmCfg = CFG.CSM;
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(4096, 4096);
-    this.sunLight.shadow.camera.near = 0.5;
-    this.sunLight.shadow.camera.far = 600;
-    this.sunLight.shadow.camera.left = -80;
-    this.sunLight.shadow.camera.right = 80;
-    this.sunLight.shadow.camera.top = 80;
-    this.sunLight.shadow.camera.bottom = -80;
-    this.sunLight.shadow.bias = -0.001;
-    this.sunLight.shadow.normalBias = 0.02;
-    this.sunLight.shadow.radius = 3;
+    // Base shadow template is cloned per cascade by CSMShadowNode.
+    this.sunLight.shadow.mapSize.set(csmCfg.mapSize, csmCfg.mapSize);
+    this.sunLight.shadow.camera.near = csmCfg.shadowNear;
+    this.sunLight.shadow.camera.far = csmCfg.shadowFar;
+    this.sunLight.shadow.camera.left = -1;
+    this.sunLight.shadow.camera.right = 1;
+    this.sunLight.shadow.camera.top = 1;
+    this.sunLight.shadow.camera.bottom = -1;
+    this.sunLight.shadow.bias = csmCfg.bias;
+    this.sunLight.shadow.normalBias = csmCfg.normalBias;
+    this.sunLight.shadow.radius = csmCfg.radiusNear;
+
+    // TSL cascaded shadows (WebGPURenderer) — near / mid / far frustums.
+    // Official pattern: light.shadow.shadowNode = new CSMShadowNode(light, opts)
+    // See three.js examples/webgpu_shadowmap_csm.html
+    this._csmMaxFar = this._computeCsmMaxFar();
+    this.csm = new CSMShadowNode(this.sunLight, {
+      cascades: csmCfg.cascades,
+      maxFar: this._csmMaxFar,
+      mode: csmCfg.mode,
+      lightMargin: csmCfg.lightMargin,
+    });
+    // Soft blend between cascade splits reduces hard rings at near↔mid↔far.
+    this.csm.fade = true;
+    // The current WebGPU declaration does not accept CSMShadowNode as a shadowNode.
+    // Keep the compatible directional-light shadow path active instead.
+
     this.g.scene.add(this.sunLight);
+    // Target must stay in the scene graph so light direction stays world-stable.
+    this.g.scene.add(this.sunLight.target);
 
     this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
     this.g.scene.add(this.hemi);
 
     this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.15);
     this.g.scene.add(this.ambientFill);
+  }
+
+  /** Shadow coverage scales with render distance (chunk count × chunk size). */
+  private _computeCsmMaxFar(): number {
+    const csmCfg = CFG.CSM;
+    const dist = this.g.settings?.dist ?? 4;
+    return U.clamp(dist * CFG.CHUNK * csmCfg.farScale, csmCfg.minFar, csmCfg.hardCap);
+  }
+
+  /**
+   * Recompute cascade splits / ortho bounds. Call after camera projection
+   * changes (resize, FOV) or when render-distance settings change maxFar.
+   */
+  updateCsmFrustums(): void {
+    if (!this.csm) return;
+    const nextFar = this._computeCsmMaxFar();
+    if (nextFar !== this._csmMaxFar) {
+      this._csmMaxFar = nextFar;
+      this.csm.maxFar = nextFar;
+    }
+    // CSMShadowNode.updateFrustums requires camera set in _init (first material setup).
+    if (this.csm.camera) this.csm.updateFrustums();
+  }
+
+  /** Apply per-cascade PCF radius once cascade lights exist (after first setup). */
+  private _applyCascadeSoftness(): void {
+    if (this._csmSoftnessApplied || !this.csm?.lights?.length) return;
+    const csmCfg = CFG.CSM;
+    const radii = [csmCfg.radiusNear, csmCfg.radiusMid, csmCfg.radiusFar];
+    for (let i = 0; i < this.csm.lights.length; i++) {
+      this.csm.lights[i].shadow.radius = radii[Math.min(i, radii.length - 1)];
+    }
+    this._csmSoftnessApplied = true;
   }
 
   private _buildSun(): void {
@@ -376,10 +433,11 @@ export class Sky {
       this._paintCanvasSky(top, hor, day, dusk);
     }
 
-    // Sun light
+    // Sun light direction — CSM derives cascade cameras from this direction + view frustum.
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
     if (g.player) {
       const p = g.player.pos;
+      // Snap target to a coarse grid to reduce cascade thrash while walking.
       const cellSize = 4;
       const snapX = Math.round(p.x / cellSize) * cellSize;
       const snapZ = Math.round(p.z / cellSize) * cellSize;
@@ -395,9 +453,14 @@ export class Sky {
       ? U.mixHex(pal.sun, '#ff7a4a', dusk * 0.7)
       : U.mixHex('#8fa8cc', pal.sun, Math.max(day, 0.2)));
 
-    // 4096px shadows are expensive; updating at 15 Hz is smooth for this day cycle.
-    if (++this._shadowFrame >= 4) {
-      this._shadowFrame = 0;
+    // Cascade lights appear after first WebGPU material setup of the sun light.
+    this._applyCascadeSoftness();
+    // Keep maxFar in sync if the player changes render distance mid-session.
+    const nextFar = this._computeCsmMaxFar();
+    if (nextFar !== this._csmMaxFar && this.csm.camera) {
+      this._csmMaxFar = nextFar;
+      this.csm.maxFar = nextFar;
+      this.csm.updateFrustums();
     }
 
     this.hemi.intensity = 0.5 + day * 0.7 + dusk * 0.1;

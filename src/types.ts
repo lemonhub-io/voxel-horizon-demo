@@ -639,8 +639,11 @@ export interface Sky {
   t: number;
   dayMix: number;
   pal: Palette;
+  sunLight: THREE.DirectionalLight;
   setPalette(pal: Palette): void;
   update(dt: number): void;
+  /** Recompute CSM cascade splits after camera projection or render-distance changes. */
+  updateCsmFrustums(): void;
 }
 
 export interface FX {
@@ -1106,6 +1109,8 @@ namespace LegacyThreeCompat {
     normalBias: number;
     radius: number;
     mapSize: Vector2;
+    /** Custom TSL shadow node (e.g. CSMShadowNode) for WebGPURenderer. */
+    shadowNode: unknown;
     dispose(): void;
   }
   class DirectionalLightShadow extends LightShadow {

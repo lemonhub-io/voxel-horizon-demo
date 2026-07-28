@@ -193,6 +193,8 @@ export class Game {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.postProc.resize(innerWidth, innerHeight);
+      // CSM cascade ortho bounds depend on the active camera projection.
+      if (this.sky) this.sky.updateCsmFrustums();
     });
     this.clock = new THREE.Timer();
   }
@@ -206,6 +208,8 @@ export class Game {
       this.camera.fov = this.settings.fov;
       this.camera.updateProjectionMatrix();
     }
+    // FOV / render-distance changes affect cascade splits and maxFar.
+    if (this.sky) this.sky.updateCsmFrustums();
   }
 
   uiOpen(): boolean {
@@ -297,7 +301,6 @@ export class Game {
     }
     this.world.setPlanet(seed, this.palette);
     this.sky.setPalette(this.palette);
-
     if (saveData) {
       for (const k in saveData.edits) {
         const arr = saveData.edits[k];
@@ -314,13 +317,11 @@ export class Game {
       this.playTime = saveData.playTime || 0;
       s.game.playTime = this.playTime;
     }
-
     const land = this.world.findLand(8, 8);
     const spawnX = land.x, spawnZ = land.z;
     this.spawnPoint = { x: spawnX, z: spawnZ };
     if (!this.player) this.player = new Player(this);
     this.player.crackMat.map = this.atlas.texture;
-
     let frame = 0;
     const step = (): void => {
       const px = saveData ? saveData.player.pos[0] : spawnX;
@@ -334,7 +335,6 @@ export class Game {
     };
     step();
   }
-
   finishLoad(saveData: SaveData | null): void {
     const s = this.stores;
     const sx = this.spawnPoint.x, sz = this.spawnPoint.z;

@@ -8,6 +8,13 @@ describe('CFG constants', () => {
   it('has positive gravity', () => expect(CFG.GRAVITY).toBeGreaterThan(0));
   it('has positive reach', () => expect(CFG.REACH).toBeGreaterThan(0));
   it('has save key', () => expect(CFG.SAVE_KEY).toBeTruthy());
+  it('has 3-cascade CSM config', () => {
+    expect(CFG.CSM.cascades).toBe(3);
+    expect(CFG.CSM.mapSize).toBeGreaterThanOrEqual(1024);
+    expect(CFG.CSM.mode).toBe('practical');
+    expect(CFG.CSM.radiusFar).toBeGreaterThan(CFG.CSM.radiusNear);
+    expect(CFG.CSM.hardCap).toBeGreaterThan(CFG.CSM.minFar);
+  });
 });
 
 describe('Block types (B)', () => {
