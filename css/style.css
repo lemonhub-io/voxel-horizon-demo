@@ -11,6 +11,7 @@
   --fh:'Orbitron','Rajdhani','Microsoft YaHei',sans-serif;
   --fb:'Rajdhani','Microsoft YaHei','PingFang SC',sans-serif;
 }
+
 *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#04070c}
 body{font-family:var(--fb);color:var(--ink);font-size:16px}
@@ -388,4 +389,30 @@ body.touch-device .hb-slot:active{border-color:#fff;transform:translateY(-2px)}
   #stats-left{left:10px;bottom:80px;gap:4px}#stats-right{right:10px;bottom:80px;gap:4px}#hotbar{bottom:max(8px,env(safe-area-inset-bottom));gap:4px}.hb-slot{width:42px;height:42px}.hb-slot img{inset:4px;width:34px;height:34px}.hb-slot .key{display:none}
   #hud-corner{right:8px;top:6px}#hud-units{font-size:16px}#hud-planet{font-size:10px}#compass-wrap{margin-top:5px;height:40px;max-width:88vw}.touch-btn{width:44px;height:44px;font-size:12px}.touch-btn-jump{width:50px;height:50px}.touch-btn{margin:0}#touch-actions{grid-template-columns:repeat(2,44px);gap:8px;bottom:22vh}
   #touch-joy-base{width:100px;height:100px}#touch-joy-thumb{width:40px;height:40px;margin:-20px 0 0 -20px}.load-box{width:86vw}.load-name{font-size:30px;letter-spacing:5px}.intro-skip{right:14px;bottom:14px}
+}
+
+/* Final touch-layout overrides: keep the controls in reachable thumb zones. */
+#touch-joy-zone{width:48vw;height:52vh}
+#touch-joy-base{width:124px;height:124px;border-color:rgba(210,244,255,.4);background:rgba(5,16,25,.32)}
+#touch-joy-thumb{width:50px;height:50px;margin:-25px 0 0 -25px}
+#touch-actions{right:max(14px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));display:grid;grid-template-columns:52px 64px;grid-template-rows:52px 64px;grid-template-areas:'interact jump' 'place primary';gap:10px}
+.touch-btn{display:grid;place-items:center;width:52px;height:52px;margin:0;border-radius:18px;font-size:0;background:rgba(5,16,25,.78)}
+.touch-btn svg,.touch-utility-btn svg,#touch-sprint-indicator svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.touch-btn:nth-child(1){grid-area:primary}.touch-btn:nth-child(2){grid-area:jump}.touch-btn:nth-child(3){grid-area:interact}.touch-btn:nth-child(4){grid-area:place}
+.touch-btn-jump{width:52px;height:52px}.touch-btn-primary{width:64px;height:64px;border-radius:50%;border-color:rgba(255,148,100,.82);color:#ffb18e;background:rgba(44,18,17,.82);box-shadow:0 0 22px rgba(255,112,72,.18)}.touch-btn-primary svg{width:28px;height:28px}
+#touch-utilities{position:absolute;top:max(62px,calc(env(safe-area-inset-top) + 48px));right:max(12px,env(safe-area-inset-right));z-index:4;display:flex;gap:7px;pointer-events:auto}
+.touch-utility-btn{display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid rgba(205,239,250,.34);border-radius:12px;background:rgba(5,16,25,.7);color:rgba(235,250,255,.9);touch-action:manipulation;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.touch-utility-btn svg{width:18px;height:18px}.touch-utility-btn:active{background:rgba(150,230,250,.24);transform:scale(.94)}
+#touch-top-bar{display:none}
+#touch-sprint-indicator{left:max(18px,env(safe-area-inset-left));bottom:calc(max(16px,env(safe-area-inset-bottom)) + 142px);display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(210,244,255,.2);border-radius:50%;background:rgba(5,16,25,.42);font-size:0}
+#touch-sprint-indicator svg{width:15px;height:15px;fill:currentColor;stroke:none}
+@media (max-width:900px){
+  #touch-actions{grid-template-columns:48px 58px;grid-template-rows:48px 58px;gap:8px}
+  .touch-btn,.touch-btn-jump{width:48px;height:48px}.touch-btn-primary{width:58px;height:58px}
+  #touch-joy-base{width:108px;height:108px}#touch-joy-thumb{width:44px;height:44px;margin:-22px 0 0 -22px}
+  #touch-utilities{top:max(54px,calc(env(safe-area-inset-top) + 42px))}.touch-utility-btn{width:35px;height:35px}
+}
+@media (max-height:520px) and (orientation:landscape){
+  #touch-joy-zone{width:42vw;height:72vh}#touch-actions{bottom:max(10px,env(safe-area-inset-bottom))}
+  #touch-utilities{top:max(10px,env(safe-area-inset-top))}#touch-sprint-indicator{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 118px)}
 }
