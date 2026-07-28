@@ -21,6 +21,7 @@ import { Missions, Milestones } from './missions';
 import { Save } from './save';
 import { PostProcessing } from './post-processing';
 import { PostFX } from './postfx';
+import { preloadCC0Models } from './cc0-models';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -120,6 +121,7 @@ export class Game {
   private _prevZ = 0;
   private _syncFrame = 0;
   private _worldUpdateT = 0;
+  private pendingLoad: { seed: number; palIdx: number; saveData: SaveData | null } | null = null;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -242,6 +244,8 @@ export class Game {
     this.state = 'loading';
     const s = this.stores;
     s.game.state = 'loading';
+    s.game.loadProgress = 0;
+    s.game.modelLoadFailures = [];
     this.seed = seed;
     this.palIdx = palIdx;
     this.palette = PALETTES[palIdx];
@@ -251,7 +255,34 @@ export class Game {
     const rng = U.mulberry32(seed);
     this.planetName = saveData ? saveData.planetName : U.planetName(rng);
     s.game.planetName = this.planetName;
+    this.pendingLoad = { seed, palIdx, saveData };
+    void this.verifyRemoteModels();
+  }
 
+  private async verifyRemoteModels(): Promise<void> {
+    const failures = await preloadCC0Models();
+    const pending = this.pendingLoad;
+    if (!pending) return;
+    if (failures.length > 0) {
+      this.stores.game.modelLoadFailures = failures.map(failure => `${failure.label}: ${failure.reason}`);
+      this.state = 'model-error';
+      this.stores.game.state = 'model-error';
+      return;
+    }
+    this.startWorldLoad(pending.seed, pending.saveData);
+  }
+
+  continueWithFailedModels(): void {
+    const pending = this.pendingLoad;
+    if (!pending) return;
+    this.state = 'loading';
+    this.stores.game.state = 'loading';
+    this.stores.game.loadProgress = 0;
+    this.startWorldLoad(pending.seed, pending.saveData);
+  }
+
+  private startWorldLoad(seed: number, saveData: SaveData | null): void {
+    const s = this.stores;
     this.atlas.build(this.palette, seed);
     if (!this.world) {
       this.world = new World(this);

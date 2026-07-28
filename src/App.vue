@@ -32,6 +32,7 @@
     :progress="game.loadProgress"
   />
 
+  <ModelLoadError v-if="game.state === 'model-error'" :failures="game.modelLoadFailures" @continue="onContinueWithFailedModels" @report-exit="onReportModelFailure" />
   <IntroScreen
     v-if="game.state === 'intro'"
     :lines="game.introLines"
@@ -73,6 +74,7 @@ import type { Game, SaveSlotMeta } from './types';
 
 import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
+import ModelLoadError from './components/ModelLoadError.vue';
 import IntroScreen from './components/IntroScreen.vue';
 import HudOverlay from './components/HudOverlay.vue';
 import TouchControls from './components/TouchControls.vue';
@@ -161,6 +163,15 @@ async function onDeleteSlot(slot: number) {
 function onIntroSkip() {
   const engine = getEngine();
   engine?.finishLoad(null);
+}
+function onContinueWithFailedModels() {
+  getEngine()?.continueWithFailedModels();
+}
+function onReportModelFailure() {
+  const issueUrl = new URL('https://github.com/lemonhub-io/voxel-horizon-demo/issues/new');
+  issueUrl.searchParams.set('title', '模型资源加载失败');
+  issueUrl.searchParams.set('body', `自动生成的错误报告：\n\n- ${game.modelLoadFailures.join('\n- ')}\n\n浏览器：${navigator.userAgent}`);
+  window.location.assign(issueUrl.toString());
 }
 function onCloseInv() { inv.open = false; }
 function onUseItem(id: string) {

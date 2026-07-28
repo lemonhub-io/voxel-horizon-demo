@@ -14,6 +14,7 @@ export const useGameStore = defineStore('game', () => {
   const playTime = ref(0);
   const time = ref(0);
   const loadProgress = ref(0);
+  const modelLoadFailures = ref<string[]>([]);
   const introLines = ref<{ text: string; cls?: string }[]>([]);
   const discoveries = ref<Discoveries>({ planets: [], entries: [] });
   const settings = ref<Settings>({ master: 80, music: 60, sfx: 90, sens: 100, fov: 78, dist: 4, invert: false, touchSens: 100 });
@@ -36,7 +37,7 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     state, seed, palIdx, palette, planetName, stormActive, stormFactor,
-    playTime, time, loadProgress, introLines, discoveries, settings,
+    playTime, time, loadProgress, modelLoadFailures, introLines, discoveries, settings,
     uiOpen, planetInfo
   };
 });

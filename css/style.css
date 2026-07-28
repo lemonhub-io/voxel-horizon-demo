@@ -422,3 +422,11 @@ body.touch-device .hb-slot:active{border-color:#fff;transform:translateY(-2px)}
 .unit-gain{display:inline-flex;align-items:center;gap:4px}
 .unit-gain svg{width:12px;height:12px;color:var(--acc2)}
 @media (max-width:600px){#mission-card{left:max(10px,env(safe-area-inset-left));top:max(54px,calc(env(safe-area-inset-top) + 44px));width:min(300px,calc(100vw - 20px));padding:10px 12px}#mission-title{font-size:15px}}
+/* ---------- remote model load failure ---------- */
+#model-load-error{z-index:130;background:rgba(3,7,12,.88);backdrop-filter:blur(8px)}
+.model-load-error__panel{width:min(620px,92vw);padding:28px 32px}
+.model-load-error__panel h2{font-family:var(--fh);font-size:28px;letter-spacing:3px;color:var(--danger);margin:8px 0 12px}
+.model-load-error__panel p{line-height:1.55;opacity:.82}
+.model-load-error__list{max-height:180px;overflow:auto;margin:18px 0;padding:12px 16px 12px 30px;border:1px solid rgba(255,92,92,.35);background:rgba(255,92,92,.07);line-height:1.6;word-break:break-word}
+.model-load-error__actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+@media (max-width:600px){.model-load-error__panel{padding:22px 20px}.model-load-error__panel h2{font-size:22px}.model-load-error__actions{flex-direction:column}.model-load-error__actions .btn{width:100%}}

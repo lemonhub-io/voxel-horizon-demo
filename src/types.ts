@@ -466,6 +466,7 @@ export interface Game {
   newGame(): void;
   continueGame(): void;
   beginLoad(seed: number, palIdx: number, saveData: SaveData | null): void;
+  continueWithFailedModels(): void;
   finishLoad(saveData: SaveData | null): void;
   playIntro(): void;
   planetInfo(): PlanetInfo;
