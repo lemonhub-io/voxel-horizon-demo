@@ -21,7 +21,8 @@ export class TextureAtlas {
     this.stride = this.px + 2;
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.canvas.height = this.size * this.stride;
-    this.ctx = this.canvas.getContext('2d')!;
+    // Atlas is read back often (tileAvg / normal map); prefer CPU-backed 2D for getImageData.
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
     this.texture = null;
     this.normalTexture = null;
     this.iconCache = {};

@@ -22,41 +22,78 @@ export class FX {
   g: Game;
   max: number;
   parts: Particle[];
-  posArr: Float32Array;
-  colArr: Float32Array;
-  mat: THREE.PointsMaterial;
-  points: THREE.Points;
+  /** Instanced debris chips — WebGPU Points are forced to 1px and invisible. */
+  mesh: THREE.InstancedMesh;
   laser: THREE.Mesh;
   laserGlow: THREE.Sprite;
   laserLight: THREE.PointLight;
   shakeAmp: number;
   warpAnim: number | null;
+  /** Reused for beam direction (unit cylinder is along +Y). */
+  private _laserDir = new THREE.Vector3();
+  private _tmpObj = new THREE.Object3D();
+  private _tmpColor = new THREE.Color();
+  private static readonly _Y_UP = new THREE.Vector3(0, 1, 0);
 
   constructor(game: Game) {
     this.g = game;
     this.max = 600;
     this.parts = [];
-    const geo = new THREE.BufferGeometry();
-    this.posArr = new Float32Array(this.max * 3);
-    this.colArr = new Float32Array(this.max * 3);
-    geo.setAttribute('position', new THREE.BufferAttribute(this.posArr, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(this.colArr, 3));
-    const tex = Sky.makeGlow();
-    this.mat = new THREE.PointsMaterial({ size: 0.22, map: tex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
-    this.points = new THREE.Points(geo, this.mat);
-    this.points.frustumCulled = false;
-    game.scene.add(this.points);
 
+    // Tiny chips (WebGPU Points are 1px; instanced boxes stay visible but subtle).
+    const chipGeo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+    const chipMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    this.mesh = new THREE.InstancedMesh(chipGeo, chipMat, this.max);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.count = 0;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 5;
+    this.mesh.castShadow = false;
+    this.mesh.receiveShadow = false;
+    // Seed instance colors so instanceColor buffer exists before first setColorAt.
+    for (let i = 0; i < this.max; i++) {
+      this.mesh.setColorAt(i, this._tmpColor.setRGB(1, 1, 1));
+    }
+    if (this.mesh.instanceColor) this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    game.scene.add(this.mesh);
+
+    const tex = Sky.makeGlow();
+
+    // Laser visuals match origin/main: #ff7a3c @ 0.85 opacity, glow #ffb066, tip light #ff8a4c.
+    // Geometry stays +Y so setFromUnitVectors orients correctly (remote used lookAt + Z which reversed the beam).
     const laserGeo = new THREE.CylinderGeometry(0.028, 0.028, 1, 6, 1, true);
     laserGeo.translate(0, 0.5, 0);
-    laserGeo.rotateX(Math.PI / 2);
-    this.laser = new THREE.Mesh(laserGeo, new THREE.MeshBasicMaterial({ color: '#ff7a3c', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.laser = new THREE.Mesh(
+      laserGeo,
+      new THREE.MeshBasicMaterial({
+        color: '#ff7a3c',
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
     this.laser.visible = false;
     this.laser.frustumCulled = false;
+    this.laser.renderOrder = 20;
     game.scene.add(this.laser);
-    this.laserGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: '#ffb066', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.laserGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex,
+      color: '#ffb066',
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }));
     this.laserGlow.scale.set(0.9, 0.9, 1);
     this.laserGlow.visible = false;
+    this.laserGlow.renderOrder = 21;
     game.scene.add(this.laserGlow);
     this.laserLight = new THREE.PointLight('#ff8a4c', 0, 7, 2);
     game.scene.add(this.laserLight);
@@ -131,34 +168,57 @@ export class FX {
       p.vy -= p.grav * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     }
-    // Only write active particles to buffer
+
     const len = this.parts.length;
+    const obj = this._tmpObj;
+    const color = this._tmpColor;
     for (let i = 0; i < len; i++) {
       const p = this.parts[i];
-      this.posArr[i * 3] = p.x; this.posArr[i * 3 + 1] = p.y; this.posArr[i * 3 + 2] = p.z;
-      const f = Math.min(1, p.life * 2.5);
-      const c = p.col;
-      this.colArr[i * 3] = c.r * f; this.colArr[i * 3 + 1] = c.g * f; this.colArr[i * 3 + 2] = c.b * f;
+      const fade = Math.min(1, p.life * 2.5);
+      // Keep chips tiny: base 4cm cube × ~0.6–1.0.
+      const size = 0.55 + 0.45 * fade;
+      obj.position.set(p.x, p.y, p.z);
+      obj.scale.setScalar(size);
+      obj.rotation.set(p.x * 4.1 + p.life * 6.0, p.y * 3.3 + p.life * 4.5, p.z * 5.2);
+      obj.updateMatrix();
+      this.mesh.setMatrixAt(i, obj.matrix);
+      color.setRGB(p.col.r * fade, p.col.g * fade, p.col.b * fade);
+      this.mesh.setColorAt(i, color);
     }
-    this.points.geometry.getAttribute('position').needsUpdate = true;
-    this.points.geometry.getAttribute('color').needsUpdate = true;
-    this.points.geometry.setDrawRange(0, Math.max(len, 1));
+    this.mesh.count = len;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+
     this.shakeAmp = Math.max(0, this.shakeAmp - dt * 2.2);
   }
 
   laserShow(from: THREE.Vector3, to: THREE.Vector3, col?: string): void {
+    this._laserDir.subVectors(to, from);
+    const len = this._laserDir.length();
+    if (len < 1e-4) {
+      this.laserHide();
+      return;
+    }
+    this._laserDir.multiplyScalar(1 / len);
+
     this.laser.visible = true;
     this.laserGlow.visible = true;
-    const len = from.distanceTo(to);
     this.laser.position.copy(from);
-    this.laser.scale.set(1, 1, len);
-    this.laser.lookAt(to);
-    if (col && this.laser.material instanceof THREE.MeshBasicMaterial) this.laser.material.color.set(col);
+    // Geometry is unit length on +Y; scale Y to match beam length.
+    this.laser.scale.set(1, len, 1);
+    this.laser.quaternion.setFromUnitVectors(FX._Y_UP, this._laserDir);
+    this.laser.updateMatrixWorld(true);
+
+    if (col && this.laser.material instanceof THREE.MeshBasicMaterial) {
+      this.laser.material.color.set(col);
+    }
+    // Remote defaults: tip glow size pulse + strong point light.
     this.laserGlow.position.copy(to);
     this.laserGlow.scale.setScalar(0.7 + Math.random() * 0.5);
     this.laserLight.position.copy(to);
     this.laserLight.intensity = 1.6 + Math.random() * 0.8;
   }
+
   laserHide(): void {
     this.laser.visible = false;
     this.laserGlow.visible = false;

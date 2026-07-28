@@ -457,7 +457,13 @@ export interface Game {
   spawnPoint: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
-  postProc?: { render(): void; resize(w: number, h: number): void };
+  postProc?: {
+    enabled: boolean;
+    render(): void;
+    resize(w: number, h: number): void;
+    setEnabled?(on: boolean): void;
+    applySettings?(): void;
+  };
   initRenderer(): Promise<void>;
   applySettings(): void;
   uiOpen(): boolean;
@@ -640,6 +646,8 @@ export interface Sky {
   dayMix: number;
   pal: Palette;
   sunLight: THREE.DirectionalLight;
+  /** Soft TSL skydome mesh (palette gradient). */
+  dome?: unknown;
   setPalette(pal: Palette): void;
   update(dt: number): void;
   /** Recompute CSM cascade splits after camera projection or render-distance changes. */

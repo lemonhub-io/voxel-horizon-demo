@@ -101,7 +101,8 @@ export class World {
       vertexColors: true, roughness: 0.72, metalness: 0.05
     });
     this.matOpaque.normalMap = normalMap;
-    this.matOpaque.normalScale.set(0.34, 0.34);
+    // Stronger normals read better under cinematic lighting / CSM.
+    this.matOpaque.normalScale.set(0.42, 0.42);
     this.matCutout = new THREE.MeshStandardMaterial({
       vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
       alphaToCoverage: true, roughness: 0.8, metalness: 0.02
@@ -155,6 +156,44 @@ export class World {
     return h;
   }
 
+  /**
+   * Shallow ferrite veins / surface outcrops embedded in terrain.
+   * Uses dual 3D noise so deposits form connected pods rather than single
+   * blocks floating on grass (the old pal.rock surface decoration).
+   *
+   * Band: surface (depth 0) down to ~9 blocks — can replace grass/dirt/stone
+   * so iron reads as part of the ground, not a prop on top of it.
+   */
+  private isFerriteOre(gx: number, y: number, gz: number, surfaceH: number): boolean {
+    const depth = surfaceH - y;
+    if (depth < 0 || depth > 9 || y <= 2) return false;
+
+    // Primary field + secondary ridge → blob / lens shaped veins
+    const field = this.noise.noise3(gx * 0.078, y * 0.1, gz * 0.078);
+    const ridge = this.noiseB.noise3(gx * 0.042 + 19.7, y * 0.055 + 3.1, gz * 0.042 - 8.4);
+    const vein = field * 0.62 + ridge * 0.38;
+
+    // Easier to expose near the surface (outcrops), rarer deeper in the band
+    let thresh: number;
+    if (depth === 0) thresh = 0.56;       // flush surface outcrop (replaces grass)
+    else if (depth <= 2) thresh = 0.54;  // topsoil pocket
+    else if (depth <= 5) thresh = 0.6;
+    else thresh = 0.66;
+
+    // Palette rock density slightly increases ore frequency
+    const dens = this.pal?.rock ?? 0.014;
+    thresh -= Math.min(0.1, dens * 3.5);
+
+    // Require mild ridge support so veins stay clumpy, not salt-and-pepper
+    return vein > thresh && ridge > -0.05;
+  }
+
+  /** Deep copper veins (unchanged depth policy, shared ore-placement path). */
+  private isCopperOre(gx: number, y: number, gz: number, surfaceH: number): boolean {
+    if (y <= 3 || y >= surfaceH - 6) return false;
+    return this.noiseB.noise3(gx * 0.11, y * 0.13, gz * 0.11) > 0.72;
+  }
+
   generate(chunk: Chunk): void {
     const { cx, cz } = chunk;
     const pal = this.pal;
@@ -172,11 +211,18 @@ export class World {
             id = B.STONE;
             const cave = this.noiseC.noise3(gx * 0.06, y * 0.09, gz * 0.06);
             if (cave > 0.62 && y > 3 && y < h - 4) id = B.AIR;
-            else if (this.noiseB.noise3(gx * 0.11, y * 0.13, gz * 0.11) > 0.72 && y < h - 6) id = B.COPPER;
+          }
+
+          // Ores replace solid ground (not air/water/bedrock/beach sand).
+          // Ferrite: shallow veins + surface outcrops. Copper: deeper stone only.
+          if (id !== B.AIR && id !== B.BEDROCK && id !== B.SAND) {
+            if (this.isCopperOre(gx, y, gz, h)) id = B.COPPER;
+            else if (this.isFerriteOre(gx, y, gz, h)) id = B.FERRITE;
           }
         } else if (y <= sea) id = B.WATER;
         chunk.set(lx, y, lz, id);
       }
+      // Surface flora only — ferrite no longer spawns as isolated props on grass.
       if (h > sea + (pal.sea ? 0 : -99) && h < CFG.WORLD_H - 10 && chunk.get(lx, h, lz) === B.GRASS) {
         const r = U.hash2(gx, gz, this.seed);
         const t = pal.trees;
@@ -187,12 +233,11 @@ export class World {
         else if (r < t.density + pal.tuft + pal.plant + pal.na) chunk.set(lx, h + 1, lz, B.NA_PLANT);
         else if (r < t.density + pal.tuft + pal.plant + pal.na + pal.o2) chunk.set(lx, h + 1, lz, B.O_PLANT);
         else if (r < t.density + pal.tuft + pal.plant + pal.na + pal.o2 + pal.h2) chunk.set(lx, h + 1, lz, B.H_CRYS);
-        else if (r < t.density + pal.tuft + pal.plant + pal.na + pal.o2 + pal.h2 + pal.rock) chunk.set(lx, h + 1, lz, B.FERRITE);
       } else if (!pal.sea && h < CFG.WORLD_H - 10) {
         const r = U.hash2(gx, gz, this.seed);
+        // Only flora on arid surfaces; iron is handled by isFerriteOre.
         if (r < pal.h2) chunk.set(lx, h + 1, lz, B.H_CRYS);
-        else if (r < pal.h2 + pal.rock) chunk.set(lx, h + 1, lz, B.FERRITE);
-        else if (r < pal.h2 + pal.rock + pal.na) chunk.set(lx, h + 1, lz, B.NA_PLANT);
+        else if (r < pal.h2 + pal.na) chunk.set(lx, h + 1, lz, B.NA_PLANT);
       }
     }
     const ek = this.edits.get(this.key(cx, cz));

@@ -16,8 +16,10 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#04070c}
 body{font-family:var(--fb);color:var(--ink);font-size:16px}
 #app,#vue-app{position:fixed;inset:0}
-#game-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;filter:contrast(1.12) saturate(1.2) brightness(1.02)}
-#cinematic-overlay{position:fixed;inset:0;z-index:14;pointer-events:none;opacity:.4;background:radial-gradient(ellipse at center,transparent 42%,rgba(2,7,14,.28) 100%),repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px);mix-blend-mode:soft-light}
+#game-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* Cinematic overlays (subtle — main look is GPU grade in post-processing.ts). */
+#cinematic-overlay{position:fixed;inset:0;z-index:14;pointer-events:none;opacity:.16;background:radial-gradient(ellipse at center,transparent 52%,rgba(2,6,12,.16) 100%),repeating-linear-gradient(0deg,rgba(255,255,255,.008) 0 1px,transparent 1px 6px);mix-blend-mode:soft-light}
+#cinematic-letterbox{position:fixed;inset:0;z-index:13;pointer-events:none;background:linear-gradient(to bottom,rgba(0,0,0,.38) 0,transparent 3.2%,transparent 96.8%,rgba(0,0,0,.38) 100%)}
 #engine-loading{position:fixed;inset:0;z-index:110;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(3,8,14,.76);backdrop-filter:blur(10px);font-family:var(--fh);font-size:16px;letter-spacing:4px;color:#e8f8fb;pointer-events:all}
 #engine-loading small{font-size:10px;letter-spacing:3px;color:var(--acc2);opacity:.75}
 .engine-loading__spinner{width:42px;height:42px;border:2px solid rgba(102,217,232,.2);border-top-color:var(--acc2);border-radius:50%;animation:engineSpin .9s linear infinite}

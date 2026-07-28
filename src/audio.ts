@@ -284,27 +284,85 @@ export class AudioEngine {
     this.tone({ type: 'sine', f: 55, f2: 38, dur: 0.08, vol: 0.22, at: 0.16 });
   }
   mineHit(snd: string, pan?: number): void {
-    const tones: Record<string, [number, number]> = { stone: [1500, 0.05], grass: [650, 0.07], wood: [950, 0.06], sand: [480, 0.08], crystal: [2600, 0.06], glass: [2900, 0.05], metal: [2100, 0.05] };
+    // Distinct mining ticks per material / ore type.
+    const tones: Record<string, [number, number]> = {
+      stone: [1500, 0.05],
+      grass: [650, 0.07],
+      wood: [950, 0.06],
+      sand: [480, 0.08],
+      crystal: [2600, 0.06],
+      glass: [2900, 0.05],
+      metal: [2100, 0.05],
+      ferrite: [1750, 0.055],
+      copper: [1320, 0.06],
+    };
     const m = tones[snd] || [1200, 0.06];
     this.noise({ type: 'bandpass', f: m[0], q: 1.5, dur: m[1], vol: 0.14, pan });
-    if (snd === 'crystal' || snd === 'glass') this.tone({ type: 'sine', f: 1800 + Math.random() * 900, dur: 0.06, vol: 0.06, pan });
+    if (snd === 'crystal' || snd === 'glass') {
+      this.tone({ type: 'sine', f: 1800 + Math.random() * 900, dur: 0.06, vol: 0.06, pan });
+    } else if (snd === 'ferrite') {
+      // Dense iron grit + short metallic ring.
+      this.noise({ type: 'highpass', f: 2200, dur: 0.04, vol: 0.07, pan });
+      this.tone({ type: 'triangle', f: 980 + Math.random() * 220, dur: 0.04, vol: 0.05, pan });
+    } else if (snd === 'copper') {
+      // Warmer, slightly hollow metallic tick.
+      this.tone({ type: 'sine', f: 720 + Math.random() * 180, f2: 540, dur: 0.05, vol: 0.055, pan });
+      this.tone({ type: 'triangle', f: 1440 + Math.random() * 200, dur: 0.035, vol: 0.035, pan });
+    } else if (snd === 'metal') {
+      this.tone({ type: 'square', f: 1500 + Math.random() * 400, dur: 0.03, vol: 0.035, pan });
+    }
   }
   blockBreak(snd: string, pan?: number): void {
-    const bases: Record<string, number> = { stone: 320, grass: 260, wood: 300, sand: 220, crystal: 900, glass: 1200, metal: 500 };
+    const bases: Record<string, number> = {
+      stone: 320,
+      grass: 260,
+      wood: 300,
+      sand: 220,
+      crystal: 900,
+      glass: 1200,
+      metal: 500,
+      ferrite: 420,
+      copper: 360,
+    };
     const base = bases[snd] || 300;
     this.noise({ type: 'lowpass', f: base * 3, dur: 0.16, vol: 0.3, pan });
     this.tone({ type: 'sine', f: base * 0.4, f2: base * 0.2, dur: 0.12, vol: 0.18, pan });
-    if (snd === 'crystal' || snd === 'glass') [1, 1.4, 1.9].forEach((m, i) => this.tone({ type: 'sine', f: 1600 * m, dur: 0.09, vol: 0.05, at: i * 0.03, pan }));
+    if (snd === 'crystal' || snd === 'glass') {
+      [1, 1.4, 1.9].forEach((m, i) => this.tone({ type: 'sine', f: 1600 * m, dur: 0.09, vol: 0.05, at: i * 0.03, pan }));
+    } else if (snd === 'ferrite') {
+      // Heavy ore shatter — low clunk + bright iron flakes.
+      this.noise({ type: 'bandpass', f: 900, q: 0.8, dur: 0.12, vol: 0.12, pan });
+      [1, 1.25, 1.6].forEach((m, i) => this.tone({ type: 'triangle', f: 700 * m, dur: 0.07, vol: 0.045, at: i * 0.025, pan }));
+    } else if (snd === 'copper') {
+      // Softer coppery break with mid-range ring.
+      this.noise({ type: 'bandpass', f: 650, q: 1.0, dur: 0.11, vol: 0.1, pan });
+      this.tone({ type: 'sine', f: 540, f2: 320, dur: 0.1, vol: 0.08, pan });
+      this.tone({ type: 'triangle', f: 1080, dur: 0.08, vol: 0.04, at: 0.04, pan });
+    } else if (snd === 'metal') {
+      this.tone({ type: 'square', f: 800, f2: 400, dur: 0.08, vol: 0.06, pan });
+    }
   }
   place(snd: string | undefined, pan?: number): void {
     this.noise({ type: 'lowpass', f: 900, dur: 0.07, vol: 0.2, pan });
     this.tone({ type: 'sine', f: 240, f2: 170, dur: 0.08, vol: 0.14, pan });
   }
   step(snd: string, run: boolean): void {
-    const tones: Record<string, [number, number]> = { grass: [500, 0.05], stone: [1300, 0.04], sand: [380, 0.07], wood: [800, 0.045], metal: [1600, 0.04] };
+    const tones: Record<string, [number, number]> = {
+      grass: [500, 0.05],
+      stone: [1300, 0.04],
+      sand: [380, 0.07],
+      wood: [800, 0.045],
+      metal: [1600, 0.04],
+      ferrite: [1450, 0.04],
+      copper: [1180, 0.045],
+      crystal: [1900, 0.035],
+      glass: [2100, 0.035],
+    };
     const m = tones[snd] || [500, 0.05];
     this.noise({ type: 'bandpass', f: m[0] * (0.9 + Math.random() * 0.25), q: 1.1, dur: m[1], vol: run ? 0.09 : 0.06 });
-    if (snd === 'stone' || snd === 'metal') this.tone({ type: 'sine', f: 900 + Math.random() * 300, dur: 0.02, vol: 0.02 });
+    if (snd === 'stone' || snd === 'metal' || snd === 'ferrite' || snd === 'copper') {
+      this.tone({ type: 'sine', f: 900 + Math.random() * 300, dur: 0.02, vol: 0.02 });
+    }
   }
   jump(): void { this.noise({ type: 'bandpass', f: 700, dur: 0.08, vol: 0.06 }); }
   land(hard: boolean): void {

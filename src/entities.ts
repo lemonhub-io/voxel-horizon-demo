@@ -5,16 +5,23 @@
 import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B } from './config';
-import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { cloneCC0Scene, fitCC0Model, loadCC0Model } from './cc0-models';
 import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, Palette, CreatureSpec, Creature, CreatureHit } from './types';
 
 export class Fauna {
+  /**
+   * Temporary master switch — when true, no creatures are spawned.
+   * Implementation is kept intact; set to `false` to re-enable fauna.
+   */
+  static SPAWN_DISABLED = true;
+
   g: Game;
   creatures: Creature[];
   group: THREE.Group;
   speciesList: CreatureSpec[];
   callTimer: number;
+  /** Prepared source templates (skinned); always clone via SkeletonUtils. */
   private faunaModels: THREE.Group[];
 
   constructor(game: Game) {
@@ -30,8 +37,10 @@ export class Fauna {
 
   private async loadCC0Fauna(): Promise<void> {
     try {
+      // loadCC0Model returns instances; keep them as templates and re-clone per creature.
       const results = await Promise.allSettled(CC0_MODEL_URLS.fauna.map(loadCC0Model));
-      this.faunaModels = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+      this.faunaModels = results.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
+      // Attach to anything spawned before models finished loading.
       this.creatures.forEach(creature => this.attachCC0Model(creature));
     } catch {
       // Asset preflight reports unavailable fauna models before world generation.
@@ -40,9 +49,17 @@ export class Fauna {
 
   private attachCC0Model(creature: Creature): void {
     if (!this.faunaModels.length) return;
+    // Avoid stacking multiple models if attach is called twice.
+    const existing = creature.grp.children.find(c => c.name === 'cc0-fauna-model');
+    if (existing) return;
+
     const template = this.faunaModels[creature.seed % this.faunaModels.length];
     if (!template) return;
-    const model = template.clone(true);
+
+    // SkeletonUtils clone — Object3D.clone breaks SkinnedMesh bone binding
+    // (mesh invisible; only the ground blob shadow remains).
+    const model = cloneCC0Scene(template);
+    model.name = 'cc0-fauna-model';
     fitCC0Model(model, creature.sp.size * 1.9, creature.sp.size * 2.15);
     model.rotation.y = Math.PI;
     creature.grp.add(model);
@@ -50,6 +67,8 @@ export class Fauna {
 
   spawnPlanet(seed: number, pal: Palette): void {
     this.dispose();
+    // TEMP: fauna generation disabled — keep implementation below for re-enable.
+    if (Fauna.SPAWN_DISABLED) return;
     const rng = U.mulberry32(seed ^ 0xfa17);
     const nSpecies = Math.max(1, pal.fauna - 1 + Math.floor(rng() * 3));
     this.speciesList = [];

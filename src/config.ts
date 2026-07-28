@@ -4,10 +4,6 @@
 
 import type { BlockDef, ItemDef, Recipe, Palette, MilestoneDef, Settings } from './types';
 
-enum CsmMode {
-  Practical = 'practical',
-}
-
 export const CFG = Object.freeze({
   VERSION: '1.0',
   CHUNK: 16,
@@ -18,27 +14,101 @@ export const CFG = Object.freeze({
   REACH: 6,
   SAVE_KEY: 'voxelhorizon_save_v1',
   SET_KEY: 'voxelhorizon_settings_v1',
-  /** Cascaded Shadow Maps — near / mid / far (WebGPU + TSL CSMShadowNode). */
+  /**
+   * Cascaded Shadow Maps (WebGPU + TSL CSMShadowNode).
+   * Near cascade: sharp block contact shadows; mid/far: broader, softer coverage.
+   */
   CSM: Object.freeze({
     cascades: 3,
-    /** Practical split prefers near resolution (clear block contact shadows). */
-    mode: CsmMode.Practical,
+    /**
+     * Custom splits (fractions of maxFar): near ~12%, mid ~40%, far 100%.
+     * Better near texel density than pure practical with a tiny camera.near.
+     */
+    mode: 'custom' as const,
+    /** Normalized cascade breaks (last must be 1). */
+    breaks: Object.freeze([0.1, 0.35, 1] as const),
     mapSize: 2048,
     /** Orthographic depth range for each cascade light camera. */
     shadowNear: 0.5,
-    shadowFar: 500,
-    /** Extra light-space depth pull to capture casters above the frustum. */
-    lightMargin: 72,
-    bias: -0.0004,
-    normalBias: 0.035,
-    /** Softness per cascade: sharp near → soft far (PCF radius). */
+    shadowFar: 2000,
+    /** Extra light-space depth so tall casters (trees/ship) still cast. */
+    lightMargin: 120,
+    /** Conservative bias — cascade 0 multiplies by 1, cascade 1 by 2, etc. */
+    bias: -0.00006,
+    normalBias: 0.03,
+    /** Softness per cascade (PCF radius): sharp near → soft far. */
     radiusNear: 1.0,
-    radiusMid: 2.0,
-    radiusFar: 3.5,
+    radiusMid: 1.75,
+    radiusFar: 2.5,
     /** maxFar = clamp(dist * CHUNK * farScale, minFar, hardCap). */
-    farScale: 2.4,
-    minFar: 96,
-    hardCap: 220,
+    farScale: 2.8,
+    minFar: 120,
+    hardCap: 260,
+    /** Sun light offset along sun direction from the shadow focus point. */
+    lightDistance: 420,
+  }),
+  /**
+   * Screen-space ambient occlusion (GTAO).
+   * Enough contact shadow for voxels; keep intensity moderate to avoid mud.
+   */
+  SSAO: Object.freeze({
+    enabled: true,
+    resolutionScale: 0.5,
+    samples: 12,
+    /** ~0.4 blocks — crevices without large dark pools. */
+    radius: 0.4,
+    scale: 1.1,
+    thickness: 1.0,
+    distanceExponent: 1.15,
+    distanceFallOff: 1.0,
+    /** 0.65–0.75 reads natural on voxel terrain under soft sun. */
+    intensity: 0.68,
+  }),
+  /** Master switch for the WebGPU cinematic RenderPipeline. */
+  POST: Object.freeze({
+    enabled: true,
+  }),
+  /**
+   * Bloom — only hot emissives (lamps / crystals / laser tips).
+   * Threshold high enough that the soft LDR sky never blooms.
+   */
+  BLOOM: Object.freeze({
+    enabled: true,
+    strength: 0.18,
+    radius: 0.35,
+    threshold: 0.93,
+  }),
+  /**
+   * Cinematic grade balanced for:
+   * - soft TSL sky (no HDR Preetham)
+   * - ACES exposure ≈ 0.9
+   * - FPS readability (vignette/grain stay subtle)
+   *
+   * Order in pipeline: contrast → sat → teal/orange split → gamma → gain → clip → vignette → grain → FXAA
+   */
+  CINEMATIC: Object.freeze({
+    /** Mild S-curve; >1.1 feels crushed, <1.02 feels flat. */
+    contrast: 1.05,
+    /** Slight pop for biomes without looking cartoon. */
+    saturation: 1.07,
+    /** Slight mid lift (film toe); 0.97–1.0 is the safe band. */
+    gamma: 0.98,
+    /** Overall brightness after grade; 1.0 keeps ACES exposure honest. */
+    gain: 1.0,
+    /** Soft highlight ceiling so sky stays out of hard white. */
+    clip: 1.1,
+    /** Cool shadow lift (teal) — subtle, FPS-safe. */
+    shadowLift: Object.freeze({ r: -0.008, g: 0.006, b: 0.016 }),
+    /** Warm highlight push (orange) — very mild to avoid horizon cast. */
+    highlightWarm: Object.freeze({ r: 0.01, g: 0.004, b: -0.003 }),
+    /** Edge darkening; keep center of FOV clear for mining/aim. */
+    vignetteStrength: 0.26,
+    vignetteScale: 1.2,
+    vignetteStart: 0.48,
+    vignetteEnd: 1.15,
+    /** Barely perceptible grain; higher fights soft sky look. */
+    grain: 0.035,
+    fxaa: true,
   }),
 });
 
@@ -73,8 +143,8 @@ BLOCK_DEF[B.PLANT] = { name: '呼吸红花', solid: false, cross: true, tiles: {
 BLOCK_DEF[B.NA_PLANT] = { name: '钠光花', solid: false, cross: true, tiles: { all: T.NA }, hard: 0.15, snd: 'grass', drops: [{ id: 'sodium', n: [1, 3] }], flora: true, scan: 'na' };
 BLOCK_DEF[B.H_CRYS] = { name: '双氢晶簇', solid: false, cross: true, tiles: { all: T.H }, hard: 0.5, snd: 'crystal', drops: [{ id: 'dihydrogen', n: [2, 5] }], flora: true, scan: 'h2', emissive: true };
 BLOCK_DEF[B.O_PLANT] = { name: '氧蕨', solid: false, cross: true, tiles: { all: T.O2 }, hard: 0.15, snd: 'grass', drops: [{ id: 'oxygen', n: [2, 4] }], flora: true, scan: 'o2' };
-BLOCK_DEF[B.FERRITE] = { name: '铁屑岩', solid: true, tiles: { all: T.FERRITE }, hard: 1.8, snd: 'stone', drops: [{ id: 'ferrite', n: [2, 5] }], scan: 'fe' };
-BLOCK_DEF[B.COPPER] = { name: '铜矿', solid: true, tiles: { all: T.COPPER }, hard: 2.2, snd: 'stone', drops: [{ id: 'copper', n: [2, 4] }], scan: 'cu' };
+BLOCK_DEF[B.FERRITE] = { name: '铁屑岩', solid: true, tiles: { all: T.FERRITE }, hard: 1.8, snd: 'ferrite', drops: [{ id: 'ferrite', n: [2, 5] }], scan: 'fe' };
+BLOCK_DEF[B.COPPER] = { name: '铜矿', solid: true, tiles: { all: T.COPPER }, hard: 2.2, snd: 'copper', drops: [{ id: 'copper', n: [2, 4] }], scan: 'cu' };
 BLOCK_DEF[B.BEDROCK] = { name: '基岩', solid: true, tiles: { all: T.BEDROCK }, hard: Infinity, snd: 'stone' };
 
 // ============================================================

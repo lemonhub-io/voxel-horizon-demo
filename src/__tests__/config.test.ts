@@ -11,9 +11,29 @@ describe('CFG constants', () => {
   it('has 3-cascade CSM config', () => {
     expect(CFG.CSM.cascades).toBe(3);
     expect(CFG.CSM.mapSize).toBeGreaterThanOrEqual(1024);
-    expect(CFG.CSM.mode).toBe('practical');
+    expect(CFG.CSM.mode).toBe('custom');
+    expect(CFG.CSM.breaks).toHaveLength(3);
+    expect(CFG.CSM.breaks[CFG.CSM.breaks.length - 1]).toBe(1);
     expect(CFG.CSM.radiusFar).toBeGreaterThan(CFG.CSM.radiusNear);
     expect(CFG.CSM.hardCap).toBeGreaterThan(CFG.CSM.minFar);
+    expect(CFG.CSM.lightDistance).toBeGreaterThan(0);
+  });
+  it('has SSAO config for screen-space AO', () => {
+    expect(CFG.SSAO.enabled).toBe(true);
+    expect(CFG.SSAO.samples).toBeGreaterThanOrEqual(4);
+    expect(CFG.SSAO.resolutionScale).toBeGreaterThan(0);
+    expect(CFG.SSAO.resolutionScale).toBeLessThanOrEqual(1);
+    expect(CFG.SSAO.intensity).toBeGreaterThan(0);
+    expect(CFG.SSAO.intensity).toBeLessThanOrEqual(1);
+    expect(CFG.SSAO.radius).toBeGreaterThan(0);
+  });
+  it('has cinematic post-processing config', () => {
+    expect(CFG.POST.enabled).toBe(true);
+    expect(CFG.BLOOM.enabled).toBe(true);
+    expect(CFG.BLOOM.threshold).toBeGreaterThan(0);
+    expect(CFG.CINEMATIC.contrast).toBeGreaterThan(0);
+    expect(CFG.CINEMATIC.vignetteStrength).toBeGreaterThan(0);
+    expect(CFG.CINEMATIC.fxaa).toBe(true);
   });
 });
 

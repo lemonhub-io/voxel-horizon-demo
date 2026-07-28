@@ -72,6 +72,8 @@ export class Player {
   private _vmTipWorld = new THREE.Vector3();
   private _hitP = new THREE.Vector3();
   private _weaponAimPoint = new THREE.Vector3();
+  private _muzzleTmp = new THREE.Vector3();
+  private _muzzleAccum = new THREE.Vector3();
   private _shelterCache = 0;
   private _shelterVal = false;
 
@@ -131,7 +133,8 @@ export class Player {
     this.vm.add(this.weaponMount);
     this.vmTip = new THREE.Object3D();
     this.vmTip.name = 'rifle-muzzle-anchor';
-    this.vmTip.position.set(0, 0.02, -0.78);
+    // Fallback until the GLB loads and alignVmTipToMuzzle() snaps to the real barrel tip.
+    this.vmTip.position.set(0.195, 0.03, -0.97);
     this.weaponMount.add(this.vmTip);
     this.vm.position.set(0.32, -0.3, -0.55);
     g.camera.add(this.vm);
@@ -150,13 +153,65 @@ export class Player {
       fitCC0Model(model, 0.92, 0.36);
       model.name = 'quaternius-scifi-assault-rifle';
       model.position.set(0.04, -0.19, -0.36);
-      // The source rifle is authored along +X; rotate it so its barrel uses
-      // the mount's forward axis (-Z), which is the axis used by lookAt().
-      model.rotation.y = Math.PI / 2;
+      // Mesh is longest on X: barrel toward -X, stock/receiver toward +X
+      // (vertex density is higher on +X). Mount lookAt() aims local -Z forward,
+      // so rotate Y by -90°: -X → -Z (muzzle out), +X → +Z (stock toward player).
+      // +90° was inverted and left the stock facing outward.
+      model.rotation.y = -Math.PI / 2;
       this.weaponMount.add(model);
+      this.alignVmTipToMuzzle(model);
     } catch {
       // Never restore a legacy weapon mesh if the remote model cannot load.
     }
+  }
+
+  /**
+   * Place the laser/muzzle anchor on the rifle barrel tip in weaponMount space.
+   * After -90° Y, the muzzle is the most-negative local Z of the fitted mesh.
+   */
+  private alignVmTipToMuzzle(model: THREE.Object3D): void {
+    this.weaponMount.updateMatrixWorld(true);
+    model.updateMatrixWorld(true);
+
+    const v = this._muzzleTmp;
+    let minZ = Infinity;
+
+    const forEachMountLocal = (fn: (p: THREE.Vector3) => void): void => {
+      model.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const pos = child.geometry?.attributes?.position;
+        if (!pos || typeof pos.count !== 'number') return;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i);
+          child.localToWorld(v);
+          this.weaponMount.worldToLocal(v);
+          fn(v);
+        }
+      });
+    };
+
+    forEachMountLocal((p) => {
+      if (p.z < minZ) minZ = p.z;
+    });
+    if (!isFinite(minZ)) return;
+
+    // Average the forward-most vertices (within 1.5cm of the tip) for a stable center.
+    const tipBand = minZ + 0.015;
+    this._muzzleAccum.set(0, 0, 0);
+    let n = 0;
+    forEachMountLocal((p) => {
+      if (p.z <= tipBand) {
+        this._muzzleAccum.x += p.x;
+        this._muzzleAccum.y += p.y;
+        this._muzzleAccum.z += p.z;
+        n++;
+      }
+    });
+    if (n === 0) return;
+    this._muzzleAccum.multiplyScalar(1 / n);
+    // Sit just outside the mesh so the beam doesn't start inside the barrel.
+    this._muzzleAccum.z = minZ - 0.004;
+    this.vmTip.position.copy(this._muzzleAccum);
   }
 
   eyePos(): THREE.Vector3 {
@@ -477,9 +532,9 @@ export class Player {
       if (this.sfxT <= 0) {
         this.sfxT = 0.14;
         g.audio.mineHit(def.snd || 'stone');
-        // Mining sparks — small burst at hit point
+        // Mining sparks — tiny chips at hit point
         g.fx.burst(hitP.x, hitP.y, hitP.z, {
-          n: 5, col: this.blockColor(t.id), speed: 2.2, life: 0.35,
+          n: 3, col: this.blockColor(t.id), speed: 1.6, life: 0.28,
           nx: t.nx * 0.5, ny: t.ny * 0.5, nz: t.nz * 0.5
         });
       }
@@ -541,12 +596,12 @@ export class Player {
     const def = BLOCK_DEF[t.id];
     g.world.setBlock(t.x, t.y, t.z, B.AIR);
     g.audio.blockBreak(def.snd || 'stone');
-    // Directional burst — particles fly away from the break face
+    // Subtle directional chips — not a screen-filling explosion
     g.fx.burst(t.x + 0.5, t.y + 0.5, t.z + 0.5, {
-      n: 20, col: this.blockColor(t.id), speed: 3.2, life: 0.7,
+      n: 10, col: this.blockColor(t.id), speed: 2.0, life: 0.45,
       nx: t.nx, ny: t.ny, nz: t.nz
     });
-    g.fx.shake(0.08);
+    g.fx.shake(0.05);
     if (def.drops) {
       let pi = 0;
       for (const d of def.drops) {

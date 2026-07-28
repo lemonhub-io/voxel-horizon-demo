@@ -166,17 +166,19 @@ export class Game {
 
     // WebGPURenderer automatically selects the WebGL2 backend when WebGPU is
     // unavailable, so a legacy WebGLRenderer branch is no longer required.
-    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    // Omit powerPreference: Chromium on Windows ignores it and logs a noisy
+    // console warning (crbug.com/369219127) when it is passed to requestAdapter().
+    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true });
     await this.renderer.init();
-    console.warn('[VoxelHorizon] WebGPURenderer initialized');
 
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // HDR tone mapping for better light range
+    // ACES exposure balanced with soft TSL sky + CFG.CINEMATIC gain≈1.0.
+    // ~0.9: terrain readable, sky not clipped; pair with CINEMATIC.clip 1.1.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 2.5;
+    this.renderer.toneMappingExposure = 0.9;
 
     // Shadow maps
     this.renderer.shadowMap.enabled = true;
@@ -210,6 +212,7 @@ export class Game {
     }
     // FOV / render-distance changes affect cascade splits and maxFar.
     if (this.sky) this.sky.updateCsmFrustums();
+    if (this.postProc?.applySettings) this.postProc.applySettings();
   }
 
   uiOpen(): boolean {

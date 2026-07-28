@@ -1,20 +1,43 @@
 // ============================================================
-// sky.ts — Sky dome with TSL node material (WebGPU-compatible)
+// sky.ts — Soft TSL skydome + lights / CSM (WebGPU)
 // ============================================================
+//
+// Uses a controlled LDR TSL gradient sky (not Preetham SkyMesh).
+// Preetham HDR sun energy was repeatedly clipping the horizon bright;
+// this shader stays in a soft 0–1-ish range under ACES exposure.
+//
 
 import * as THREE from 'three/webgpu';
+import {
+  uniform,
+  float,
+  vec3,
+  mix,
+  pow,
+  max,
+  min,
+  abs,
+  dot,
+  normalize,
+  exp,
+  positionLocal,
+  clamp as tslClamp,
+} from 'three/tsl';
 import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
 import { U } from './utils';
 import { CFG } from './config';
 import { Starfield } from './starfield';
 import type { Game, Palette } from './types';
 
+type UniformVec3 = { value: THREE.Vector3 | THREE.Color };
+type UniformFloat = { value: number };
+
 export class Sky {
   g: Game;
   group: THREE.Group;
+  /** Soft TSL skydome mesh. */
   dome!: THREE.Mesh;
   sunLight!: THREE.DirectionalLight;
-  /** TSL cascade shadow node (near / mid / far) on sunLight.shadow.shadowNode. */
   csm!: CSMShadowNode;
   hemi!: THREE.HemisphereLight;
   ambientFill!: THREE.AmbientLight;
@@ -24,20 +47,28 @@ export class Sky {
   planetGlow!: THREE.Sprite;
   sunSprite!: THREE.Sprite;
   clouds!: THREE.Group;
-  private _cloudMaterials: THREE.SpriteMaterial[] = [];
-  private _cloudOpacities: number[] = [];
   starfield!: Starfield;
   t: number;
   dayMix: number;
   pal!: Palette;
+
   private _sunDir = new THREE.Vector3();
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
   private _csmSoftnessApplied = false;
   private _csmMaxFar = 0;
-  private _canvasSkyContext: CanvasRenderingContext2D | null = null;
-  private _canvasSkyTexture: THREE.CanvasTexture | null = null;
-  private _canvasSkyLastSignature = -1;
+  private _cloudMaterials: THREE.SpriteMaterial[] = [];
+  private _cloudOpacities: number[] = [];
+
+  // TSL uniforms (updated each frame)
+  private _uTop!: UniformVec3;
+  private _uHor!: UniformVec3;
+  private _uGround!: UniformVec3;
+  private _uSunDir!: UniformVec3;
+  private _uSunCol!: UniformVec3;
+  private _uDay!: UniformFloat;
+  private _uDusk!: UniformFloat;
+  private _uStorm!: UniformFloat;
 
   constructor(game: Game) {
     this.g = game;
@@ -53,200 +84,148 @@ export class Sky {
     this.starfield = new Starfield();
   }
 
+  /**
+   * Soft palette-driven TSL sky (MeshBasicNodeMaterial).
+   * Gradient + mild Rayleigh-like falloff + gentle sun glow (no HDR Preetham).
+   */
   private _buildSkyDome(): void {
-    this._buildCanvasSkyDome();
-  }
+    const uTop = uniform(new THREE.Color('#3a8fd4'));
+    const uHor = uniform(new THREE.Color('#bfe4ee'));
+    const uGround = uniform(new THREE.Color('#1a2838'));
+    const uSunDir = uniform(new THREE.Vector3(0.5, 0.8, 0.2));
+    const uSunCol = uniform(new THREE.Color('#fff2d0'));
+    const uDay = uniform(1.0);
+    const uDusk = uniform(0.0);
+    const uStorm = uniform(0.0);
 
-  /** Stable dynamic sky for both WebGPU and WebGL renderer backends. */
-  private _buildCanvasSkyDome(): void {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 512;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Canvas 2D context is unavailable');
-    this._canvasSkyContext = context;
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.magFilter = THREE.LinearFilter;
-    texture.minFilter = THREE.LinearFilter;
-    texture.generateMipmaps = false;
-    this._canvasSkyTexture = texture;
-    this._paintCanvasSky('#3a8fd4', '#bfe4ee', 1, 0);
+    this._uTop = uTop as unknown as UniformVec3;
+    this._uHor = uHor as unknown as UniformVec3;
+    this._uGround = uGround as unknown as UniformVec3;
+    this._uSunDir = uSunDir as unknown as UniformVec3;
+    this._uSunCol = uSunCol as unknown as UniformVec3;
+    this._uDay = uDay as unknown as UniformFloat;
+    this._uDusk = uDusk as unknown as UniformFloat;
+    this._uStorm = uStorm as unknown as UniformFloat;
 
-    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, depthWrite: false, fog: false });
-    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 32, 20), material);
-    this.dome.frustumCulled = false;
-    this.dome.renderOrder = -10;
-    this.group.add(this.dome);
-  }
+    const dir = normalize(positionLocal);
+    const h = max(dir.y, float(0));
+    const under = max(dir.y.negate(), float(0));
 
-  private _paintCanvasSky(top: string, horizon: string, day: number, dusk: number): void {
-    const ctx = this._canvasSkyContext;
-    if (!ctx || !this._canvasSkyTexture) return;
-    const { width, height } = ctx.canvas;
-    const upper = U.mixHex('#05091a', top, day);
-    const middle = U.mixHex(U.shade(upper, 1.1), horizon, 0.46);
-    const lower = U.mixHex(horizon, U.shade(horizon, 0.42), 0.58);
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, upper);
-    gradient.addColorStop(0.36, middle);
-    gradient.addColorStop(0.52, horizon);
-    gradient.addColorStop(0.64, lower);
-    gradient.addColorStop(1, U.shade(lower, 0.72));
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+    // Soft vertical gradient (zenith → horizon → ground)
+    const zenithMix = pow(h, float(0.55));
+    let col = mix(uHor, uTop, zenithMix);
 
-    if (dusk > 0.01) {
-      const glow = ctx.createLinearGradient(0, height * 0.28, 0, height * 0.68);
-      glow.addColorStop(0, 'rgba(255,132,74,0)');
-      glow.addColorStop(0.52, `rgba(255,104,52,${(dusk * 0.42).toFixed(3)})`);
-      glow.addColorStop(1, 'rgba(255,104,52,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, width, height);
-    }
-    this._canvasSkyTexture.needsUpdate = true;
-  }
+    // Slight cooler zenith / warmer low sky without harsh bands
+    const lowBoost = pow(float(1).sub(h), float(2.2));
+    col = mix(col, uHor.mul(1.05), lowBoost.mul(0.25));
 
-  /** Disabled pending a Three.js TSL compatibility update. */
-  private _buildNodeSkyDome(): void { /*
-    // TSL functions are under THREE.TSL namespace
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const TSL = THREE.TSL;
-    const { uniform, float, vec3, mix, pow, max, min, dot, normalize, sin, abs, floor, exp, fract, step, positionLocal, Fn, time } = TSL;
+    // Soft ground hemisphere
+    const groundMask = tslClamp(under.mul(2.2), float(0), float(1));
+    col = mix(col, mix(uHor, uGround, float(0.65)), groundMask);
 
-    // Uniforms
-    const uTop = uniform('vec3'); uTop.value = new THREE.Color('#3a8fd4');
-    const uHor = uniform('vec3'); uHor.value = new THREE.Color('#bfe4ee');
-    const uSun = uniform('vec3'); uSun.value = new THREE.Vector3(0, 1, 0);
-    const uSunCol = uniform('vec3'); uSunCol.value = new THREE.Color('#fff2d0');
-    const uNight = uniform('float'); uNight.value = 0;
-    const uStar = uniform('float'); uStar.value = 0;
+    // Soft sky body first (no HDR sun energy), then add a visible sun disc on top.
+    col = min(col, vec3(0.88));
 
-    this._uTop = uTop;
-    this._uHor = uHor;
-    this._uSun = uSun;
-    this._uSunCol = uSunCol;
-    this._uNight = uNight;
-    this._uStar = uStar;
+    // Visible sun disc + soft corona (still much gentler than Preetham SkyMesh).
+    // sunAbove fades the disc under the horizon instead of hard-cutting.
+    const sunDirN = normalize(uSunDir);
+    const sunDot = max(dot(dir, sunDirN), float(0));
+    const sunAbove = tslClamp(sunDirN.y.mul(3.5).add(0.15), float(0), float(1));
+    const dayVis = max(uDay, uDusk.mul(0.65));
+    // Tight bright core (disc)
+    const disc = pow(sunDot, float(220)).mul(float(1.15));
+    // Soft limb
+    const limb = pow(sunDot, float(80)).mul(float(0.45));
+    // Wide gentle halo
+    const corona = pow(sunDot, float(12)).mul(float(0.16));
+    // Dusk-only warm scatter near sun (kept mild)
+    const duskGlow = pow(sunDot, float(4))
+      .mul(float(1).sub(abs(dir.y)))
+      .mul(uDusk)
+      .mul(float(0.1));
+    const sunLight = disc.add(limb).add(corona).add(duskGlow).mul(sunAbove).mul(dayVis);
+    col = col.add(uSunCol.mul(sunLight));
 
-    // Sky color node tree
-    const d = normalize(positionLocal);
-    const h = max(d.y, float(0));
+    // Gentle dusk warm band near horizon
+    const duskBand = exp(abs(dir.y).negate().mul(5.5)).mul(uDusk).mul(float(0.14));
+    col = col.add(vec3(1.0, 0.48, 0.25).mul(duskBand));
 
-    // Rayleigh scattering
-    const rayleigh = exp(h.negate().mul(vec3(5.5, 13.0, 22.4)));
-    const skyBase = mix(uHor, uTop, float(1).sub(rayleigh));
-    const col = mix(skyBase, mix(uHor, uTop, pow(h, 0.45)), 0.4);
+    // Storm desaturation / darken
+    const stormGrey = vec3(0.35, 0.38, 0.42);
+    col = mix(col, stormGrey, uStorm.mul(0.45));
+    col = col.mul(float(1).sub(uStorm.mul(0.2)));
 
-    // Ground blend
-    const groundFactor = max(min(d.y.negate().mul(2.5), 1.0), 0.0);
-    const groundCol = mix(uHor, uHor.mul(0.4), groundFactor);
-    // `step(edge, x)` is one when x >= edge. The ground must only cover
-    // the lower hemisphere; the previous argument order muted the whole sky.
-    const groundMask = step(d.y, float(0));
-    const withGround = mix(col, groundCol, groundMask);
+    // Night pull toward deep blue (when day low)
+    const nightCol = mix(uHor, uTop, float(0.4)).mul(0.35);
+    col = mix(nightCol, col, max(uDay, uDusk.mul(0.5)));
 
-    // Sun disc
-    const s = max(dot(d, uSun), float(0));
-    const horizonBoost = float(1).sub(abs(d.y));
-    const mie = pow(s, 8).mul(0.15).mul(horizonBoost);
+    // Soft ceiling: allow sun to read brighter than sky, ACES will roll it off.
+    col = min(col, vec3(1.25));
 
-    let skyColor = withGround;
-    skyColor = skyColor.add(uSunCol.mul(pow(s, 900)).mul(5));
-    skyColor = skyColor.add(uSunCol.mul(pow(s, 24)).mul(0.8));
-    skyColor = skyColor.add(uSunCol.mul(pow(s, 5)).mul(0.3).mul(horizonBoost));
-    skyColor = skyColor.add(uSunCol.mul(mie));
-
-    // Dusk band
-    const duskBand = exp(abs(d.y).negate().mul(6)).mul(uNight).mul(0.4);
-    const duskCol = mix(vec3(1, 0.5, 0.2), vec3(1, 0.3, 0.1), float(1).sub(rayleigh.z));
-    skyColor = skyColor.add(duskCol.mul(duskBand).mul(max(uSun.y.add(0.2), 0)));
-
-    // Stars
-    const hash3 = Fn((p: unknown) => {
-      return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
-    });
-    const cell = floor(d.mul(280));
-    const star = step(0.998, hash3(cell));
-    const tw = float(0.55).add(sin(time.mul(2.4).add(hash3(cell.add(1)).mul(40))).mul(0.45));
-    const starColHash = hash3(cell.add(2));
-    const starTint = mix(vec3(0.8, 0.9, 1), vec3(1, 0.9, 0.7), starColHash);
-    const starSize = float(0.8).add(hash3(cell.add(3)).mul(0.6));
-    skyColor = skyColor.add(starTint.mul(star).mul(tw).mul(uStar).mul(starSize));
-
-    // Night glow — brighter for better visibility
-    const nightGlow = float(1).sub(h).mul(uNight).mul(0.2);
-    skyColor = skyColor.add(vec3(0.08, 0.12, 0.25).mul(nightGlow));
-
-    // Create node material (MeshBasicNodeMaterial is from the WebGPU build)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const MeshBasicNodeMaterial = THREE.MeshBasicNodeMaterial;
-    const mat = new MeshBasicNodeMaterial();
-    mat.colorNode = skyColor;
+    const mat = new THREE.MeshBasicNodeMaterial();
+    mat.colorNode = col;
     mat.side = THREE.BackSide;
     mat.depthWrite = false;
     mat.fog = false;
+    mat.toneMapped = true;
 
-    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), mat);
+    this.dome = new THREE.Mesh(new THREE.SphereGeometry(720, 32, 20), mat);
     this.dome.frustumCulled = false;
     this.dome.renderOrder = -10;
     this.group.add(this.dome);
-    */
   }
 
   private _buildLights(): void {
     const csmCfg = CFG.CSM;
     this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.castShadow = true;
-    // Base shadow template is cloned per cascade by CSMShadowNode.
-    this.sunLight.shadow.mapSize.set(csmCfg.mapSize, csmCfg.mapSize);
-    this.sunLight.shadow.camera.near = csmCfg.shadowNear;
-    this.sunLight.shadow.camera.far = csmCfg.shadowFar;
-    this.sunLight.shadow.camera.left = -1;
-    this.sunLight.shadow.camera.right = 1;
-    this.sunLight.shadow.camera.top = 1;
-    this.sunLight.shadow.camera.bottom = -1;
-    this.sunLight.shadow.bias = csmCfg.bias;
-    this.sunLight.shadow.normalBias = csmCfg.normalBias;
-    this.sunLight.shadow.radius = csmCfg.radiusNear;
 
-    // TSL cascaded shadows (WebGPURenderer) — near / mid / far frustums.
-    // Official pattern: light.shadow.shadowNode = new CSMShadowNode(light, opts)
-    // See three.js examples/webgpu_shadowmap_csm.html
+    const sh = this.sunLight.shadow;
+    sh.mapSize.set(csmCfg.mapSize, csmCfg.mapSize);
+    sh.camera.near = csmCfg.shadowNear;
+    sh.camera.far = csmCfg.shadowFar;
+    sh.camera.left = -50;
+    sh.camera.right = 50;
+    sh.camera.top = 50;
+    sh.camera.bottom = -50;
+    sh.camera.updateProjectionMatrix();
+    sh.bias = csmCfg.bias;
+    sh.normalBias = csmCfg.normalBias;
+    sh.radius = csmCfg.radiusNear;
+    sh.intensity = 1;
+
     this._csmMaxFar = this._computeCsmMaxFar();
     this.csm = new CSMShadowNode(this.sunLight, {
       cascades: csmCfg.cascades,
       maxFar: this._csmMaxFar,
       mode: csmCfg.mode,
       lightMargin: csmCfg.lightMargin,
+      customSplitsCallback: (cascades, _near, _far, breaks) => {
+        const preset = csmCfg.breaks;
+        for (let i = 0; i < cascades; i++) {
+          breaks.push(preset[Math.min(i, preset.length - 1)]);
+        }
+      },
     });
-    // Soft blend between cascade splits reduces hard rings at near↔mid↔far.
-    this.csm.fade = true;
-    // The current WebGPU declaration does not accept CSMShadowNode as a shadowNode.
-    // Keep the compatible directional-light shadow path active instead.
+    this.csm.fade = false;
+    this.sunLight.shadow.shadowNode = this.csm as unknown as typeof this.sunLight.shadow.shadowNode;
 
     this.g.scene.add(this.sunLight);
-    // Target must stay in the scene graph so light direction stays world-stable.
     this.g.scene.add(this.sunLight.target);
 
-    this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
+    this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.6);
     this.g.scene.add(this.hemi);
 
-    this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.15);
+    this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.25);
     this.g.scene.add(this.ambientFill);
   }
 
-  /** Shadow coverage scales with render distance (chunk count × chunk size). */
   private _computeCsmMaxFar(): number {
     const csmCfg = CFG.CSM;
     const dist = this.g.settings?.dist ?? 4;
     return U.clamp(dist * CFG.CHUNK * csmCfg.farScale, csmCfg.minFar, csmCfg.hardCap);
   }
 
-  /**
-   * Recompute cascade splits / ortho bounds. Call after camera projection
-   * changes (resize, FOV) or when render-distance settings change maxFar.
-   */
   updateCsmFrustums(): void {
     if (!this.csm) return;
     const nextFar = this._computeCsmMaxFar();
@@ -254,25 +233,39 @@ export class Sky {
       this._csmMaxFar = nextFar;
       this.csm.maxFar = nextFar;
     }
-    // CSMShadowNode.updateFrustums requires camera set in _init (first material setup).
     if (this.csm.camera) this.csm.updateFrustums();
   }
 
-  /** Apply per-cascade PCF radius once cascade lights exist (after first setup). */
-  private _applyCascadeSoftness(): void {
+  private _applyCascadeQuality(): void {
     if (this._csmSoftnessApplied || !this.csm?.lights?.length) return;
     const csmCfg = CFG.CSM;
     const radii = [csmCfg.radiusNear, csmCfg.radiusMid, csmCfg.radiusFar];
     for (let i = 0; i < this.csm.lights.length; i++) {
-      this.csm.lights[i].shadow.radius = radii[Math.min(i, radii.length - 1)];
+      const cascadeShadow = this.csm.lights[i].shadow;
+      cascadeShadow.radius = radii[Math.min(i, radii.length - 1)];
+      cascadeShadow.camera.near = csmCfg.shadowNear;
+      cascadeShadow.camera.far = csmCfg.shadowFar;
+      cascadeShadow.camera.updateProjectionMatrix();
     }
     this._csmSoftnessApplied = true;
   }
 
   private _buildSun(): void {
     const glowTex = Sky.makeGlow();
-    this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
-    this.sunSprite.scale.set(260, 260, 1);
+    // Outer soft glow sprite (complements the TSL disc in the sky shader).
+    this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex,
+      color: '#ffe8b0',
+      transparent: true,
+      opacity: 0.75,
+      fog: false,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    this.sunSprite.scale.set(200, 200, 1);
+    this.sunSprite.renderOrder = -5;
     this.group.add(this.sunSprite);
   }
 
@@ -282,97 +275,25 @@ export class Sky {
     this.clouds = new THREE.Group();
     this.group.add(this.clouds);
 
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 12; i++) {
       const angle = rng() * Math.PI * 2;
-      const radius = 360 + rng() * 230;
-      const material = new THREE.SpriteMaterial({ map: texture, color: '#e8f4ff', transparent: true, opacity: 0.2, fog: false, depthWrite: false });
+      const radius = 360 + rng() * 220;
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        color: '#e8f4ff',
+        transparent: true,
+        opacity: 0.18,
+        fog: false,
+        depthWrite: false,
+      });
       const cloud = new THREE.Sprite(material);
-      cloud.position.set(Math.cos(angle) * radius, 55 + rng() * 155, Math.sin(angle) * radius);
-      const width = 180 + rng() * 220;
+      cloud.position.set(Math.cos(angle) * radius, 60 + rng() * 140, Math.sin(angle) * radius);
+      const width = 160 + rng() * 200;
       cloud.scale.set(width, width * (0.28 + rng() * 0.12), 1);
       this.clouds.add(cloud);
       this._cloudMaterials.push(material);
-      this._cloudOpacities.push(0.55 + rng() * 0.45);
+      this._cloudOpacities.push(0.4 + rng() * 0.35);
     }
-  }
-
-  private _buildLegacyCelestial(): void {
-    this.celestial = new THREE.Group();
-    this.group.add(this.celestial);
-
-    // Planet — procedural continents and oceans via vertex colors
-    const planetGeo = new THREE.SphereGeometry(120, 32, 24);
-    const planetColors = new Float32Array(planetGeo.attributes.position.count * 3);
-    for (let i = 0; i < planetGeo.attributes.position.count; i++) {
-    const px = planetGeo.getAttribute('position').getX(i);
-    const py = planetGeo.getAttribute('position').getY(i);
-    const pz = planetGeo.getAttribute('position').getZ(i);
-      // Simple noise-like pattern for continents
-      const n1 = Math.sin(px * 0.05) * Math.cos(pz * 0.07) * Math.sin(py * 0.04);
-      const n2 = Math.sin(px * 0.12 + 1.5) * Math.cos(pz * 0.09 + 0.7);
-      const land = n1 + n2 * 0.5;
-      // Polar ice
-      const polar = Math.abs(py) / 120;
-      const ice = polar > 0.7 ? (polar - 0.7) / 0.3 : 0;
-      // Color: ocean blue / land green-brown / ice white
-      let r: number, g: number, b: number;
-      if (land > 0.3) {
-        // Land — green/brown
-        r = 0.35 + land * 0.2; g = 0.5 + land * 0.15; b = 0.25 + land * 0.1;
-      } else {
-        // Ocean — deep blue
-        r = 0.15 + land * 0.1; g = 0.3 + land * 0.15; b = 0.55 + land * 0.1;
-      }
-      // Mix in ice at poles
-      r = r + (0.9 - r) * ice;
-      g = g + (0.92 - g) * ice;
-      b = b + (0.95 - b) * ice;
-      planetColors[i * 3] = r;
-      planetColors[i * 3 + 1] = g;
-      planetColors[i * 3 + 2] = b;
-    }
-    planetGeo.setAttribute('color', new THREE.BufferAttribute(planetColors, 3));
-    this.planetBig = new THREE.Mesh(planetGeo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#0a1520', roughness: 0.85, metalness: 0.05, fog: false }));
-    this.planetBig.position.set(480, 130, -380);
-    this.celestial.add(this.planetBig);
-
-    // Moon — maria patches and craters via vertex colors
-    const moonGeo = new THREE.SphereGeometry(34, 24, 18);
-    const moonColors = new Float32Array(moonGeo.attributes.position.count * 3);
-    for (let i = 0; i < moonGeo.attributes.position.count; i++) {
-    const x = moonGeo.getAttribute('position').getX(i);
-    const y = moonGeo.getAttribute('position').getY(i);
-    const z = moonGeo.getAttribute('position').getZ(i);
-      // Maria (dark patches)
-      const m1 = Math.sin(x * 0.25 + 1.0) * Math.cos(z * 0.3);
-      const m2 = Math.sin(y * 0.4 + 0.5) * Math.cos(x * 0.2 + 2.0);
-      const maria = Math.max(m1, m2);
-      // Craters (small dark circles)
-      const c1 = Math.sin(x * 0.8) * Math.sin(z * 0.8 + 1.0);
-      const c2 = Math.sin(x * 0.6 + 3.0) * Math.cos(z * 0.6 + 1.5);
-      const crater = Math.max(c1, c2) > 0.85 ? 0.7 : 1.0;
-      // Base color: warm grey
-      const base = maria > 0.4 ? 0.55 : 0.82;
-      const r = base * crater;
-      const g = (base * 0.97) * crater;
-      const b = (base * 0.9) * crater;
-      moonColors[i * 3] = r;
-      moonColors[i * 3 + 1] = g;
-      moonColors[i * 3 + 2] = b;
-    }
-    moonGeo.setAttribute('color', new THREE.BufferAttribute(moonColors, 3));
-    this.moon = new THREE.Mesh(moonGeo, new THREE.MeshStandardMaterial({ vertexColors: true, emissive: '#1a1810', roughness: 0.9, metalness: 0.02, fog: false }));
-    this.moon.position.set(-420, 200, 240);
-    this.celestial.add(this.moon);
-    const glowTex = Sky.makeGlow();
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#9fc4ff', transparent: true, opacity: 0.5, fog: false, depthWrite: false }));
-    glow.scale.set(400, 400, 1);
-    glow.position.copy(this.planetBig.position);
-    this.celestial.add(glow);
-    this.planetGlow = glow;
-    this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
-    this.sunSprite.scale.set(260, 260, 1);
-    this.group.add(this.sunSprite);
   }
 
   static makeGlow(): THREE.CanvasTexture {
@@ -381,7 +302,7 @@ export class Sky {
     const x = c.getContext('2d')!;
     const g = x.createRadialGradient(128, 128, 4, 128, 128, 128);
     g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.25, 'rgba(255,255,255,0.5)');
+    g.addColorStop(0.3, 'rgba(255,255,255,0.35)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     x.fillStyle = g;
     x.fillRect(0, 0, 256, 256);
@@ -396,8 +317,8 @@ export class Sky {
     const puffs = [[70, 112, 70], [130, 82, 88], [210, 105, 78], [286, 70, 96], [372, 105, 74], [438, 120, 55]];
     for (const [x, y, radius] of puffs) {
       const gradient = context.createRadialGradient(x, y, radius * 0.1, x, y, radius);
-      gradient.addColorStop(0, 'rgba(255,255,255,0.92)');
-      gradient.addColorStop(0.52, 'rgba(255,255,255,0.55)');
+      gradient.addColorStop(0, 'rgba(255,255,255,0.9)');
+      gradient.addColorStop(0.52, 'rgba(255,255,255,0.5)');
       gradient.addColorStop(1, 'rgba(255,255,255,0)');
       context.fillStyle = gradient;
       context.beginPath();
@@ -411,93 +332,123 @@ export class Sky {
     this.pal = pal;
   }
 
+  private _setColor(u: UniformVec3, hex: string): void {
+    if (u.value instanceof THREE.Color) u.value.set(hex);
+    else (u.value as THREE.Vector3).set(0, 0, 0);
+  }
+
   update(dt: number): void {
     const g = this.g;
     this.t = (this.t + dt / CFG.DAY_LEN) % 1;
     const ang = (this.t - 0.25) * Math.PI * 2;
-    const sunY = Math.sin(ang), sunX = Math.cos(ang);
+    const sunY = Math.sin(ang);
+    const sunX = Math.cos(ang);
     const sunDir = this._sunDir.set(sunX * 0.7, sunY, sunX * 0.3).normalize();
 
     const day = U.clamp(sunY * 2.8 + 0.35, 0, 1);
     this.dayMix = day;
     const dusk = U.clamp(1 - Math.abs(sunY) * 3.5, 0, 1) * (day > 0.03 ? 1 : 0.3);
     const pal = this.pal;
+    const storm = g.stormFactor || 0;
 
-    // Update TSL uniforms
+    // --- Soft TSL sky uniforms (palette-driven, LDR) ---
     const top = U.mixHex(pal.skyNightTop, pal.skyDayTop, day);
     let hor = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
-    if (dusk > 0) hor = U.mixHex(hor, '#ff8a4a', dusk * 0.6);
-    const skySignature = day + dusk * 2;
-    if (Math.abs(skySignature - this._canvasSkyLastSignature) > 0.002) {
-      this._canvasSkyLastSignature = skySignature;
-      this._paintCanvasSky(top, hor, day, dusk);
-    }
+    if (dusk > 0) hor = U.mixHex(hor, '#e8a070', dusk * 0.35);
+    const ground = U.shade(hor, 0.35 + day * 0.15);
 
-    // Sun light direction — CSM derives cascade cameras from this direction + view frustum.
-    this.sunLight.position.copy(sunDir).multiplyScalar(300);
+    this._setColor(this._uTop, top);
+    this._setColor(this._uHor, hor);
+    this._setColor(this._uGround, ground);
+    (this._uSunDir.value as THREE.Vector3).copy(sunDir);
+    this._setColor(this._uSunCol, dusk > 0.15 ? U.mixHex(pal.sun, '#ffc090', dusk * 0.4) : pal.sun);
+    this._uDay.value = day;
+    this._uDusk.value = dusk;
+    this._uStorm.value = storm;
+
+    // Focus shadows near the player
     if (g.player) {
       const p = g.player.pos;
-      // Snap target to a coarse grid to reduce cascade thrash while walking.
       const cellSize = 4;
       const snapX = Math.round(p.x / cellSize) * cellSize;
       const snapZ = Math.round(p.z / cellSize) * cellSize;
       if (snapX !== this._shadowTargetX || snapZ !== this._shadowTargetZ) {
         this._shadowTargetX = snapX;
         this._shadowTargetZ = snapZ;
-        this.sunLight.target.position.set(snapX, p.y, snapZ);
-        this.sunLight.target.updateMatrixWorld();
       }
+      this.sunLight.target.position.set(this._shadowTargetX, p.y, this._shadowTargetZ);
     }
-    this.sunLight.intensity = 0.6 + day * 1.8 + dusk * 0.2;
-    this.sunLight.color.set(dusk > 0.1
-      ? U.mixHex(pal.sun, '#ff7a4a', dusk * 0.7)
-      : U.mixHex('#8fa8cc', pal.sun, Math.max(day, 0.2)));
+    this.sunLight.position
+      .copy(this.sunLight.target.position)
+      .addScaledVector(sunDir, CFG.CSM.lightDistance);
+    this.sunLight.target.updateMatrixWorld();
+    this.sunLight.updateMatrixWorld();
 
-    // Cascade lights appear after first WebGPU material setup of the sun light.
-    this._applyCascadeSoftness();
-    // Keep maxFar in sync if the player changes render distance mid-session.
+    // Soft key light
+    this.sunLight.intensity = 0.35 + day * 0.95 + dusk * 0.06;
+    this.sunLight.color.set(dusk > 0.1
+      ? U.mixHex(pal.sun, '#ffc8a0', dusk * 0.3)
+      : U.mixHex('#a8bdd4', pal.sun, Math.max(day, 0.25)));
+
+    this._applyCascadeQuality();
     const nextFar = this._computeCsmMaxFar();
-    if (nextFar !== this._csmMaxFar && this.csm.camera) {
+    if (nextFar !== this._csmMaxFar && this.csm?.camera) {
       this._csmMaxFar = nextFar;
       this.csm.maxFar = nextFar;
       this.csm.updateFrustums();
     }
 
-    this.hemi.intensity = 0.5 + day * 0.7 + dusk * 0.1;
+    this.hemi.intensity = 0.5 + day * 0.45 + dusk * 0.06;
     this.hemi.color.set(top);
-    this.hemi.groundColor.set(U.shade(pal.grass, 0.5 + day * 0.2));
-    this.ambientFill.intensity = 0.35 + (1 - day) * 0.3;
+    this.hemi.groundColor.set(U.shade(pal.grass, 0.55 + day * 0.2));
+    this.ambientFill.intensity = 0.3 + (1 - day) * 0.25;
 
-    this.sunSprite.position.copy(sunDir).multiplyScalar(650);
-    this.sunSprite.material.opacity = 0.4 + day * 0.5 + dusk * 0.15;
+    // Sun sprite sits inside the sky sphere (r=720) so it draws in front of the dome.
+    this.sunSprite.position.copy(sunDir).multiplyScalar(580);
+    const sunHeightFade = U.clamp((sunDir.y + 0.05) / 0.35, 0, 1);
+    const sunOpacity = (0.25 + day * 0.45 + dusk * 0.2) * sunHeightFade * (1 - storm * 0.4);
+    this.sunSprite.material.opacity = Math.max(0, sunOpacity);
+    this.sunSprite.scale.setScalar(160 + day * 80 + dusk * 40);
+    this.sunSprite.material.color.set(
+      dusk > 0.15 ? U.mixHex(pal.sun, '#ffb070', dusk * 0.5) : pal.sun,
+    );
+    this.sunSprite.visible = sunDir.y > -0.08 && this.sunSprite.material.opacity > 0.02;
 
-    // Fog
-    const storm = g.stormFactor || 0;
-    const cloudColor = U.mixHex('#60758f', '#f4fbff', day);
+    // Soft sprite clouds
+    const cloudColor = U.mixHex('#6a7f96', '#f0f7ff', day);
     for (let i = 0; i < this._cloudMaterials.length; i++) {
       this._cloudMaterials[i].color.set(cloudColor);
-      this._cloudMaterials[i].opacity = this._cloudOpacities[i] * (0.08 + day * 0.2) * (1 - storm * 0.45);
+      this._cloudMaterials[i].opacity =
+        this._cloudOpacities[i] * (0.06 + day * 0.16) * (1 - storm * 0.5);
     }
-    this.clouds.rotation.y += dt * 0.0012;
-    // Keep distant terrain atmospheric without washing it into a grey layer.
+    this.clouds.rotation.y += dt * 0.001;
+
+    // Distance fog
     const skyHorizon = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
     let fogCol = U.mixHex(U.mixHex(pal.fogNight, pal.fogDay, day), skyHorizon, 0.55);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
     const dist = g.settings.dist * 16;
-    let fogNear = dist * 0.85, fogFar = dist * 2.15;
-    if (storm > 0) { fogNear = U.lerp(fogNear, 12, storm); fogFar = U.lerp(fogFar, dist * 0.7, storm); }
-    if (g.player && g.player.headInWater) { fogCol = U.shade(pal.water || '#2e6f9e', 0.7); fogNear = 2; fogFar = 22; }
+    let fogNear = dist * 0.85;
+    let fogFar = dist * 2.15;
+    if (storm > 0) {
+      fogNear = U.lerp(fogNear, 12, storm);
+      fogFar = U.lerp(fogFar, dist * 0.7, storm);
+    }
+    if (g.player && g.player.headInWater) {
+      fogCol = U.shade(pal.water || '#2e6f9e', 0.7);
+      fogNear = 2;
+      fogFar = 22;
+    }
     if (g.scene.fog instanceof THREE.Fog) {
       g.scene.fog.color.set(fogCol);
       g.scene.fog.near = fogNear;
       g.scene.fog.far = fogFar;
     }
-    g.renderer.setClearColor(U.mixHex(skyHorizon, top, 0.35));
+    g.renderer.setClearColor(U.mixHex(skyHorizon, top, 0.4));
 
     this.group.position.copy(g.camera.position);
     if (g.audio.ok) g.audio.nightMix = 1 - day;
 
-    // Star field
     this.starfield.update(g.time, g.camera.rotation.y, g.camera.rotation.x, 1 - day);
   }
 }
