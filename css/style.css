@@ -90,8 +90,8 @@ body{font-family:var(--fb);color:var(--ink);font-size:16px}
 #hold-ring .ring-fg{stroke:#fff;stroke-dasharray:113;stroke-dashoffset:113}
 
 /* ---------- stats ---------- */
-#stats-left{position:absolute;left:22px;bottom:24px;display:flex;flex-direction:column;gap:8px}
-#stats-right{position:absolute;right:22px;bottom:24px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+#stats-left{position:absolute;left:max(22px,env(safe-area-inset-left));top:230px;bottom:auto;display:flex;flex-direction:column;gap:8px}
+#stats-right{position:absolute;left:max(22px,env(safe-area-inset-left));top:286px;right:auto;bottom:auto;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .stat-row{display:flex;align-items:center;gap:10px}
 .stat-ico{width:22px;height:22px;flex:0 0 22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.9;filter:drop-shadow(0 0 4px rgba(255,255,255,.28))}
 #hp-segs{display:flex;gap:4px}
@@ -386,7 +386,7 @@ body.touch-device .hb-slot:active{border-color:#fff;transform:translateY(-2px)}
 @media (max-width:600px){
   h1{font-size:35px;letter-spacing:5px}.t-kicker{font-size:10px;letter-spacing:4px}.t-sub{font-size:12px;letter-spacing:3px;margin:8px 0 26px}.t-seed{flex-direction:column;align-items:flex-start}.t-foot{left:6vw}
   .grid{grid-template-columns:repeat(4,48px)}.slot{width:48px;height:48px}.slot img{inset:5px;width:38px;height:38px}.bar{width:136px;height:10px}.hp-seg{width:32px;height:10px}
-  #stats-left{left:10px;bottom:80px;gap:4px}#stats-right{right:10px;bottom:80px;gap:4px}#hotbar{bottom:max(8px,env(safe-area-inset-bottom));gap:4px}.hb-slot{width:42px;height:42px}.hb-slot img{inset:4px;width:34px;height:34px}.hb-slot .key{display:none}
+  #stats-left{left:max(10px,env(safe-area-inset-left));top:210px;bottom:auto;gap:4px}#stats-right{left:max(10px,env(safe-area-inset-left));top:252px;right:auto;bottom:auto;gap:4px;align-items:flex-start}#hotbar{bottom:max(8px,env(safe-area-inset-bottom));gap:4px}.hb-slot{width:42px;height:42px}.hb-slot img{inset:4px;width:34px;height:34px}.hb-slot .key{display:none}
   #hud-corner{right:8px;top:6px}#hud-units{font-size:16px}#hud-planet{font-size:10px}#compass-wrap{margin-top:5px;height:40px;max-width:88vw}.touch-btn{width:44px;height:44px;font-size:12px}.touch-btn-jump{width:50px;height:50px}.touch-btn{margin:0}#touch-actions{grid-template-columns:repeat(2,44px);gap:8px;bottom:22vh}
   #touch-joy-base{width:100px;height:100px}#touch-joy-thumb{width:40px;height:40px;margin:-20px 0 0 -20px}.load-box{width:86vw}.load-name{font-size:30px;letter-spacing:5px}.intro-skip{right:14px;bottom:14px}
 }
