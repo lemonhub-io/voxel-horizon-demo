@@ -174,8 +174,6 @@ export const PALETTES: Palette[] = [
   },
 ];
 
-export const HAZ_ICONS: Record<string, string> = { heat: '☀', cold: '❄', toxic: '☣', rad: '☢' };
-
 export const MILESTONE_DEFS: MilestoneDef[] = [
   { key: 'walk', name: '行者', unit: 'm', tiers: [100, 500, 2000, 8000], subs: ['初行百里', '行者无疆', '远行者', '星际流浪者'] },
   { key: 'mined', name: '采集者', unit: '次', tiers: [10, 50, 200, 800], subs: ['初识矿物', '矿脉猎手', '采集大师', '星球矿工'] },

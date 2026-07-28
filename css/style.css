@@ -65,13 +65,13 @@ body{font-family:var(--fb);color:var(--ink);font-size:16px}
 #compass{width:100%;height:100%}
 #hud-corner{position:absolute;right:18px;top:12px;text-align:right;font-family:var(--fh)}
 #hud-units{font-size:20px;letter-spacing:2px;color:#fff}
-#hud-units .u-sym{color:var(--acc2);margin-right:6px;font-size:16px}
+#hud-units .hud-icon{width:16px;height:16px;margin-right:6px;color:var(--acc2)}
 #hud-planet{font-size:12px;letter-spacing:3px;opacity:.8;margin-top:2px}
-#hud-env{font-size:12px;letter-spacing:2px;opacity:.75;margin-top:2px}
+#hud-env{display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:12px;letter-spacing:2px;opacity:.75;margin-top:2px}
 #env-icon{margin-right:6px;color:var(--warn)}
 
 #alert-center{position:absolute;top:86px;left:50%;transform:translateX(-50%);padding:8px 22px;border:1px solid var(--danger);background:rgba(60,8,8,.72);color:#ffd9d4;font-weight:700;letter-spacing:3px;animation:alarmFlash 1s steps(2) infinite;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
-#alert-center .alert-icon{color:var(--danger);margin-right:10px}
+#alert-center .alert-icon{width:16px;height:16px;vertical-align:-3px;color:var(--danger);margin-right:10px}
 @keyframes alarmFlash{50%{border-color:rgba(255,92,92,.25);background:rgba(60,8,8,.4)}}
 
 /* ---------- crosshair ---------- */
@@ -93,7 +93,7 @@ body{font-family:var(--fb);color:var(--ink);font-size:16px}
 #stats-left{position:absolute;left:22px;bottom:24px;display:flex;flex-direction:column;gap:8px}
 #stats-right{position:absolute;right:22px;bottom:24px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .stat-row{display:flex;align-items:center;gap:10px}
-.stat-ico{width:22px;text-align:center;font-size:15px;opacity:.9;text-shadow:0 0 8px rgba(255,255,255,.4)}
+.stat-ico{width:22px;height:22px;flex:0 0 22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.9;filter:drop-shadow(0 0 4px rgba(255,255,255,.28))}
 #hp-segs{display:flex;gap:4px}
 .hp-seg{width:44px;height:12px;background:#fff;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%);box-shadow:0 0 10px rgba(255,255,255,.35);transition:opacity .2s,background .2s}
 .hp-seg.off{background:rgba(255,255,255,.13);box-shadow:none}
@@ -125,7 +125,7 @@ body{font-family:var(--fb);color:var(--ink);font-size:16px}
 @keyframes slideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1}}
 
 /* ---------- mission ---------- */
-#mission-card{position:absolute;right:20px;bottom:64px;width:320px;padding:12px 16px;background:var(--panel);border:1px solid var(--line2);border-right:3px solid var(--acc);backdrop-filter:blur(8px);clip-path:polygon(12px 0,100% 0,100% 100%,0 100%,0 12px)}
+#mission-card{position:absolute;left:max(20px,env(safe-area-inset-left));top:max(72px,calc(env(safe-area-inset-top) + 58px));width:min(320px,calc(100vw - 40px));padding:12px 16px;background:var(--panel);border:1px solid var(--line2);border-left:3px solid var(--acc);backdrop-filter:blur(8px);clip-path:polygon(12px 0,100% 0,100% 100%,0 100%,0 12px)}
 #mission-kind{font-size:10px;letter-spacing:3px;color:var(--acc);font-family:var(--fh);margin-bottom:3px}
 #mission-title{font-size:17px;font-weight:700;letter-spacing:1px}
 #mission-desc{font-size:13px;opacity:.75;margin-top:3px;line-height:1.5}
@@ -235,7 +235,7 @@ body{font-family:var(--fb);color:var(--ink);font-size:16px}
 .req-row .have{margin-left:auto;font-family:var(--fh);font-size:13px}
 .req-row .have.ok{color:#9be564}.req-row .have.no{color:var(--danger)}
 .disc-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border-bottom:1px solid var(--line2);font-size:15px}
-.disc-row .d-ico{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(120,230,245,.12);border:1px solid rgba(120,230,245,.3);font-size:14px}
+.disc-row .d-ico{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(120,230,245,.12);border:1px solid rgba(120,230,245,.3)}
 .disc-row .d-sub{margin-left:auto;font-size:11px;font-family:var(--fh);opacity:.6;letter-spacing:1px;text-align:right}
 .mile-row{padding:7px 10px;border-left:2px solid var(--line);margin-bottom:6px;font-size:14px;background:rgba(255,255,255,.03)}
 .mile-row b{color:var(--warn)}
@@ -416,3 +416,10 @@ body.touch-device .hb-slot:active{border-color:#fff;transform:translateY(-2px)}
   #touch-joy-zone{width:42vw;height:72vh}#touch-actions{bottom:max(10px,env(safe-area-inset-bottom))}
   #touch-utilities{top:max(10px,env(safe-area-inset-top))}#touch-sprint-indicator{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 118px)}
 }
+
+#hud-units .hud-icon,#hud-env .hud-icon,.disc-row .d-ico svg,.unit-gain svg{display:inline-block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+#hud-env .hud-icon{width:14px;height:14px;color:var(--warn)}
+.disc-row .d-ico svg{width:17px;height:17px;color:var(--acc2)}
+.unit-gain{display:inline-flex;align-items:center;gap:4px}
+.unit-gain svg{width:12px;height:12px;color:var(--acc2)}
+@media (max-width:600px){#mission-card{left:max(10px,env(safe-area-inset-left));top:max(54px,calc(env(safe-area-inset-top) + 44px));width:min(300px,calc(100vw - 20px));padding:10px 12px}#mission-title{font-size:15px}}

@@ -835,7 +835,7 @@ export class Player {
     g.inv.units += entry.units;
     g.inv.syncStore();
     g.audio.analyze();
-    g.hud.notify(`已记录 ${entry.name} —— +${entry.units} ◈`, 'success');
+    g.hud.notify(`已记录 ${entry.name} —— +${entry.units}`, 'success');
     g.milestones.addStat('scans', 1);
     g.missions.onEvent('analyze');
   }

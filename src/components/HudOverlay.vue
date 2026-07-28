@@ -3,13 +3,12 @@
     <div id="hud-top">
       <div id="compass-wrap"><canvas id="compass" ref="compassCanvas" width="640" height="52"></canvas></div>
       <div id="hud-corner">
-        <div id="hud-units"><span class="u-sym">◈</span><span>{{ inventory.units }}</span></div>
+        <div id="hud-units"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 8 10-8 10L4 12z"/><path d="m12 7 4 5-4 5-4-5z"/></svg><span>{{ inventory.units }}</span></div>
         <div id="hud-planet">{{ game.planetName }}</div>
-        <div id="hud-env"><span>{{ envIcon }}</span><span>{{ envLabel }}</span></div>
+        <div id="hud-env"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg><span>{{ envLabel }}</span></div>
       </div>
     </div>
-
-    <div id="alert-center" :class="{ hidden: !hud.alertOn }"><span class="alert-icon">⚠</span><span>{{ hud.alertText }}</span></div>
+    <div id="alert-center" :class="{ hidden: !hud.alertOn }"><svg class="alert-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5m0 3h.01"/></svg><span>{{ hud.alertText }}</span></div>
 
     <div id="crosshair" :class="{ hidden: hud.flightHudOn }">
       <svg id="mine-ring" width="56" height="56" viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="24"/><circle class="ring-fg" cx="28" cy="28" r="24" :style="mineRingStyle"/></svg>
@@ -24,13 +23,13 @@
     </div>
 
     <div id="stats-left" :class="{ hidden: hud.flightHudOn }">
-      <div id="shield-row" class="stat-row"><span class="stat-ico">⬡</span><div class="bar"><div class="bar-fill shield" :style="{ width: player.hp + '%' }"></div></div></div>
-      <div class="stat-row"><span class="stat-ico">✚</span><div id="hp-segs"><div v-for="i in 4" :key="i" class="hp-seg" :class="{ off: player.hp / 100 < i / 4 - 0.24, hurt: player.hp < 30 }"></div></div></div>
+      <div id="shield-row" class="stat-row"><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 3v5c0 4.5-2.8 8-7 10-4.2-2-7-5.5-7-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg><div class="bar"><div class="bar-fill shield" :style="{ width: player.hp + '%' }"></div></div></div>
+      <div class="stat-row"><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><div id="hp-segs"><div v-for="i in 4" :key="i" class="hp-seg" :class="{ off: player.hp / 100 < i / 4 - 0.24, hurt: player.hp < 30 }"></div></div></div>
     </div>
 
     <div id="stats-right" :class="{ hidden: hud.flightHudOn }">
-      <div class="stat-row"><div class="bar rtl"><div class="bar-fill haz" :class="{ low: player.hazard < 25 }" :style="{ width: player.hazard + '%' }"></div></div><span class="stat-ico">{{ hazIcon }}</span></div>
-      <div class="stat-row"><div class="bar rtl"><div class="bar-fill ls" :class="{ low: player.ls < 25 }" :style="{ width: player.ls + '%' }"></div></div><span class="stat-ico">❍</span></div>
+      <div class="stat-row"><div class="bar rtl"><div class="bar-fill haz" :class="{ low: player.hazard < 25 }" :style="{ width: player.hazard + '%' }"></div></div><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 15H4z"/><path d="M12 9v4m0 3h.01"/></svg></div>
+      <div class="stat-row"><div class="bar rtl"><div class="bar-fill ls" :class="{ low: player.ls < 25 }" :style="{ width: player.ls + '%' }"></div></div><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></div>
     </div>
 
     <Hotbar :items="inventory.hotbar" :sel="inventory.sel" :class="{ hidden: hud.flightHudOn }" />
@@ -90,7 +89,6 @@ import { usePlayerStore } from '../stores/playerStore';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useShipStore } from '../stores/shipStore';
 import { useHudStore } from '../stores/hudStore';
-import { HAZ_ICONS } from '../config';
 import Hotbar from './Hotbar.vue';
 import Toasts from './Toasts.vue';
 import Notifications from './Notifications.vue';
@@ -167,8 +165,6 @@ function refreshScreenMarkers(timestamp: number): void {
 onMounted(() => { markerFrame = requestAnimationFrame(refreshScreenMarkers); });
 onUnmounted(() => cancelAnimationFrame(markerFrame));
 
-const hazIcon = computed(() => HAZ_ICONS[game.palette.hazard.type] || '☢');
-const envIcon = computed(() => game.stormActive ? '⚠' : '☀');
 const envLabel = computed(() => game.stormActive ? game.palette.storm.label : '白昼');
 
 const mineRingStyle = computed(() => ({
