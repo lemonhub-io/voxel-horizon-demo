@@ -44,9 +44,6 @@ export class Fauna {
     const model = template.clone(true);
     fitCC0Model(model, creature.sp.size * 1.9, creature.sp.size * 2.15);
     model.rotation.y = Math.PI;
-    creature.grp.children.forEach(child => {
-      if (child !== creature.shadow) child.visible = false;
-    });
     creature.grp.add(model);
   }
 
@@ -70,14 +67,24 @@ export class Fauna {
     }
     const px = this.g.spawnPoint ? this.g.spawnPoint.x : 8;
     const pz = this.g.spawnPoint ? this.g.spawnPoint.z : 8;
-    const count = 6 + Math.floor(rng() * 5);
+    const count = 8 + Math.floor(rng() * 5);
+    const nearbyCount = Math.min(3, count);
     for (let i = 0; i < count; i++) {
       const sp = this.speciesList[Math.floor(rng() * this.speciesList.length)];
-      let x = px + (rng() - 0.5) * 160, z = pz + (rng() - 0.5) * 160;
+      const nearby = i < nearbyCount;
+      const minRadius = nearby ? 18 : 38;
+      const maxRadius = nearby ? 42 : 100;
+      let angle = rng() * Math.PI * 2;
+      let radius = minRadius + rng() * (maxRadius - minRadius);
+      let x = px + Math.cos(angle) * radius;
+      let z = pz + Math.sin(angle) * radius;
       for (let t = 0; t < 8; t++) {
         const gy = this.g.world.surfaceY(Math.floor(x), Math.floor(z));
         if (!pal.sea || gy > CFG.SEA) break;
-        x = px + (rng() - 0.5) * 160; z = pz + (rng() - 0.5) * 160;
+        angle = rng() * Math.PI * 2;
+        radius = minRadius + rng() * (maxRadius - minRadius);
+        x = px + Math.cos(angle) * radius;
+        z = pz + Math.sin(angle) * radius;
       }
       this.spawnCreature(sp, x, z, rng);
     }
