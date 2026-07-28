@@ -398,6 +398,8 @@ body.touch-device .hb-slot:active{border-color:#fff;transform:translateY(-2px)}
 #touch-actions{right:max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:3;display:flex;pointer-events:auto}
 .touch-btn{display:grid;place-items:center;width:64px;height:64px;margin:0;border:1px solid rgba(205,239,250,.56);border-radius:50%;font-size:0;background:rgba(5,16,25,.82);color:#e7f8ff;box-shadow:0 0 22px rgba(102,217,232,.18)}
 .touch-btn-jump{width:64px;height:64px}
+.touch-btn svg,.touch-utility-btn svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.touch-btn svg{width:28px;height:28px}
 #touch-utilities{position:absolute;top:max(62px,calc(env(safe-area-inset-top) + 48px));right:max(12px,env(safe-area-inset-right));z-index:4;display:flex;gap:7px;pointer-events:auto}
 .touch-utility-btn{display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid rgba(205,239,250,.34);border-radius:12px;background:rgba(5,16,25,.7);color:rgba(235,250,255,.9);touch-action:manipulation;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
 .touch-utility-btn svg{width:18px;height:18px}.touch-utility-btn:active{background:rgba(150,230,250,.24);transform:scale(.94)}

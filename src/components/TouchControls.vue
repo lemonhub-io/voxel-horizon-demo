@@ -74,6 +74,7 @@ const joyThumbY = ref(0);
 const joyRadius = 58;
 const longPressDelay = 360;
 const lookMoveThreshold = 12;
+const touchLookScale = 2.3;
 let joyPointer = -1;
 let lastJoyTap = 0;
 let joyCenterX = 0;
@@ -224,7 +225,7 @@ function onLookMove(event: PointerEvent): void {
     clearLongPressTimer();
     stopMining();
   }
-  const sensitivity = (getGame()?.settings.touchSens ?? 100) / 100 * 0.78;
+  const sensitivity = (getGame()?.settings.touchSens ?? 100) / 100 * touchLookScale;
   input.dx += dx * sensitivity;
   input.dy += dy * sensitivity;
 }
