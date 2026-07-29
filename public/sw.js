@@ -2,7 +2,7 @@
 /* global self, caches, clients, fetch, Request, Response, URL */
 
 /** Bump on asset path / model identity changes so clients drop stale frog astronaut caches. */
-const CACHE_VERSION = 'voxel-horizon-pwa-v3-modular-astronaut';
+const CACHE_VERSION = 'voxel-horizon-pwa-v4-ivory-outline-icon';
 const PRECACHE = [
   './',
   './index.html',

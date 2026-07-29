@@ -25,25 +25,30 @@ function pngChunk(type, data) {
   return Buffer.concat([len, typeB, data, crc]);
 }
 
-/** Simple square icon: dark bg + solid cyan square inset. */
+/** Minimal app icon: warm ivory background + black hollow voxel square. */
 function makeSquarePng(size) {
   const rows = [];
-  const margin = Math.round(size * 0.18);
+  const margin = Math.round(size * 0.2);
+  const stroke = Math.max(2, Math.round(size * 0.085));
   for (let y = 0; y < size; y++) {
     const row = Buffer.alloc(1 + size * 4);
     row[0] = 0;
     for (let x = 0; x < size; x++) {
       const i = 1 + x * 4;
-      const inSquare = x >= margin && x < size - margin && y >= margin && y < size - margin;
-      if (inSquare) {
-        row[i] = 0x5e;
-        row[i + 1] = 0xc8;
-        row[i + 2] = 0xff;
+      const inside = x >= margin && x < size - margin && y >= margin && y < size - margin;
+      const hollowSquare = inside && (
+        x < margin + stroke || x >= size - margin - stroke ||
+        y < margin + stroke || y >= size - margin - stroke
+      );
+      if (hollowSquare) {
+        row[i] = 0x12;
+        row[i + 1] = 0x12;
+        row[i + 2] = 0x12;
         row[i + 3] = 0xff;
       } else {
-        row[i] = 0x0a;
-        row[i + 1] = 0x14;
-        row[i + 2] = 0x20;
+        row[i] = 0xf4;
+        row[i + 1] = 0xf0;
+        row[i + 2] = 0xe6;
         row[i + 3] = 0xff;
       }
     }
