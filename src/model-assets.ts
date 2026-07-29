@@ -14,12 +14,15 @@ export const CC0_MODEL_URLS = Object.freeze({
     `${CC0_DIR}/quaternius-deer.gltf`,
   ],
   rifle: `${CC0_DIR}/quaternius-scifi-assault-rifle.glb`,
-  /** Quaternius Ultimate Space Kit — CC0 astronaut (player body). */
-  player: `${CC0_DIR}/quaternius-astronaut.glb`,
+  /**
+   * Quaternius Ultimate Modular Men — humanoid spacesuit (NOT Ultimate Space Kit frog).
+   * Filename is versioned to bust stale PWA caches of the old FinnTheFrog asset.
+   */
+  player: `${CC0_DIR}/modular-men-astronaut.glb`,
   /** Legacy CDN mirrors (docs / packaging). */
   cdn: Object.freeze({
     base: CDN_BASE,
-    player: `${CDN_BASE}/quaternius-astronaut.glb`,
+    player: `${CDN_BASE}/modular-men-astronaut.glb`,
   }),
 });
 

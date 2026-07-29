@@ -1,5 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { findAnimationClip, fitCC0ModelExactHeight, loadCC0ModelWithAnimations } from '../cc0-models';
+import {
+  findAnimationClip,
+  fitCC0ModelExactHeight,
+  isFinnTheFrogScene,
+  loadCC0ModelWithAnimations,
+  styleModularMenAstronaut,
+} from '../cc0-models';
 import { CFG } from '../config';
 import { CC0_MODEL_URLS } from '../model-assets';
 import { animToKey, type AnimCode, type PlayerSnap } from './protocol';
@@ -34,8 +40,12 @@ export class RemotePlayer {
   private async load(initialAnim: AnimCode): Promise<void> {
     try {
       const { scene, animations } = await loadCC0ModelWithAnimations(CC0_MODEL_URLS.player);
+      if (isFinnTheFrogScene(scene)) {
+        throw new Error('Rejected FinnTheFrog remote mesh');
+      }
       fitCC0ModelExactHeight(scene, CFG.PLAYER_H);
-      scene.name = 'remote-astronaut';
+      styleModularMenAstronaut(scene);
+      scene.name = 'remote-modular-men-astronaut';
       scene.traverse((child) => {
         const n = child.name.toLowerCase();
         if (n.includes('pistol') || n.includes('rifle') || n.includes('gun') || n.includes('weapon')) {

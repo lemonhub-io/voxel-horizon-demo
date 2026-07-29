@@ -1,7 +1,8 @@
 /* Voxel Horizon service worker — offline shell + runtime asset cache */
 /* global self, caches, clients, fetch, Request, Response, URL */
 
-const CACHE_VERSION = 'voxel-horizon-pwa-v1';
+/** Bump on asset path / model identity changes so clients drop stale frog astronaut caches. */
+const CACHE_VERSION = 'voxel-horizon-pwa-v3-modular-astronaut';
 const PRECACHE = [
   './',
   './index.html',
@@ -29,9 +30,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))),
-      )
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -39,8 +38,9 @@ self.addEventListener('activate', (event) => {
 /**
  * Same-origin GET strategy:
  * - navigations: network first, fallback to cached shell
- * - static assets (js/css/wasm/models/icons): cache first, then network
- * - external CDN (models, fonts): network first, cache on success
+ * - 3D models (glb/gltf): network first (avoid stale character meshes)
+ * - other static assets: cache first, then network
+ * - external CDN: network first, cache on success
  */
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -54,6 +54,18 @@ self.addEventListener('fetch', (event) => {
 
   if (req.mode === 'navigate' || (req.destination === 'document' && sameOrigin)) {
     event.respondWith(networkFirstNavigation(req));
+    return;
+  }
+
+  const path = url.pathname.toLowerCase();
+  const isModel =
+    path.endsWith('.glb') ||
+    path.endsWith('.gltf') ||
+    path.endsWith('.bin') ||
+    path.includes('/models/');
+
+  if (isModel) {
+    event.respondWith(networkFirstOptionalCache(req));
     return;
   }
 

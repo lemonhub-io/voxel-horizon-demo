@@ -5,7 +5,15 @@
 import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
-import { findAnimationClip, fitCC0Model, fitCC0ModelExactHeight, loadCC0Model, loadCC0ModelWithAnimations } from './cc0-models';
+import {
+  findAnimationClip,
+  fitCC0Model,
+  fitCC0ModelExactHeight,
+  isFinnTheFrogScene,
+  loadCC0Model,
+  loadCC0ModelWithAnimations,
+  styleModularMenAstronaut,
+} from './cc0-models';
 import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
 
@@ -195,9 +203,14 @@ export class Player {
   private async loadPlayerBody(): Promise<void> {
     try {
       const { scene, animations } = await loadCC0ModelWithAnimations(CC0_MODEL_URLS.player);
+      // Hard reject the old Ultimate Space Kit frog if a stale cache serves it.
+      if (isFinnTheFrogScene(scene)) {
+        throw new Error('Rejected FinnTheFrog player mesh — use modular-men-astronaut.glb');
+      }
       // Exactly 2 voxels tall (CFG.PLAYER_H), feet on y=0.
       fitCC0ModelExactHeight(scene, CFG.PLAYER_H);
-      scene.name = 'quaternius-astronaut';
+      styleModularMenAstronaut(scene);
+      scene.name = 'modular-men-astronaut';
       // FPS uses a separate rifle viewmodel — hide baked weapon props on the body.
       scene.traverse((child) => {
         const n = child.name.toLowerCase();

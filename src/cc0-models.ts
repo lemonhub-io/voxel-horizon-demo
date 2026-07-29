@@ -156,6 +156,59 @@ function prepareCC0Scene(root: THREE.Object3D): void {
   root.updateMatrixWorld(true);
 }
 
+/** True if this glTF is the banned Ultimate Space Kit frog astronaut. */
+export function isFinnTheFrogScene(root: THREE.Object3D): boolean {
+  let found = false;
+  root.traverse((child) => {
+    const n = (child.name || '').toLowerCase();
+    if (n.includes('finnthefrog') || n === 'frog' || n.includes('finn_the_frog')) found = true;
+  });
+  return found;
+}
+
+/**
+ * Brighten Modular Men spacesuit solid materials (poly.pizza export is very dark).
+ * Safe no-op for textured fauna / ship / rifle models.
+ */
+export function styleModularMenAstronaut(root: THREE.Object3D): void {
+  const byName: Record<string, number> = {
+    scifi_light_accent: 0xff8a3d, // orange suit accents
+    scifi_light: 0xe8eef2, // light plating
+    scifi_maindark: 0x1a2228, // dark joints
+    scifi_main: 0x3a4a55, // mid plating
+    grey: 0x6a7a88, // helmet glass rim
+  };
+  root.traverse((child) => {
+    const mesh = child as THREE.Object3D & {
+      material?: THREE.Material | THREE.Material[];
+    };
+    const mats = mesh.material
+      ? Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material]
+      : [];
+    for (const mat of mats) {
+      const m = mat as THREE.Material & {
+        name?: string;
+        color?: { setHex: (h: number) => void };
+        metalness?: number;
+        roughness?: number;
+        map?: THREE.Texture | null;
+        needsUpdate?: boolean;
+      };
+      if (m.map) continue; // keep textured assets untouched
+      const key = (m.name || '').toLowerCase();
+      const hex = byName[key];
+      if (hex !== undefined && m.color) {
+        m.color.setHex(hex);
+        if (typeof m.metalness === 'number') m.metalness = 0.35;
+        if (typeof m.roughness === 'number') m.roughness = 0.45;
+        m.needsUpdate = true;
+      }
+    }
+  });
+}
+
 function failureReason(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return '网络请求或模型解析失败';
