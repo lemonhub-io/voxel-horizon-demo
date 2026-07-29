@@ -34,6 +34,13 @@ export class Sky {
   private _uNight: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _uStar: any;
+  moonLight!: THREE.DirectionalLight;
+  moonSprite!: THREE.Sprite;
+  private _moonDir = new THREE.Vector3();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uMoon: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _uMoonVis: any;
 
   constructor(game: Game) {
     this.g = game;
@@ -45,6 +52,7 @@ export class Sky {
     this._buildSkyDome();
     this._buildLights();
     this._buildSun();
+    this._buildMoon();
     this.starfield = new Starfield();
   }
 
@@ -61,6 +69,8 @@ export class Sky {
     const uSunCol = uniform('vec3'); uSunCol.value = new THREE.Color('#fff2d0');
     const uNight = uniform('float'); uNight.value = 0;
     const uStar = uniform('float'); uStar.value = 0;
+    const uMoon = uniform('vec3'); uMoon.value = new THREE.Vector3(0, -1, 0);
+    const uMoonVis = uniform('float'); uMoonVis.value = 0;
 
     this._uTop = uTop;
     this._uHor = uHor;
@@ -68,6 +78,8 @@ export class Sky {
     this._uSunCol = uSunCol;
     this._uNight = uNight;
     this._uStar = uStar;
+    this._uMoon = uMoon;
+    this._uMoonVis = uMoonVis;
 
     // Sky color node tree
     const d = normalize(positionLocal);
@@ -116,6 +128,11 @@ export class Sky {
     const nightGlow = float(1).sub(h).mul(uNight).mul(0.2);
     skyColor = skyColor.add(vec3(0.08, 0.12, 0.25).mul(nightGlow));
 
+    // Moon halo — cool atmospheric glow opposite the sun, visible at night
+    const sm = max(dot(d, uMoon), float(0));
+    skyColor = skyColor.add(vec3(0.82, 0.86, 0.94).mul(pow(sm, 28)).mul(0.55).mul(uMoonVis));
+    skyColor = skyColor.add(vec3(0.6, 0.7, 0.9).mul(pow(sm, 6)).mul(0.12).mul(uMoonVis));
+
     // Create node material (MeshBasicNodeMaterial is from the WebGPU build)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const MeshBasicNodeMaterial = (THREE as any).MeshBasicNodeMaterial;
@@ -149,6 +166,11 @@ export class Sky {
     this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.75);
     this.g.scene.add(this.hemi);
 
+    // Moonlight — cool overhead fill that lights the scene at night (no shadows)
+    this.moonLight = new THREE.DirectionalLight(0x9fb4d8, 0);
+    this.g.scene.add(this.moonLight);
+    this.g.scene.add(this.moonLight.target);
+
     this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.15);
     this.g.scene.add(this.ambientFill as unknown as THREE.Object3D);
   }
@@ -158,6 +180,65 @@ export class Sky {
     this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffe8b0', transparent: true, opacity: 0.9, fog: false, depthWrite: false }));
     this.sunSprite.scale.set(260, 260, 1);
     this.group.add(this.sunSprite);
+  }
+
+  private _buildMoon(): void {
+    const tex = Sky.makeMoon();
+    this.moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: '#eef2ff', transparent: true, opacity: 0, fog: false, depthWrite: false }));
+    this.moonSprite.scale.set(140, 140, 1);
+    this.group.add(this.moonSprite);
+  }
+
+  static makeMoon(): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const x = c.getContext('2d')!;
+    // Outer cool glow
+    const g = x.createRadialGradient(128, 128, 8, 128, 128, 128);
+    g.addColorStop(0, 'rgba(200,220,255,0.5)');
+    g.addColorStop(0.5, 'rgba(160,190,230,0.12)');
+    g.addColorStop(1, 'rgba(120,150,200,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 256);
+    // Moon disc with subtle limb shading
+    const cx = 128, cy = 128, r = 52;
+    const dg = x.createRadialGradient(cx - 12, cy - 12, 4, cx, cy, r);
+    dg.addColorStop(0, '#f4f7ff');
+    dg.addColorStop(0.7, '#dfe5f2');
+    dg.addColorStop(1, '#c4cee0');
+    x.fillStyle = dg;
+    x.beginPath();
+    x.arc(cx, cy, r, 0, Math.PI * 2);
+    x.fill();
+    // Craters (maria), seeded
+    const rng = U.mulberry32(7777);
+    x.save();
+    x.beginPath();
+    x.arc(cx, cy, r, 0, Math.PI * 2);
+    x.clip();
+    for (let i = 0; i < 14; i++) {
+      const a = rng() * Math.PI * 2;
+      const dd = Math.sqrt(rng()) * r * 0.85;
+      const px = cx + Math.cos(a) * dd;
+      const py = cy + Math.sin(a) * dd;
+      const cr = 3 + rng() * 11;
+      const cg = x.createRadialGradient(px, py, 0, px, py, cr);
+      cg.addColorStop(0, 'rgba(110,120,150,0.28)');
+      cg.addColorStop(0.6, 'rgba(120,132,160,0.12)');
+      cg.addColorStop(1, 'rgba(120,132,160,0)');
+      x.fillStyle = cg;
+      x.beginPath();
+      x.arc(px, py, cr, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.restore();
+    // Subtle rim highlight
+    x.strokeStyle = 'rgba(255,255,255,0.25)';
+    x.lineWidth = 1.5;
+    x.beginPath();
+    x.arc(cx, cy, r, 0, Math.PI * 2);
+    x.stroke();
+    return new THREE.CanvasTexture(c);
   }
 
   static makeGlow(): THREE.CanvasTexture {
@@ -200,7 +281,14 @@ export class Sky {
     this._uNight.value = 1 - day;
     this._uStar.value = Math.max(0, 1 - day * 2.5) * 1.0;
 
-    // Sun light
+    const night = 1 - day;
+
+    // Moon — always opposite the sun (full moon overhead at midnight)
+    const moonX = -sunX, moonY = -sunY;
+    const moonDir = this._moonDir.set(moonX * 0.7, moonY, moonX * 0.3).normalize();
+    const moonVis = night * U.clamp(moonY * 1.5 + 0.15, 0, 1);
+
+    // Sun light — fades at night; only casts shadows during the day
     this.sunLight.position.copy(sunDir).multiplyScalar(300);
     if (g.player) {
       const p = g.player.pos;
@@ -214,22 +302,42 @@ export class Sky {
         this.sunLight.target.updateMatrixWorld();
       }
     }
-    this.sunLight.intensity = 0.6 + day * 1.8 + dusk * 0.2;
+    this.sunLight.intensity = 0.25 + day * 1.85 + dusk * 0.25;
+    this.sunLight.castShadow = day > 0.12;
     this.sunLight.color.set(dusk > 0.1
       ? U.mixHex(pal.sun, '#ff7a4a', dusk * 0.7)
       : U.mixHex('#8fa8cc', pal.sun, Math.max(day, 0.2)));
 
-    this.hemi.intensity = 0.5 + day * 0.7 + dusk * 0.1;
-    this.hemi.color.set(top);
+    // Moonlight — cool overhead directional fill at night (no shadow pass for perf)
+    this.moonLight.position.copy(moonDir).multiplyScalar(300);
+    if (g.player) {
+      const p = g.player.pos;
+      this.moonLight.target.position.set(p.x, p.y, p.z);
+      this.moonLight.target.updateMatrixWorld();
+    }
+    this.moonLight.intensity = moonVis * 0.85;
+    this.moonLight.color.set(U.mixHex('#9fb4d8', '#c8d6f0', U.clamp(moonY * 2, 0, 1)));
+
+    this.hemi.intensity = 0.6 + day * 0.65 + dusk * 0.1;
+    this.hemi.color.set(U.mixHex(top, '#3a4866', night * 0.4));
     this.hemi.groundColor.set(U.shade(pal.grass, 0.5 + day * 0.2));
-    this.ambientFill.intensity = 0.35 + (1 - day) * 0.3;
+    this.ambientFill.intensity = 0.45 + night * 0.35;
+    this.ambientFill.color.set(U.mixHex('#1a2030', '#2a3852', night * 0.5));
+
+    // Sky-dome moon halo uniform
+    this._uMoon.value = new THREE.Vector3(moonDir.x, moonDir.y, moonDir.z);
+    this._uMoonVis.value = moonVis;
 
     this.sunSprite.position.copy(sunDir).multiplyScalar(650);
-    (this.sunSprite.material as THREE.SpriteMaterial).opacity = 0.4 + day * 0.5 + dusk * 0.15;
+    (this.sunSprite.material as THREE.SpriteMaterial).opacity = 0.15 + day * 0.55 + dusk * 0.2;
 
-    // Fog
+    this.moonSprite.position.copy(moonDir).multiplyScalar(650);
+    (this.moonSprite.material as THREE.SpriteMaterial).opacity = moonVis * 0.95;
+
+    // Fog — slightly lifted at night so distance never fades to pure black
     const storm = g.stormFactor || 0;
     let fogCol = U.mixHex(pal.fogNight, pal.fogDay, day);
+    fogCol = U.mixHex(fogCol, '#1a2438', night * 0.35);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
     const dist = g.settings.dist * 16;
     let fogNear = dist * 0.6, fogFar = dist * 1.5;
@@ -241,9 +349,9 @@ export class Sky {
     g.renderer.setClearColor(fogCol);
 
     this.group.position.copy(g.camera.position);
-    if (g.audio.ok) g.audio.nightMix = 1 - day;
+    if (g.audio.ok) g.audio.nightMix = night;
 
     // Star field
-    this.starfield.update(g.time, g.camera.rotation.y, g.camera.rotation.x, 1 - day);
+    this.starfield.update(g.time, g.camera.rotation.y, g.camera.rotation.x, night);
   }
 }
