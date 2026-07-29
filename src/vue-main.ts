@@ -12,6 +12,14 @@ const app = createApp(App);
 app.use(pinia);
 app.mount('#vue-app');
 
+// Touch class before engine load so title-screen Help uses mobile manual.
+// Input.init() re-applies the same probe once the game starts.
+{
+  const isTouch =
+    window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  document.body.classList.toggle('touch-device', isTouch);
+}
+
 // Progressive Web App (production builds only)
 void registerServiceWorker();
 

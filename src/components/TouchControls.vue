@@ -232,7 +232,12 @@ function onLookMove(event: PointerEvent): void {
 
 function placeOrOpenShip(event: PointerEvent): void {
   const player = getGame()?.player;
-  if (!player || player.inShip || player.visor) return;
+  if (!player || player.visor) return;
+  // In flight, a short look-zone tap mirrors keyboard E (land).
+  if (player.inShip) {
+    triggerKey('KeyE');
+    return;
+  }
   if (!player.tryOpenShipPanel(event.clientX, event.clientY)) player.placeBlock();
 }
 

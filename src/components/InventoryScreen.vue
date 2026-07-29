@@ -91,7 +91,7 @@ v-for="(s, i) in store.hotbar" :key="i" class="slot" :class="{ selected: isSel('
     </div>
 
     <!-- Mobile long-press / double-tap detail popover -->
-    <div v-if="modalItem" class="inv-modal" @mousedown.self="closeModal()" @touchstart.self.passive="closeModal()">
+    <div v-if="modalItem" class="inv-modal" @click.self="onModalBackdropClose" @touchstart.self.passive="onModalBackdropClose">
       <div class="inv-modal-card item-card panel">
         <div class="ic-head"><img :src="icon(modalItem.id)"><div><h3>{{ ITEMS[modalItem.id]?.name }}</h3><div class="ic-type">{{ ITEMS[modalItem.id]?.type }} · 持有 {{ store.count(modalItem.id) }}</div></div></div>
         <div class="ic-desc">{{ ITEMS[modalItem.id]?.desc }}</div>
@@ -177,9 +177,18 @@ let pressTimer: ReturnType<typeof setTimeout> | undefined;
 let pressPos = { x: 0, y: 0 };
 let moved = false;
 let lastTap = 0;
+/** Ignore backdrop close for a short window after open (mobile ghost mouse/click). */
+let ignoreBackdropCloseUntil = 0;
 
-function openModal(s: SlotItem): void { modalItem.value = s; }
+function openModal(s: SlotItem): void {
+  modalItem.value = s;
+  ignoreBackdropCloseUntil = Date.now() + 350;
+}
 function closeModal(): void { modalItem.value = null; }
+function onModalBackdropClose(): void {
+  if (Date.now() < ignoreBackdropCloseUntil) return;
+  closeModal();
+}
 function useFromModal(): void {
   if (!modalItem.value) return;
   if (store.count(modalItem.value.id) < 1) return;
@@ -189,8 +198,9 @@ function useFromModal(): void {
 
 function onTouchStart(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null, e: TouchEvent): void {
   if (!s) return;
-  moved = false;
   const t = e.touches[0];
+  if (!t) return;
+  moved = false;
   pressPos = { x: t.clientX, y: t.clientY };
   pressTimer = setTimeout(() => {
     pressTimer = undefined;
