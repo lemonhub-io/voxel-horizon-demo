@@ -18,7 +18,7 @@
         <div><span class="kbd">长按右侧</span> 激光采集 / 攻击</div><div><span class="kbd">轻点右侧</span> 放置方块 / 进飞船</div>
         <div><span class="kbd">扫描/跃迁键</span> 扫描脉冲 · 跃迁</div><div><span class="kbd">目镜键</span> 分析目镜</div>
         <div><span class="kbd">背包键</span> 物品 · 合成 · 发现</div><div><span class="kbd">暂停键</span> 菜单</div>
-        <div class="help-wide">飞行模式：右侧拖拽转向 · 摇杆控油门 · 点击跃迁键跃迁(需跃迁电池)</div>
+        <div class="help-wide">飞行模式：右侧拖拽转向 · 摇杆控油门 · 接近地面时自动降落 · 点击跃迁键跃迁(需跃迁电池)</div>
       </div>
       <div class="help-flow">旅程指引：补充防护(钠·黄色荧光植物) → 校准工具(铁尘·岩石) → 生命维持(氧·红色呼吸花) → 合成金属镀层修复推进器 → 碳纳米管修复脉冲引擎 → 双氢合成启动燃料 → 起飞 → 建造庇护所 · 扫描生物 · 合成跃迁电池 → 跃迁新星球</div>
       <div class="set-actions"><button class="btn sm" @click="$emit('back')">返回</button></div>

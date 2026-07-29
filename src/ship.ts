@@ -20,10 +20,17 @@ export class Ship {
   yaw: number;
   pitch: number;
   landing: boolean;
+  /** Seconds airborne this flight; used to avoid auto-land right after takeoff. */
+  flyTime: number;
   smokeT: number;
   open: boolean;
   engineGlows: THREE.Sprite[];
   shadow!: THREE.Mesh;
+
+  /** After this many airborne seconds, skimming near ground triggers auto-land. */
+  static readonly AUTO_LAND_GRACE = 2.0;
+  /** Auto-land when height above solid ground is at or below this (blocks). */
+  static readonly AUTO_LAND_ALT = 8;
 
   constructor(game: Game) {
     this.g = game;
@@ -41,6 +48,7 @@ export class Ship {
     this.yaw = 0;
     this.pitch = 0;
     this.landing = false;
+    this.flyTime = 0;
     this.smokeT = 0;
     this.open = false;
     this.engineGlows = [];
@@ -217,6 +225,16 @@ export class Ship {
     if (pos.y < groundY) pos.y = U.lerp(pos.y, groundY, dt * 5);
     if (pos.y > 220) pos.y = 220;
 
+    this.flyTime += dt;
+    // Near-ground auto-land (mobile-friendly; keyboard E still works above this band).
+    if (this.flyTime >= Ship.AUTO_LAND_GRACE && !this.landing) {
+      const solidY = g.world.topSolidY(Math.floor(pos.x), Math.floor(pos.z)) + 1;
+      if (pos.y - solidY <= Ship.AUTO_LAND_ALT) {
+        this.tryLand();
+        return;
+      }
+    }
+
     const targetRot = new THREE.Euler(this.pitch * 0.9, this.yaw + Math.PI, 0, 'YXZ');
     const q = new THREE.Quaternion().setFromEuler(targetRot);
     const bank = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), U.clamp(-input.dxSmooth * 0.04, -0.6, 0.6));
@@ -255,6 +273,7 @@ export class Ship {
     g.hud.closeShipPanel();
     this.flying = true;
     this.landing = false;
+    this.flyTime = 0;
     this.fuel = Math.max(0, this.fuel - 25);
     this.speed = 0;
     this.throttle = 0.5;

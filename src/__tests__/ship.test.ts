@@ -42,6 +42,35 @@ describe('Ship', () => {
 
   describe('update', () => {
     it('generates smoke when broken', () => { ship.smokeT = 0; ship.update(0.1); expect(game.fx.spawn).toHaveBeenCalled(); });
+
+    it('auto-lands when near ground after grace period', () => {
+      ship.flying = true;
+      ship.landing = false;
+      ship.flyTime = Ship.AUTO_LAND_GRACE;
+      ship.group.position.set(0, 35, 0); // topSolidY mock = 30 → alt 4 ≤ AUTO_LAND_ALT
+      ship.speed = 0;
+      ship.throttle = 0;
+      ship.update(0.05);
+      expect(ship.flying).toBe(false);
+      expect(ship.landing).toBe(true);
+      expect(game.audio.landing).toHaveBeenCalled();
+    });
+
+    it('does not auto-land during takeoff grace', () => {
+      const el = { textContent: '' };
+      vi.spyOn(document, 'getElementById').mockReturnValue(el as HTMLElement);
+      ship.flying = true;
+      ship.landing = false;
+      ship.flyTime = 0;
+      ship.group.position.set(0, 35, 0);
+      ship.speed = 0;
+      ship.throttle = 0.5;
+      ship.update(0.05);
+      expect(ship.flying).toBe(true);
+      expect(ship.landing).toBe(false);
+      expect(ship.flyTime).toBeCloseTo(0.05);
+      vi.restoreAllMocks();
+    });
   });
 
   describe('serialize / deserialize', () => {
