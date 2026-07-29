@@ -5,7 +5,7 @@
 import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
-import { findAnimationClip, fitCC0Model, loadCC0Model, loadCC0ModelWithAnimations } from './cc0-models';
+import { findAnimationClip, fitCC0Model, fitCC0ModelExactHeight, loadCC0Model, loadCC0ModelWithAnimations } from './cc0-models';
 import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
 
@@ -195,8 +195,8 @@ export class Player {
   private async loadPlayerBody(): Promise<void> {
     try {
       const { scene, animations } = await loadCC0ModelWithAnimations(CC0_MODEL_URLS.player);
-      // Player capsule ≈ 0.6 wide × 1.8 tall; fit astronaut into that envelope.
-      fitCC0Model(scene, 0.85, 1.78);
+      // Exactly 2 voxels tall (CFG.PLAYER_H), feet on y=0.
+      fitCC0ModelExactHeight(scene, CFG.PLAYER_H);
       scene.name = 'quaternius-astronaut';
       // FPS uses a separate rifle viewmodel — hide baked weapon props on the body.
       scene.traverse((child) => {
@@ -386,7 +386,7 @@ export class Player {
   }
 
   eyePos(): THREE.Vector3 {
-    return this._eyePos.set(this.pos.x, this.pos.y + 1.62, this.pos.z);
+    return this._eyePos.set(this.pos.x, this.pos.y + CFG.PLAYER_EYE, this.pos.z);
   }
   lookDir(): THREE.Vector3 {
     const cp = Math.cos(this.pitch);
@@ -442,7 +442,7 @@ export class Player {
     const feet = this.g.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.2), Math.floor(this.pos.z));
     const wasInWater = this.inWater;
     this.inWater = feet === B.WATER;
-    this.headInWater = this.g.world.isWater(this.pos.x, this.pos.y + 1.62, this.pos.z);
+    this.headInWater = this.g.world.isWater(this.pos.x, this.pos.y + CFG.PLAYER_EYE, this.pos.z);
     if (this.inWater && !wasInWater && this.vel.y < -3) g.audio.splash();
     const waterTint = document.getElementById('water-tint');
     if (waterTint) waterTint.style.opacity = this.headInWater ? '1' : '0';
@@ -563,7 +563,7 @@ export class Player {
   }
 
   moveCollide(dt: number): void {
-    const w = 0.3, h = 1.8;
+    const w = CFG.PLAYER_R, h = CFG.PLAYER_H;
     const world = this.g.world;
     const p = this.pos;
     this.vel.y = Math.max(this.vel.y, -30); // Lower terminal velocity to prevent clipping
@@ -844,7 +844,7 @@ export class Player {
     if (BLOCK_DEF[def.place].solid &&
       px + 1 > p.x - w && px < p.x + w &&
       pz + 1 > p.z - w && pz < p.z + w &&
-      py + 1 > p.y && py < p.y + 1.8) return;
+      py + 1 > p.y && py < p.y + CFG.PLAYER_H) return;
     const existing = g.world.getBlock(px, py, pz);
     if (existing !== B.AIR && !BLOCK_DEF[existing].cross && !BLOCK_DEF[existing].water) return;
     const prev = g.world.getBlock(px, py, pz);
@@ -1122,7 +1122,8 @@ export class Player {
     const side = new THREE.Vector3(3.2, 0, 0).applyQuaternion(g.ship.group.quaternion);
     this.pos.set(sp.x + side.x, sp.y + 0.5, sp.z + side.z);
     let tries = 0;
-    while (g.world.collides(this.pos.x - 0.3, this.pos.y, this.pos.z - 0.3, this.pos.x + 0.3, this.pos.y + 1.8, this.pos.z + 0.3) && tries++ < 30) this.pos.y += 0.5;
+    const pr = CFG.PLAYER_R;
+    while (g.world.collides(this.pos.x - pr, this.pos.y, this.pos.z - pr, this.pos.x + pr, this.pos.y + CFG.PLAYER_H, this.pos.z + pr) && tries++ < 30) this.pos.y += 0.5;
     this.vel.set(0, 0, 0);
     this.syncBodyTransform();
     this.playBodyAnim('idle', 0);

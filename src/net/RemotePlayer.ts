@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { findAnimationClip, fitCC0Model, loadCC0ModelWithAnimations } from '../cc0-models';
+import { findAnimationClip, fitCC0ModelExactHeight, loadCC0ModelWithAnimations } from '../cc0-models';
+import { CFG } from '../config';
 import { CC0_MODEL_URLS } from '../model-assets';
 import { animToKey, type AnimCode, type PlayerSnap } from './protocol';
 
@@ -35,7 +36,7 @@ export class RemotePlayer {
   private async load(initialAnim: AnimCode): Promise<void> {
     try {
       const { scene, animations } = await loadCC0ModelWithAnimations(CC0_MODEL_URLS.player);
-      fitCC0Model(scene, 0.85, 1.78);
+      fitCC0ModelExactHeight(scene, CFG.PLAYER_H);
       scene.name = 'remote-astronaut';
       scene.traverse((child) => {
         const n = child.name.toLowerCase();

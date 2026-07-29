@@ -211,3 +211,58 @@ export function fitCC0Model(model: THREE.Object3D, maxSpan: number, maxHeight: n
     }
   });
 }
+
+/**
+ * Scale a model so its axis-aligned height is exactly `height` world units
+ * (1 unit = 1 voxel). Feet are placed on y=0 of the model local origin.
+ */
+export function fitCC0ModelExactHeight(model: THREE.Object3D, height: number): void {
+  model.traverse((child) => {
+    const skinned = child as THREE.Object3D & {
+      isSkinnedMesh?: boolean;
+      skeleton?: { pose: () => void };
+      frustumCulled?: boolean;
+    };
+    if (skinned.isSkinnedMesh && skinned.skeleton) {
+      skinned.skeleton.pose();
+      skinned.frustumCulled = false;
+    }
+  });
+  model.updateMatrixWorld(true);
+
+  const before = new Box3().setFromObject(model);
+  const size = before.getSize(new Vector3());
+  if (!Number.isFinite(size.y) || size.y < 1e-6) return;
+
+  const scale = height / size.y;
+  model.scale.multiplyScalar(scale);
+  model.updateMatrixWorld(true);
+
+  const after = new Box3().setFromObject(model);
+  const center = after.getCenter(new Vector3());
+  model.position.x -= center.x;
+  model.position.y -= after.min.y;
+  model.position.z -= center.z;
+  model.updateMatrixWorld(true);
+
+  // Correct any residual float error so bounds are exactly `height`.
+  const finalBox = new Box3().setFromObject(model);
+  const finalH = finalBox.max.y - finalBox.min.y;
+  if (finalH > 1e-6 && Math.abs(finalH - height) > 1e-4) {
+    model.scale.multiplyScalar(height / finalH);
+    model.updateMatrixWorld(true);
+    const box2 = new Box3().setFromObject(model);
+    const c2 = box2.getCenter(new Vector3());
+    model.position.x -= c2.x;
+    model.position.y -= box2.min.y;
+    model.position.z -= c2.z;
+    model.updateMatrixWorld(true);
+  }
+
+  model.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+}

@@ -12,6 +12,12 @@ export const CFG = Object.freeze({
   DAY_LEN: 780,
   GRAVITY: 24,
   REACH: 6,
+  /** Player height in voxels (exactly 2 blocks tall). */
+  PLAYER_H: 2,
+  /** Eye height from feet (slightly below top of capsule). */
+  PLAYER_EYE: 1.75,
+  /** Half-width of player collision on XZ. */
+  PLAYER_R: 0.3,
   SAVE_KEY: 'voxelhorizon_save_v1',
   SET_KEY: 'voxelhorizon_settings_v1',
   /**
