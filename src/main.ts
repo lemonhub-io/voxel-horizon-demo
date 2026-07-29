@@ -53,7 +53,6 @@ export const Input: InputState = {
     });
     addEventListener('keyup', (e: KeyboardEvent) => { this.keys[e.code] = false; });
 
-    // --- Mouse (always active; gated by pointerLockElement, NOT by isTouchDevice) ---
     addEventListener('mousedown', (e: MouseEvent) => {
       if (document.pointerLockElement) this.buttons[e.button] = true;
       game.onMouseDown(e);

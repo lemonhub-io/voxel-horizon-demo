@@ -13,7 +13,7 @@
             <div
 v-for="(s, i) in store.slots" :key="i" class="slot" :class="{ selected: isSel('slots', i) }"
               @mouseenter="showTip(s, $event)" @mousemove="moveTip($event)" @mouseleave="hideTip()" @click="onSlotClick('slots', i, s)"
-              @touchstart.passive="onTouchStart('slots', i, s, $event)" @touchmove.passive="onTouchMove($event)" @touchend.passive="onTouchEnd('slots', i, s)">
+              @touchstart.passive="onTouchStart('slots', i, s, $event)" @touchmove.passive="onTouchMove($event)" @touchend.passive="onTouchEnd('slots', i, s)" @touchcancel.passive="onTouchCancel">
               <img v-if="s" :src="icon(s.id)" :class="{ hidden: !s }"><span class="cnt">{{ s && s.n > 1 ? s.n : '' }}</span>
             </div>
           </div>
@@ -22,7 +22,7 @@ v-for="(s, i) in store.slots" :key="i" class="slot" :class="{ selected: isSel('s
             <div
 v-for="(s, i) in store.hotbar" :key="i" class="slot" :class="{ selected: isSel('hotbar', i) }"
               @mouseenter="showTip(s, $event)" @mousemove="moveTip($event)" @mouseleave="hideTip()" @click="onSlotClick('hotbar', i, s)"
-              @touchstart.passive="onTouchStart('hotbar', i, s, $event)" @touchmove.passive="onTouchMove($event)" @touchend.passive="onTouchEnd('hotbar', i, s)">
+              @touchstart.passive="onTouchStart('hotbar', i, s, $event)" @touchmove.passive="onTouchMove($event)" @touchend.passive="onTouchEnd('hotbar', i, s)" @touchcancel.passive="onTouchCancel">
               <img v-if="s" :src="icon(s.id)" :class="{ hidden: !s }"><span class="cnt">{{ s && s.n > 1 ? s.n : '' }}</span>
             </div>
           </div>
@@ -92,7 +92,7 @@ v-for="(s, i) in store.hotbar" :key="i" class="slot" :class="{ selected: isSel('
 
     <!-- Mobile long-press / double-tap detail popover -->
     <div v-if="modalItem" class="inv-modal" @mousedown.self="closeModal()" @touchstart.self.passive="closeModal()">
-      <div class="inv-modal-card panel">
+      <div class="inv-modal-card item-card panel">
         <div class="ic-head"><img :src="icon(modalItem.id)"><div><h3>{{ ITEMS[modalItem.id]?.name }}</h3><div class="ic-type">{{ ITEMS[modalItem.id]?.type }} · 持有 {{ store.count(modalItem.id) }}</div></div></div>
         <div class="ic-desc">{{ ITEMS[modalItem.id]?.desc }}</div>
         <div class="ic-actions">
@@ -105,7 +105,7 @@ v-for="(s, i) in store.hotbar" :key="i" class="slot" :class="{ selected: isSel('
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onBeforeUnmount } from 'vue';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useGameStore } from '../stores/gameStore';
 import { useMilestonesStore } from '../stores/milestonesStore';
@@ -113,6 +113,15 @@ import { ITEMS, RECIPES, MILESTONE_DEFS } from '../config';
 import type { SlotItem, MilestoneDef } from '../types';
 
 const emit = defineEmits(['close', 'use-item', 'craft']);
+
+// Pointer-capability probe — hover tooltips on precise pointers (mouse),
+// long-press / double-tap popover on coarse pointers (touch). Hybrid devices
+// get both. Detected locally (not via the engine) so it works before the
+// game initializes; accounts for touchscreens that also report a fine pointer.
+const hasFinePointer =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(pointer: fine)').matches
+    : false;
 
 const store = useInventoryStore();
 const game = useGameStore();
@@ -191,6 +200,12 @@ function onTouchStart(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null, e:
 }
 function onTouchMove(e: TouchEvent): void {
   const t = e.touches[0];
+  if (!t) {
+    // odd path delivered an empty touches list — bail and cancel any press
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = undefined; }
+    moved = true;
+    return;
+  }
   if (Math.abs(t.clientX - pressPos.x) > 10 || Math.abs(t.clientY - pressPos.y) > 10) {
     moved = true;
     if (pressTimer) { clearTimeout(pressTimer); pressTimer = undefined; }
@@ -202,11 +217,28 @@ function onTouchEnd(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null): voi
     pressTimer = undefined;
     if (!moved) {
       const now = Date.now();
-      if (now - lastTap < 320) { openModal(s as SlotItem); lastTap = 0; }
-      else { lastTap = now; selectSlot(arr, i, s); }
+      if (now - lastTap < 320) {
+        if (!s) return;
+        openModal(s);
+        lastTap = 0;
+      } else { lastTap = now; selectSlot(arr, i, s); }
     }
   }
 }
+// touchcancel should never fire openModal on a half-completed press
+function onTouchCancel(): void {
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = undefined; }
+  moved = false;
+}
+
+// Pending long-press timer must not fire after the inventory screen unmounts
+// (e.g. closed mid-press); otherwise it could openModal on a stale instance.
+onBeforeUnmount(() => {
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = undefined; }
+  moved = false;
+  lastTap = 0;
+  tip.visible = false;
+});
 
 defineExpose({ detailItem });
 </script>

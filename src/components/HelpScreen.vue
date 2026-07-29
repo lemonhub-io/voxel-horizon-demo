@@ -14,11 +14,11 @@
       </div>
       <div class="help-grid touch-show">
         <div><span class="kbd">左侧摇杆</span> 移动</div><div><span class="kbd">前推到底</span> 冲刺</div>
-        <div><span class="kbd">跳</span> 跳跃 / 按住喷气背包</div><div><span class="kbd">采</span> 激光采集 / 攻击</div>
-        <div><span class="kbd">放</span> 放置方块</div><div><span class="kbd">点击物品栏</span> 选择</div>
-        <div><span class="kbd">E</span> 交互 / 进入飞船</div><div><span class="kbd">背包</span> 物品 · 合成 · 发现</div>
-        <div><span class="kbd">右侧拖拽</span> 旋转视角</div><div><span class="kbd">暂停</span> 菜单</div>
-        <div class="help-wide">飞行模式：右侧拖拽转向 · 油门自动 · 点击按钮降落 · 点击按钮跃迁(需跃迁电池)</div>
+        <div><span class="kbd">跳跃键</span> 跳跃 / 按住喷气背包</div><div><span class="kbd">右侧拖拽</span> 旋转视角</div>
+        <div><span class="kbd">长按右侧</span> 激光采集 / 攻击</div><div><span class="kbd">轻点右侧</span> 放置方块 / 进飞船</div>
+        <div><span class="kbd">扫描/跃迁键</span> 扫描脉冲 · 跃迁</div><div><span class="kbd">目镜键</span> 分析目镜</div>
+        <div><span class="kbd">背包键</span> 物品 · 合成 · 发现</div><div><span class="kbd">暂停键</span> 菜单</div>
+        <div class="help-wide">飞行模式：右侧拖拽转向 · 接近地面时自动降落 · 点击跃迁键跃迁(需跃迁电池)</div>
       </div>
       <div class="help-flow">旅程指引：补充防护(钠·黄色荧光植物) → 校准工具(铁尘·岩石) → 生命维持(氧·红色呼吸花) → 合成金属镀层修复推进器 → 碳纳米管修复脉冲引擎 → 双氢合成启动燃料 → 起飞 → 建造庇护所 · 扫描生物 · 合成跃迁电池 → 跃迁新星球</div>
       <div class="set-actions"><button class="btn sm" @click="$emit('back')">返回</button></div>

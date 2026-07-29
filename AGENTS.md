@@ -32,9 +32,8 @@ Non-obvious:
 
 ## Three.js init — non-obvious gotchas
 
-- The renderer is imported from **`three/webgpu`** (not `three`) in `src/three-setup.ts`, which attaches it to **`window.THREE`** as a global. Engine code everywhere reads the bare global `THREE`.
-- `src/vue-main.ts` imports `'./three-setup'` FIRST, before Vue/Pinia/`./main`. **Do not reorder** this import — engine code will fail with cryptic "THREE is not defined" errors at runtime.
-- `@types/three` is pinned at `^0.128` (old) intentionally; type declarations for `three/webgpu`, `three/tsl`, `Mesh*NodeMaterial`, and TSL functions live as ambient `declare module` blocks in **`src/three-webgpu.d.ts`** and **`src/env.d.ts`**. These ambient files are the source of truth — do **not** install `@types/three/webgpu`, `@types/three/tsl`, or try to match `@types/three` to r185.
+- Engine modules import directly from **`three/webgpu`** (not `three`) and use that namespace as the bare `THREE` global via `src/types.ts` (`import type * as THREE from 'three/webgpu'` + `declare global { namespace THREE {...} }`). `src/vue-main.ts` ties engine init to Vue via `src/engine-loader.ts`, which lazily `await import('./main')` only when the player starts/continues a game — **do not** statically `import from './main'` in App/UI code or you'll pull the whole Three.js + WebGPU graph into the initial chunk and break lazy load.
+- `@types/three` is pinned at `^0.185.1` (matched to the installed `three@0.185.x`). Type declarations for `three/addons/...` (CSM, GTAO, SkyMesh, GLTFLoader, etc.) live as ambient `declare module` blocks in **`src/env.d.ts`** — this is the source of truth, do not install separate `@types/three/*` packages.
 - `window.game` is the runtime `Game` singleton, set in `vue-main.ts`.
 
 ## Engine ↔ UI data flow
@@ -47,7 +46,7 @@ Non-obvious:
 
 ## Tests
 
-- 193 tests across 25 files (verified). Files live in `src/__tests__/`, plus `src/__tests__/components/` (10) and `src/__tests__/stores/` (7).
+- Test counts drift as the project grows — run `npm run test` for the current number instead of trusting a pinned figure. Files live in `src/__tests__/`, plus `src/__tests__/components/` and `src/__tests__/stores/`.
 - Engine classes read the **global `THREE`** and WebGL/canvas APIs, which `happy-dom` does not provide. Tests must install a THREE mock before importing the class under test:
   - Helper: `import { createThreeMock } from './helpers/three-mock'` (adjust path), then call `createThreeMock()` at the top of the file. See `ship.test.ts`, `hud.test.ts`, `missions.test.ts`.
   - For narrow cases you can inline a smaller `(globalThis as Record<string, unknown>).THREE = { ... }` (see `world.test.ts`).
@@ -68,7 +67,7 @@ Non-obvious:
 ## Style conventions (not tool-enforced)
 
 - All user-facing strings are Simplified Chinese. Match existing tone when adding UI text.
-- Zero external assets — textures, terrain, creatures, audio, names are all procedurally generated from seeds (see `utils.ts` `U.mulberry32`, `U.seedFromString`, `PALETTES` in `config.ts`). Don't add image/audio files to the repo.
+- Assets are procedural-first — textures, terrain, creatures, audio, names are all generated at runtime from seeds (see `utils.ts` `U.mulberry32`, `U.seedFromString`, `PALETTES` in `config.ts`). The only prebuilt assets shipped are optional CC0 glTF models under `public/models/cc0/` (see `src/cc0-models.ts`, `CLAUDE.md`); do not add other image/audio files to the repo without matching that pattern.
 
 ## Git workflow
 

@@ -311,6 +311,9 @@ h1 span{color:var(--acc);text-shadow:0 0 40px rgba(255,150,100,.5)}
 .help-box{max-width:760px}
 .help-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 30px;font-size:14.5px}
 .help-grid .kbd{margin-right:10px}
+.touch-show{display:none}
+body.touch-device .touch-hide{display:none}
+body.touch-device .touch-show{display:grid}
 .help-wide{grid-column:1/3;border-top:1px solid var(--line2);padding-top:10px}
 .help-flow{font-size:13px;line-height:1.8;opacity:.75;border-left:2px solid var(--acc);padding-left:14px;margin-top:6px}
 #death-screen{background:radial-gradient(ellipse at center,rgba(70,4,4,.75),rgba(5,2,2,.96))}
