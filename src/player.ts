@@ -839,7 +839,7 @@ export class Player {
     const tDef = BLOCK_DEF[t.id];
     if (tDef.cross) { px = t.x; py = t.y; pz = t.z; }
     else { px = t.x + t.nx; py = t.y + t.ny; pz = t.z + t.nz; }
-    const w = 0.3;
+    const w = CFG.PLAYER_R;
     const p = this.pos;
     if (BLOCK_DEF[def.place].solid &&
       px + 1 > p.x - w && px < p.x + w &&
