@@ -117,3 +117,17 @@ declare module 'three/addons/objects/SkyMesh.js' {
     constructor();
   }
 }
+
+declare module 'three/addons/tsl/display/DepthOfFieldNode.js' {
+  /**
+   * TSL depth-of-field node. The result preserves the input node's color
+   * interface, while internal render targets are managed by three.js.
+   */
+  export function dof<T>(
+    node: T,
+    viewZNode: unknown,
+    focusDistance?: unknown,
+    focalLength?: unknown,
+    bokehScale?: unknown,
+  ): T;
+}

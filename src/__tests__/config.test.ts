@@ -27,6 +27,17 @@ describe('CFG constants', () => {
     expect(CFG.SSAO.intensity).toBeLessThanOrEqual(1);
     expect(CFG.SSAO.radius).toBeGreaterThan(0);
   });
+  it('has a restrained dynamic depth-of-field config', () => {
+    expect(CFG.DOF.enabled).toBe(true);
+    expect(CFG.DOF.mobileEnabled).toBe(false);
+    expect(CFG.DOF.minFocus).toBeGreaterThan(0);
+    expect(CFG.DOF.maxFocus).toBeGreaterThan(CFG.DOF.minFocus);
+    expect(CFG.DOF.defaultFocus).toBeGreaterThanOrEqual(CFG.DOF.minFocus);
+    expect(CFG.DOF.defaultFocus).toBeLessThanOrEqual(CFG.DOF.maxFocus);
+    expect(CFG.DOF.focalLength).toBeGreaterThan(0);
+    expect(CFG.DOF.bokehScale).toBeGreaterThan(0);
+    expect(CFG.DOF.focusSmoothing).toBeGreaterThan(0);
+  });
   it('has cinematic post-processing config', () => {
     expect(CFG.POST.enabled).toBe(true);
     expect(CFG.BLOOM.enabled).toBe(true);

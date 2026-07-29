@@ -75,6 +75,20 @@ export const CFG = Object.freeze({
     enabled: true,
   }),
   /**
+   * Dynamic depth of field. The focus plane follows the reticle target with
+   * a gentle response; coarse-pointer devices skip the pass by default.
+   */
+  DOF: Object.freeze({
+    enabled: true,
+    mobileEnabled: false,
+    defaultFocus: 8,
+    minFocus: 1.5,
+    maxFocus: 16,
+    focalLength: 7,
+    bokehScale: 0.42,
+    focusSmoothing: 8,
+  }),
+  /**
    * Bloom — only hot emissives (lamps / crystals / laser tips).
    * Threshold high enough that the soft LDR sky never blooms.
    */

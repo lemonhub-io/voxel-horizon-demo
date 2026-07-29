@@ -30,11 +30,13 @@ import {
   viewportUV,
   renderOutput,
   luminance,
+  uniform,
 } from 'three/tsl';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { film } from 'three/addons/tsl/display/FilmNode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
+import { dof } from 'three/addons/tsl/display/DepthOfFieldNode.js';
 import { CFG } from './config';
 import type { Game } from './types';
 
@@ -64,10 +66,14 @@ export class PostProcessing {
   private _pipeline: THREE.RenderPipeline | null = null;
   private _aoPass: AoPassNode | null = null;
   private _bloomPass: BloomPassNode | null = null;
+  private _dofFocus: { value: number } | null = null;
+  private _dofLastUpdate = 0;
   private _failed = false;
   private _initAttempted = false;
+  private _game: Game;
 
   constructor(game: Game) {
+    this._game = game;
     this._renderer = game.renderer;
     this._scene = game.scene;
     this._camera = game.camera;
@@ -93,6 +99,7 @@ export class PostProcessing {
     const aoCfg = CFG.SSAO;
     const cine = CFG.CINEMATIC;
     const bloomCfg = CFG.BLOOM;
+    const dofCfg = CFG.DOF;
 
     const scenePass = pass(this._scene, this._camera);
     (scenePass as { transparent?: boolean }).transparent = true;
@@ -104,6 +111,18 @@ export class PostProcessing {
     );
 
     const colorNode = scenePass.getTextureNode('output');
+    let sceneColor = colorNode;
+    if (dofCfg.enabled && this._canUseDof()) {
+      const focusDistance = uniform(dofCfg.defaultFocus);
+      this._dofFocus = focusDistance;
+      sceneColor = dof(
+        colorNode,
+        scenePass.getViewZNode(),
+        focusDistance,
+        float(dofCfg.focalLength),
+        float(dofCfg.bokehScale),
+      );
+    }
     const normalNode = scenePass.getTextureNode('normal');
     const depthNode = scenePass.getTextureNode('depth');
 
@@ -125,8 +144,8 @@ export class PostProcessing {
     };
     const skyProtect = linearDepth.lessThan(0.98).select(float(1), float(0)) as ReturnType<typeof float>;
     const aoAmt = float(aoCfg.intensity).mul(skyProtect);
-    const aoColor = mix(colorNode.rgb, colorNode.rgb.mul(vec3(aoFactor)), aoAmt);
-    let graded = vec4(aoColor, colorNode.a);
+    const aoColor = mix(sceneColor.rgb, sceneColor.rgb.mul(vec3(aoFactor)), aoAmt);
+    let graded = vec4(aoColor, sceneColor.a);
 
     // --- Bloom (sun disc, lamps, crystals) ---
     if (bloomCfg.enabled) {
@@ -184,6 +203,23 @@ export class PostProcessing {
     this._pipeline = pipeline;
   }
 
+  private _canUseDof(): boolean {
+    if (CFG.DOF.mobileEnabled || typeof matchMedia === 'undefined') return true;
+    return !matchMedia('(pointer: coarse)').matches;
+  }
+
+  private _updateDofFocus(): void {
+    if (!this._dofFocus) return;
+    const dofCfg = CFG.DOF;
+    const targetDistance = this._game.player.target?.dist ?? dofCfg.defaultFocus;
+    const desiredFocus = Math.min(dofCfg.maxFocus, Math.max(dofCfg.minFocus, targetDistance));
+    const now = performance.now();
+    const elapsed = this._dofLastUpdate === 0 ? 0 : Math.min((now - this._dofLastUpdate) / 1000, 0.1);
+    this._dofLastUpdate = now;
+    const blend = 1 - Math.exp(-dofCfg.focusSmoothing * elapsed);
+    this._dofFocus.value += (desiredFocus - this._dofFocus.value) * blend;
+  }
+
   applySettings(): void {
     const aoCfg = CFG.SSAO;
     const bloomCfg = CFG.BLOOM;
@@ -213,6 +249,7 @@ export class PostProcessing {
   }
 
   render(): void {
+    this._updateDofFocus();
     if (this.enabled && this._ensurePipeline() && this._pipeline) {
       try {
         this._pipeline.render();
