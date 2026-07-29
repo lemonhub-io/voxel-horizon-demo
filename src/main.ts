@@ -23,7 +23,7 @@ import { PostProcessing } from './post-processing';
 import { PostFX } from './postfx';
 import { preloadCC0Models } from './cc0-models';
 import { multiplayer, type MultiplayerSession } from './net/MultiplayerSession';
-import type { EditEntry } from './net/protocol';
+import type { EditEntry, PlayerSnap } from './net/protocol';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -127,8 +127,19 @@ export class Game {
   private _prevZ = 0;
   private _syncFrame = 0;
   private _worldUpdateT = 0;
-  private pendingLoad: { seed: number; palIdx: number; saveData: SaveData | null; mpEdits?: EditEntry[] } | null = null;
+  private pendingLoad: {
+    seed: number;
+    palIdx: number;
+    saveData: SaveData | null;
+    mpEdits?: EditEntry[];
+    mpTime?: number;
+    mpSpawn?: { x: number; y: number; z: number; yaw: number };
+    mpPlayers?: PlayerSnap[];
+  } | null = null;
   private pendingMpEdits: EditEntry[] | null = null;
+  private pendingMpTime: number | null = null;
+  private pendingMpSpawn: { x: number; y: number; z: number; yaw: number } | null = null;
+  private pendingMpPlayers: PlayerSnap[] | null = null;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -175,28 +186,62 @@ export class Game {
   }
 
   /**
-   * Join a public multiplayer shard (ephemeral session, no server save).
-   * @param name display name
-   * @param roomId optional specific shard (e.g. public-1); omit for auto-pick
+   * Open the current local world as a public host room.
+   * Map + player data stay on this machine; CF only lists/relays.
    */
-  async joinPublicMultiplayer(name?: string, roomId?: string): Promise<void> {
+  async hostPublicMultiplayer(): Promise<void> {
+    if (this.state !== 'play' && this.state !== 'pause') {
+      throw new Error('请先进入游戏再开放联机');
+    }
+    this.multiplayer = true;
+    this.mp = multiplayer;
+    multiplayer.bind(this);
+    try {
+      const welcomeP = multiplayer.waitWelcome(12000);
+      await multiplayer.hostPublic(this);
+      await welcomeP;
+      if (this.state === 'pause') this.togglePause(false);
+      this.stores.hud.addNotification(`已开放联机 · ${multiplayer.roomId}`, 'success');
+    } catch (e) {
+      this.multiplayer = false;
+      this.mp = null;
+      multiplayer.leave();
+      throw e;
+    }
+  }
+
+  /**
+   * Join a host's public room and restore map data from the host.
+   */
+  async joinPublicMultiplayer(roomId: string): Promise<void> {
     this.audio.ensure();
     this.audio.initLoops();
     this.multiplayer = true;
     this.mp = multiplayer;
     multiplayer.bind(this);
     try {
-      const helloPromise = multiplayer.waitHello(15000);
-      await multiplayer.joinPublic(this, name, roomId);
-      const hello = await helloPromise;
-      this.pendingMpEdits = hello.edits;
-      this.planetName = hello.planetName;
-      this.beginLoad(hello.seed, hello.palIdx, null);
-      this.stores.hud.addNotification(`公开联机 · ${hello.roomId} · ${hello.planetName}`, 'success');
+      const snap = await multiplayer.joinAsGuest(this, roomId);
+      this.pendingMpEdits = snap.edits;
+      this.pendingMpTime = typeof snap.time === 'number' ? snap.time : null;
+      this.pendingMpPlayers = snap.players || [];
+      const hostSnap =
+        snap.players.find((p) => p.id === snap.hostId) ||
+        snap.players.find((p) => p.id !== multiplayer.myId) ||
+        null;
+      this.pendingMpSpawn = hostSnap
+        ? { x: hostSnap.x, y: hostSnap.y, z: hostSnap.z, yaw: hostSnap.yaw }
+        : null;
+      this.planetName = snap.planetName;
+      this.beginLoad(snap.seed, snap.palIdx, null);
+      this.stores.hud.addNotification(`已加入 · ${multiplayer.roomId} · ${snap.planetName}`, 'success');
     } catch (e) {
       this.multiplayer = false;
       this.mp = null;
       multiplayer.leave();
+      this.pendingMpEdits = null;
+      this.pendingMpTime = null;
+      this.pendingMpSpawn = null;
+      this.pendingMpPlayers = null;
       throw e;
     }
   }
@@ -206,6 +251,9 @@ export class Game {
     this.mp = null;
     this.multiplayer = false;
     this.pendingMpEdits = null;
+    this.pendingMpTime = null;
+    this.pendingMpSpawn = null;
+    this.pendingMpPlayers = null;
   }
 
   /** Clear run progress so a second new-game / load does not inherit prior inventory, quests, etc. */
@@ -386,7 +434,15 @@ export class Game {
       this.planetName = saveData ? saveData.planetName : U.planetName(rng);
     }
     s.game.planetName = this.planetName;
-    this.pendingLoad = { seed, palIdx: this.palIdx, saveData, mpEdits: this.pendingMpEdits || undefined };
+    this.pendingLoad = {
+      seed,
+      palIdx: this.palIdx,
+      saveData,
+      mpEdits: this.pendingMpEdits || undefined,
+      mpTime: this.pendingMpTime ?? undefined,
+      mpSpawn: this.pendingMpSpawn || undefined,
+      mpPlayers: this.pendingMpPlayers || undefined,
+    };
     void this.verifyRemoteModels();
   }
 
@@ -451,10 +507,11 @@ export class Game {
       this.playTime = saveData.playTime || 0;
       s.game.playTime = this.playTime;
     } else {
-      this.sky.t = 0.28;
+      const mpTime = this.pendingLoad?.mpTime;
+      this.sky.t = typeof mpTime === 'number' ? mpTime : 0.28;
       this.playTime = 0;
       s.game.playTime = 0;
-      // Session-only multiplayer edits (not a server-hosted save).
+      // Session-only multiplayer edits restored from host (not server-hosted).
       const mpEdits = this.pendingLoad?.mpEdits;
       if (mpEdits && mpEdits.length) {
         for (const e of mpEdits) {
@@ -468,7 +525,10 @@ export class Game {
         }
       }
     }
-    const land = this.world.findLand(8, 8);
+    const mpSpawn = this.pendingLoad?.mpSpawn;
+    const land = mpSpawn
+      ? { x: Math.floor(mpSpawn.x), z: Math.floor(mpSpawn.z) }
+      : this.world.findLand(8, 8);
     const spawnX = land.x, spawnZ = land.z;
     this.spawnPoint = { x: spawnX, z: spawnZ };
     if (!this.player) this.player = new Player(this);
@@ -494,9 +554,14 @@ export class Game {
       this.ship.deserialize(saveData.ship);
       this.spawnPoint = { x: this.player.pos.x, z: this.player.pos.z };
     } else {
+      const mpSpawn = this.pendingLoad?.mpSpawn;
       const gy = this.world.topSolidY(sx, sz);
-      this.player.pos.set(sx + 0.5, gy + 1.2, sz + 0.5);
-      this.player.yaw = Math.PI * 0.25;
+      // Guests spawn near the host; offset slightly so models don't overlap.
+      const ox = this.multiplayer && mpSpawn ? 2.5 : 0.5;
+      const oz = this.multiplayer && mpSpawn ? 2.5 : 0.5;
+      const py = mpSpawn ? Math.max(mpSpawn.y, gy + 1.2) : gy + 1.2;
+      this.player.pos.set(sx + ox, py, sz + oz);
+      this.player.yaw = mpSpawn ? mpSpawn.yaw : Math.PI * 0.25;
       this.player.pitch = 0;
       this.player.hp = 100;
       this.player.hazard = 50;
@@ -518,13 +583,25 @@ export class Game {
     this.missions.updateCard();
     s.game.planetName = this.planetName;
     this.autoSaveT = 0;
+
+    // Restore remote peers from host snapshot (late-join).
+    const mpPlayers = this.pendingLoad?.mpPlayers;
+    if (this.multiplayer && this.mp && mpPlayers?.length) {
+      multiplayer.seedRemotesFromSnapshot(mpPlayers);
+    }
     this.pendingMpEdits = null;
+    this.pendingMpTime = null;
+    this.pendingMpSpawn = null;
+    this.pendingMpPlayers = null;
 
     if (this.multiplayer) {
       // Public co-op: skip typewriter intro and drop into play.
       if (this.mp) this.mp.bind(this);
       this.startPlay();
-      s.hud.addNotification('公开联机会话 · 服务端不保存进度', 'info');
+      s.hud.addNotification(
+        this.mp?.isHost ? '已开放联机 · 本机托管地图' : '已从房主同步地图 · 云端不存档',
+        'info',
+      );
     } else if (!saveData) this.playIntro();
     else this.startPlay();
   }

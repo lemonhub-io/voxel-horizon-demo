@@ -16,7 +16,7 @@
         <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       </div>
       <div class="t-seed"><label>星球种子(可选)</label><input v-model="seed" maxlength="16" placeholder="随机"></div>
-      <div class="t-mp-hint">公开联机 · 临时会话 · 服务端不托管存档</div>
+      <div class="t-mp-hint">公开联机 · 房主本机托管 · 云端仅列表与中继</div>
     </div>
   </div>
 </template>

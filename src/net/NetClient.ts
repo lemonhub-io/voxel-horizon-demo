@@ -3,22 +3,24 @@ import {
   MP_PROTOCOL_VERSION,
   type AnimCode,
   type ClientMsg,
-  type PublicJoinResponse,
   type PublicRoomInfo,
   type ServerMsg,
   decodeMsg,
   encodeMsg,
 } from './protocol';
 
-export type NetHandler = (msg: ServerMsg) => void;
+export type NetHandler = (msg: ServerMsg | HostInboxMsg) => void;
 
-/** Production Worker URL (overridden by VITE_MP_HTTP_URL). */
+/** Host-only messages relayed by the DO (not in ServerMsg union). */
+export type HostInboxMsg =
+  | { t: 'block_set'; x: number; y: number; z: number; id: number; seq: number; from: string }
+  | ServerMsg;
+
 const DEFAULT_PROD_MP = 'https://voxel-api.mzhub.space';
 
 function defaultHttpBase(): string {
   const env = import.meta.env.VITE_MP_HTTP_URL as string | undefined;
   if (env) return env.replace(/\/$/, '');
-  // Local Vite dev uses proxy /mp → wrangler :8787
   if (import.meta.env.DEV && typeof location !== 'undefined') {
     return `${location.protocol}//${location.host}/mp`;
   }
@@ -29,19 +31,19 @@ function wsUrlFromHttp(httpBase: string, wsPath: string): string {
   const envWs = import.meta.env.VITE_MP_WS_URL as string | undefined;
   if (envWs) {
     const base = envWs.replace(/\/$/, '');
-    return `${base}${wsPath.startsWith('/') ? wsPath : `/${wsPath}`}`;
+    const [p, q] = wsPath.split('?');
+    return `${base}${p.startsWith('/') ? p : `/${p}`}${q ? `?${q}` : ''}`;
   }
   const u = new URL(httpBase, typeof location !== 'undefined' ? location.href : 'http://127.0.0.1');
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-  // httpBase may be .../mp — append path after that
   const pathBase = u.pathname.replace(/\/$/, '');
-  u.pathname = `${pathBase}${wsPath.startsWith('/') ? wsPath : `/${wsPath}`}`;
-  u.search = '';
-  // wsPath may include query
   if (wsPath.includes('?')) {
     const [p, q] = wsPath.split('?');
     u.pathname = `${pathBase}${p.startsWith('/') ? p : `/${p}`}`;
     u.search = `?${q}`;
+  } else {
+    u.pathname = `${pathBase}${wsPath.startsWith('/') ? wsPath : `/${wsPath}`}`;
+    u.search = '';
   }
   return u.toString();
 }
@@ -62,7 +64,7 @@ export class NetClient {
     return () => this.handlers.delete(handler);
   }
 
-  private emit(msg: ServerMsg): void {
+  private emit(msg: HostInboxMsg): void {
     for (const h of this.handlers) h(msg);
   }
 
@@ -73,30 +75,15 @@ export class NetClient {
     return Array.isArray(data.rooms) ? data.rooms : [];
   }
 
-  async joinPublic(name: string): Promise<PublicJoinResponse> {
-    // GET is sufficient (no body); avoids edge cases with empty POST bodies.
-    const res = await fetch(`${this.httpBase}/api/public/join`);
-    const data = (await res.json()) as PublicJoinResponse | { ok: false; reason: string };
-    if (!res.ok || !data || !('ok' in data) || !data.ok) {
-      const reason =
-        data && typeof data === 'object' && 'reason' in data
-          ? String((data as { reason?: string }).reason || '')
-          : '';
-      throw new Error(reason || '加入公开房间失败');
-    }
-    await this.connect(data.wsPath, name);
-    this.roomId = data.roomId;
-    return data;
+  async createRoom(): Promise<{ roomId: string; wsPath: string }> {
+    const res = await fetch(`${this.httpBase}/api/public/create`);
+    if (!res.ok) throw new Error(`无法创建房间 (${res.status})`);
+    const data = (await res.json()) as { ok?: boolean; roomId?: string; wsPath?: string; reason?: string };
+    if (!data.roomId || !data.wsPath) throw new Error(data.reason || '创建房间失败');
+    return { roomId: data.roomId, wsPath: data.wsPath };
   }
 
-  /** Join a specific public shard by id (e.g. public-0). */
-  async joinRoom(roomId: string, name: string): Promise<void> {
-    if (!/^public-\d+$/.test(roomId)) throw new Error('无效的公开分片');
-    await this.connect(`/ws?room=${encodeURIComponent(roomId)}`, name);
-    this.roomId = roomId;
-  }
-
-  async connect(wsPath: string, name: string): Promise<void> {
+  async connect(wsPath: string): Promise<void> {
     this.disconnect();
     this.closed = false;
     const url = wsUrlFromHttp(this.httpBase, wsPath);
@@ -115,7 +102,6 @@ export class NetClient {
       ws.onopen = () => {
         clearTimeout(timer);
         this.connected = true;
-        this.send({ t: 'join', v: MP_PROTOCOL_VERSION, name: name.slice(0, 16) || '远行者' });
         resolve();
       };
       ws.onerror = () => {
@@ -129,25 +115,38 @@ export class NetClient {
       };
       ws.onmessage = (ev) => {
         if (typeof ev.data !== 'string') return;
-        const msg = decodeMsg(ev.data);
-        if (!msg || !('t' in msg)) return;
-        // Client only handles server messages
-        const t = (msg as ServerMsg).t;
-        if (
-          t === 'hello' ||
-          t === 'pose' ||
-          t === 'player_join' ||
-          t === 'player_leave' ||
-          t === 'block_set' ||
-          t === 'block_reject' ||
-          t === 'pong' ||
-          t === 'error'
-        ) {
-          if (t === 'hello') this.playerId = (msg as Extract<ServerMsg, { t: 'hello' }>).you;
-          this.emit(msg as ServerMsg);
+        // Host may receive raw block_set with from
+        try {
+          const raw = JSON.parse(ev.data) as HostInboxMsg;
+          if (raw && typeof raw === 'object' && typeof (raw as { t?: unknown }).t === 'string') {
+            if (raw.t === 'welcome') this.playerId = (raw as Extract<ServerMsg, { t: 'welcome' }>).you;
+            this.emit(raw);
+            return;
+          }
+        } catch {
+          /* fall through */
         }
+        const msg = decodeMsg(ev.data);
+        if (msg) this.emit(msg as ServerMsg);
       };
     });
+  }
+
+  sendHello(role: 'host' | 'guest', world?: { seed: number; palIdx: number; planetName: string; time: number }): void {
+    const msg: ClientMsg = {
+      t: 'hello',
+      v: MP_PROTOCOL_VERSION,
+      role,
+      ...(role === 'host' && world
+        ? {
+            seed: world.seed,
+            palIdx: world.palIdx,
+            planetName: world.planetName,
+            time: world.time,
+          }
+        : {}),
+    };
+    this.send(msg);
   }
 
   disconnect(): void {
@@ -169,7 +168,6 @@ export class NetClient {
     this.ws.send(encodeMsg(msg));
   }
 
-  /** Call from game loop with dt; rate-limits pose uploads. */
   tickPose(
     dt: number,
     pose: {
@@ -203,5 +201,36 @@ export class NetClient {
 
   sendBlockSet(x: number, y: number, z: number, id: number, seq: number): void {
     this.send({ t: 'block_set', x, y, z, id, seq });
+  }
+
+  sendBlockApply(x: number, y: number, z: number, id: number, by: string): void {
+    this.send({ t: 'block_apply', x, y, z, id, by });
+  }
+
+  sendBlockReject(to: string, x: number, y: number, z: number, id: number, reason: string, seq: number): void {
+    this.send({ t: 'block_reject', to, x, y, z, id, reason, seq });
+  }
+
+  sendHostHeartbeat(info: {
+    playerCount: number;
+    planetName: string;
+    seed: number;
+    palIdx: number;
+  }): void {
+    this.send({ t: 'host_heartbeat', ...info });
+  }
+
+  sendStateSnapshot(
+    snap: {
+      seed: number;
+      palIdx: number;
+      planetName: string;
+      time: number;
+      edits: import('./protocol').EditEntry[];
+      players: import('./protocol').PlayerSnap[];
+    },
+    to?: string,
+  ): void {
+    this.send({ t: 'state_snapshot', to, ...snap });
   }
 }

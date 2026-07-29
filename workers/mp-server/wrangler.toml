@@ -10,8 +10,14 @@ port = 8787
 name = "PLANET_ROOM"
 class_name = "PlanetRoom"
 
+[[durable_objects.bindings]]
+name = "ROOM_DIRECTORY"
+class_name = "RoomDirectory"
+
 [[migrations]]
 tag = "v1"
-# Free plan requires SQLite-backed DO classes. Session state stays in-memory;
-# we still do not host player/world saves on the server.
 new_sqlite_classes = ["PlanetRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RoomDirectory"]

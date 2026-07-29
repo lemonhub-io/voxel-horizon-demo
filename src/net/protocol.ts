@@ -1,17 +1,15 @@
-/** Shared multiplayer protocol (client). Server mirrors in workers/mp-server. */
+/** Multiplayer protocol — host-local authority, CF only lists + relays. */
 
-export const MP_PROTOCOL_VERSION = 1;
+export const MP_PROTOCOL_VERSION = 2;
 export const MP_MAX_PLAYERS = 8;
-export const MP_PUBLIC_SHARDS = 4;
 export const MP_POSE_HZ = 15;
-export const MP_REACH_SLACK = 1.5;
+export const MP_HOST_HEARTBEAT_S = 4;
 
 export type AnimCode = 0 | 1 | 2 | 3 | 4 | 5;
 // 0 idle, 1 walk, 2 run, 3 jump, 4 jumpIdle, 5 death
 
 export interface PlayerSnap {
   id: string;
-  name: string;
   x: number;
   y: number;
   z: number;
@@ -28,18 +26,29 @@ export interface EditEntry {
   id: number;
 }
 
+/** Messages from browser → DO (relay / host control). */
 export type ClientMsg =
-  | { t: 'join'; v: number; name: string }
-  | { t: 'pose'; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
-  | { t: 'block_set'; x: number; y: number; z: number; id: number; seq: number }
-  | { t: 'ping'; n: number };
-
-export type ServerMsg =
   | {
       t: 'hello';
       v: number;
-      roomId: string;
-      you: string;
+      role: 'host' | 'guest';
+      /** Host only: world identity for the public list + late join. */
+      seed?: number;
+      palIdx?: number;
+      planetName?: string;
+      time?: number;
+    }
+  | { t: 'host_heartbeat'; playerCount: number; planetName: string; seed: number; palIdx: number }
+  | { t: 'pose'; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
+  /** Guest predictive request; host applies and replies with block_apply. */
+  | { t: 'block_set'; x: number; y: number; z: number; id: number; seq: number }
+  /** Host authority apply (broadcast). */
+  | { t: 'block_apply'; x: number; y: number; z: number; id: number; by: string }
+  | { t: 'block_reject'; to: string; x: number; y: number; z: number; id: number; reason: string; seq: number }
+  | { t: 'state_req' }
+  | {
+      t: 'state_snapshot';
+      to?: string;
       seed: number;
       palIdx: number;
       planetName: string;
@@ -47,28 +56,39 @@ export type ServerMsg =
       edits: EditEntry[];
       players: PlayerSnap[];
     }
+  | { t: 'ping'; n: number };
+
+/** Messages DO → browser. */
+export type ServerMsg =
+  | {
+      t: 'welcome';
+      v: number;
+      roomId: string;
+      you: string;
+      isHost: boolean;
+      hostId: string | null;
+      playerCount: number;
+    }
+  | { t: 'peer_join'; id: string }
+  | { t: 'peer_leave'; id: string }
+  | { t: 'host_left' }
+  /** Relayed peer pose */
   | { t: 'pose'; id: string; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
-  | { t: 'player_join'; player: PlayerSnap }
-  | { t: 'player_leave'; id: string }
-  | { t: 'block_set'; x: number; y: number; z: number; id: number; by: string }
+  | { t: 'block_apply'; x: number; y: number; z: number; id: number; by: string }
   | { t: 'block_reject'; x: number; y: number; z: number; id: number; reason: string; seq: number }
+  | { t: 'state_req'; from: string }
+  | {
+      t: 'state_snapshot';
+      seed: number;
+      palIdx: number;
+      planetName: string;
+      time: number;
+      edits: EditEntry[];
+      players: PlayerSnap[];
+      hostId: string;
+    }
   | { t: 'pong'; n: number }
   | { t: 'error'; reason: string };
-
-export interface PublicJoinResponse {
-  ok: true;
-  roomId: string;
-  wsPath: string;
-  seed: number;
-  palIdx: number;
-  playerCount: number;
-  maxPlayers: number;
-}
-
-export interface PublicJoinError {
-  ok: false;
-  reason: string;
-}
 
 export interface PublicRoomInfo {
   roomId: string;
@@ -77,6 +97,8 @@ export interface PublicRoomInfo {
   seed: number;
   palIdx: number;
   planetName: string;
+  /** Host still heartbeating */
+  live: boolean;
 }
 
 export function encodeMsg(msg: ClientMsg | ServerMsg): string {

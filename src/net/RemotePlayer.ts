@@ -10,7 +10,6 @@ import { animToKey, type AnimCode, type PlayerSnap } from './protocol';
  */
 export class RemotePlayer {
   id: string;
-  name: string;
   root: THREE.Group;
   private model: THREE.Group | null = null;
   private mixer: THREE.AnimationMixer | null = null;
@@ -23,7 +22,6 @@ export class RemotePlayer {
 
   constructor(snap: PlayerSnap) {
     this.id = snap.id;
-    this.name = snap.name;
     this.root = new THREE.Group();
     this.root.name = `remote-${snap.id}`;
     this.target.set(snap.x, snap.y, snap.z);
@@ -74,7 +72,6 @@ export class RemotePlayer {
   }
 
   applySnap(snap: PlayerSnap): void {
-    this.name = snap.name;
     this.target.set(snap.x, snap.y, snap.z);
     this.targetYaw = snap.yaw;
     if (snap.flags & 1) {

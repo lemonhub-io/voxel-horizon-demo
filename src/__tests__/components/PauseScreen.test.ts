@@ -19,11 +19,16 @@ describe('PauseScreen', () => {
   });
 
   it('hides save and shows leave label in multiplayer', () => {
-    const wrapper = mount(PauseScreen, { props: { multiplayer: true } });
+    const wrapper = mount(PauseScreen, { props: { multiplayer: true, isHost: true } });
     expect(wrapper.text()).toContain('联机暂停');
     expect(wrapper.text()).not.toContain('保存进度');
     expect(wrapper.text()).toContain('离开联机');
-    expect(wrapper.text()).toContain('不托管存档');
+    expect(wrapper.text()).toContain('房主本机托管');
+  });
+
+  it('shows open multiplayer when offline', () => {
+    const wrapper = mount(PauseScreen, { props: { multiplayer: false } });
+    expect(wrapper.text()).toContain('开放联机');
   });
 
   it('emits resume', async () => {

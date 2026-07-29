@@ -28,7 +28,6 @@
 
   <MultiplayerLobbyScreen
     v-if="showMpLobby && game.state === 'title'"
-    :display-name="mpName"
     :joining="mpBusy"
     @back="showMpLobby = false"
     @join="onMpJoin"
@@ -55,8 +54,10 @@
   <PauseScreen
     v-if="game.state === 'pause'"
     :multiplayer="isMultiplayer"
+    :is-host="isMpHost"
     @resume="onResume"
     @save="onSave"
+    @host-mp="onHostMp"
     @help="showHelp = true"
     @settings="showSettings = true"
     @quit="onQuit"
@@ -129,6 +130,7 @@ const currentSlot = ref(0);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 
 const isMultiplayer = computed(() => !!getEngine()?.multiplayer);
+const isMpHost = computed(() => !!getEngine()?.mp?.isHost);
 
 onMounted(async () => {
   hasSave.value = await Save.hasSave();
@@ -168,25 +170,19 @@ async function onNewGame() {
   }
 }
 
-async function onMpJoin(payload: { roomId?: string; name: string }): Promise<void> {
+async function onMpJoin(payload: { roomId: string }): Promise<void> {
   if (engineLoading.value || mpBusy.value) return;
   mpBusy.value = true;
-  mpName.value = payload.name;
   engineLoading.value = true;
-  engineLoadingText.value = '正在接入公开联机';
-  engineLoadingSub.value = 'CONNECTING PUBLIC SESSION';
+  engineLoadingText.value = '正在从房主同步世界';
+  engineLoadingSub.value = 'JOINING HOST SESSION';
   try {
     const engine = await loadGame();
-    await engine.joinPublicMultiplayer?.(payload.name, payload.roomId);
-    mpRoomLabel.value = engine.mp && 'roomId' in engine.mp
-      ? String((engine.mp as { roomId?: string }).roomId || payload.roomId || '')
-      : (payload.roomId || '');
-    // Prefer live session id after hello
-    const session = engine.mp as { roomId?: string } | null;
-    if (session?.roomId) mpRoomLabel.value = session.roomId;
+    await engine.joinPublicMultiplayer?.(payload.roomId);
+    mpRoomLabel.value = engine.mp?.roomId || payload.roomId;
     showMpLobby.value = false;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : '公开联机失败';
+    const msg = e instanceof Error ? e.message : '加入联机失败';
     hud.addNotification(msg, 'danger');
     console.warn('public multiplayer failed', e);
   } finally {
@@ -194,6 +190,22 @@ async function onMpJoin(payload: { roomId?: string; name: string }): Promise<voi
     engineLoading.value = false;
     engineLoadingText.value = '正在准备星球渲染器';
     engineLoadingSub.value = 'INITIALIZING RENDERER';
+  }
+}
+
+async function onHostMp(): Promise<void> {
+  const engine = getEngine();
+  if (!engine || mpBusy.value) return;
+  mpBusy.value = true;
+  try {
+    await engine.hostPublicMultiplayer?.();
+    mpRoomLabel.value = engine.mp?.roomId || '';
+    hud.addNotification('房间已公开到联机列表', 'success');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '开放联机失败';
+    hud.addNotification(msg, 'danger');
+  } finally {
+    mpBusy.value = false;
   }
 }
 async function onContinue() {

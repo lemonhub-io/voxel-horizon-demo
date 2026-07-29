@@ -1,14 +1,16 @@
 /**
- * Edge entry for Voxel Horizon public multiplayer.
- * No account system, no save hosting — only ephemeral public sessions.
+ * Edge entry — public room directory + host-local session relay.
+ * Does not host world/player saves.
  */
-import { PlanetRoom, type RoomStatus } from './PlanetRoom';
-import { MP_MAX_PLAYERS, MP_PUBLIC_SHARDS } from './protocol';
+import { PlanetRoom } from './PlanetRoom';
+import { RoomDirectory } from './RoomDirectory';
+import { MP_MAX_PLAYERS } from './protocol';
 
-export { PlanetRoom };
+export { PlanetRoom, RoomDirectory };
 
 export interface Env {
   PLANET_ROOM: DurableObjectNamespace<PlanetRoom>;
+  ROOM_DIRECTORY: DurableObjectNamespace<RoomDirectory>;
 }
 
 function corsHeaders(): HeadersInit {
@@ -26,30 +28,8 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-async function listPublicRooms(env: Env): Promise<RoomStatus[]> {
-  const rooms: RoomStatus[] = [];
-  for (let i = 0; i < MP_PUBLIC_SHARDS; i++) {
-    const roomId = `public-${i}`;
-    const id = env.PLANET_ROOM.idFromName(roomId);
-    const stub = env.PLANET_ROOM.get(id);
-    const status = await stub.getStatus(roomId);
-    rooms.push(status);
-  }
-  return rooms;
-}
-
-async function pickPublicRoom(env: Env): Promise<RoomStatus | null> {
-  const rooms = await listPublicRooms(env);
-  // Prefer rooms with players but not full; else empty; never full.
-  const open = rooms.filter((r) => !r.full);
-  if (open.length === 0) return null;
-  open.sort((a, b) => {
-    // Fill partially occupied rooms first for social density
-    if (a.playerCount === 0 && b.playerCount > 0) return 1;
-    if (b.playerCount === 0 && a.playerCount > 0) return -1;
-    return a.playerCount - b.playerCount;
-  });
-  return open[0] ?? null;
+function directory(env: Env) {
+  return env.ROOM_DIRECTORY.get(env.ROOM_DIRECTORY.idFromName('public-directory'));
 }
 
 export default {
@@ -60,44 +40,29 @@ export default {
 
     const url = new URL(request.url);
 
-    // Public lobby listing
     if (url.pathname === '/api/public/rooms' && request.method === 'GET') {
-      const rooms = await listPublicRooms(env);
+      const rooms = await directory(env).listPublic();
+      return json({ rooms, maxPlayers: MP_MAX_PLAYERS });
+    }
+
+    // Create a new room id for hosting (client then opens WS as host)
+    if (url.pathname === '/api/public/create' && (request.method === 'POST' || request.method === 'GET')) {
+      const roomId = `room-${crypto.randomUUID().slice(0, 8)}`;
       return json({
-        rooms: rooms.map((r) => ({
-          roomId: r.roomId,
-          playerCount: r.playerCount,
-          maxPlayers: r.maxPlayers,
-          seed: r.seed,
-          palIdx: r.palIdx,
-          planetName: r.planetName,
-        })),
+        ok: true,
+        roomId,
+        wsPath: `/ws?room=${encodeURIComponent(roomId)}`,
         maxPlayers: MP_MAX_PLAYERS,
       });
     }
 
-    // Auto-join least-loaded public shard
-    if (url.pathname === '/api/public/join' && (request.method === 'POST' || request.method === 'GET')) {
-      const room = await pickPublicRoom(env);
-      if (!room) {
-        return json({ ok: false, reason: '公开房间已满，请稍后再试' }, 503);
-      }
-      return json({
-        ok: true,
-        roomId: room.roomId,
-        wsPath: `/ws?room=${encodeURIComponent(room.roomId)}`,
-        seed: room.seed,
-        palIdx: room.palIdx,
-        playerCount: room.playerCount,
-        maxPlayers: room.maxPlayers,
-      });
-    }
-
-    // WebSocket upgrade → room DO
     if (url.pathname === '/ws') {
-      const roomId = url.searchParams.get('room') || 'public-0';
-      if (!/^public-\d+$/.test(roomId)) {
-        return new Response('Invalid room', { status: 400, headers: corsHeaders() });
+      const roomId = url.searchParams.get('room') || '';
+      if (!/^room-[a-f0-9-]{8,36}$/i.test(roomId) && !/^public-\d+$/.test(roomId)) {
+        // allow room-xxxxxxxx (8 hex from uuid slice) or legacy public-N during transition
+        if (!roomId.startsWith('room-')) {
+          return new Response('Invalid room', { status: 400, headers: corsHeaders() });
+        }
       }
       const id = env.PLANET_ROOM.idFromName(roomId);
       const stub = env.PLANET_ROOM.get(id);
@@ -105,7 +70,12 @@ export default {
     }
 
     if (url.pathname === '/' || url.pathname === '/health') {
-      return json({ ok: true, service: 'voxel-horizon-mp', mode: 'public-session-only' });
+      return json({
+        ok: true,
+        service: 'voxel-horizon-mp',
+        mode: 'host-local-authority',
+        note: 'World data lives on host client; server only lists + relays',
+      });
     }
 
     return new Response('Not found', { status: 404, headers: corsHeaders() });
