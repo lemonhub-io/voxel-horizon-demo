@@ -10,13 +10,19 @@
         <div class="inv-left">
           <div class="inv-sec-title">远行者装备舱 <em>EXOSUIT</em></div>
           <div id="inv-grid" class="grid">
-            <div v-for="(s, i) in store.slots" :key="i" class="slot" @mousedown="$emit('slot-click', 'slots', i, $event)" @mouseenter="$emit('slot-hover', s, $event)" @mouseleave="$emit('slot-leave')">
+            <div
+v-for="(s, i) in store.slots" :key="i" class="slot" :class="{ selected: isSel('slots', i) }"
+              @mouseenter="showTip(s, $event)" @mousemove="moveTip($event)" @mouseleave="hideTip()" @click="onSlotClick('slots', i, s)"
+              @touchstart.passive="onTouchStart('slots', i, s, $event)" @touchmove.passive="onTouchMove($event)" @touchend.passive="onTouchEnd('slots', i, s)">
               <img v-if="s" :src="icon(s.id)" :class="{ hidden: !s }"><span class="cnt">{{ s && s.n > 1 ? s.n : '' }}</span>
             </div>
           </div>
           <div class="inv-sec-title">快捷栏 <em>QUICK ACCESS</em></div>
           <div id="inv-hotbar" class="grid">
-            <div v-for="(s, i) in store.hotbar" :key="i" class="slot" @mousedown="$emit('slot-click', 'hotbar', i, $event)" @mouseenter="$emit('slot-hover', s, $event)" @mouseleave="$emit('slot-leave')">
+            <div
+v-for="(s, i) in store.hotbar" :key="i" class="slot" :class="{ selected: isSel('hotbar', i) }"
+              @mouseenter="showTip(s, $event)" @mousemove="moveTip($event)" @mouseleave="hideTip()" @click="onSlotClick('hotbar', i, s)"
+              @touchstart.passive="onTouchStart('hotbar', i, s, $event)" @touchmove.passive="onTouchMove($event)" @touchend.passive="onTouchEnd('hotbar', i, s)">
               <img v-if="s" :src="icon(s.id)" :class="{ hidden: !s }"><span class="cnt">{{ s && s.n > 1 ? s.n : '' }}</span>
             </div>
           </div>
@@ -25,7 +31,7 @@
           <div v-if="detailItem" class="item-card">
             <div class="ic-head"><img :src="icon(detailItem.id)"><div><h3>{{ ITEMS[detailItem.id]?.name }}</h3><div class="ic-type">{{ ITEMS[detailItem.id]?.type }} · 持有 {{ store.count(detailItem.id) }}</div></div></div>
             <div class="ic-desc">{{ ITEMS[detailItem.id]?.desc }}</div>
-            <div class="ic-actions"><button v-if="ITEMS[detailItem.id]?.use" class="btn sm" @click="$emit('use-item', detailItem!.id)">使用</button></div>
+            <div class="ic-actions"><button v-if="ITEMS[detailItem.id]?.use" class="btn sm" :class="{ disabled: store.count(detailItem.id) < 1 }" @click="useFromDetail()">使用</button></div>
           </div>
           <div v-else class="detail-empty">选择一件物品查看详情</div>
         </div>
@@ -70,18 +76,37 @@
         </div>
       </div>
     </div>
+
+    <!-- PC hover tooltip -->
+    <div v-if="tip.visible" class="inv-tip" :style="tipStyle">
+      <div class="it-head"><img :src="icon(tip.id)"><div><b>{{ ITEMS[tip.id]?.name }}</b><div class="it-type">{{ ITEMS[tip.id]?.type }} · 持有 {{ store.count(tip.id) }}</div></div></div>
+      <div class="it-desc">{{ ITEMS[tip.id]?.desc }}</div>
+      <div class="it-hint" :class="{ use: !!ITEMS[tip.id]?.use }">{{ ITEMS[tip.id]?.use ? '可使用 · 点击选择' : '点击查看详情' }}</div>
+    </div>
+
+    <!-- Mobile long-press / double-tap detail popover -->
+    <div v-if="modalItem" class="inv-modal" @mousedown.self="closeModal()" @touchstart.self.passive="closeModal()">
+      <div class="inv-modal-card panel">
+        <div class="ic-head"><img :src="icon(modalItem.id)"><div><h3>{{ ITEMS[modalItem.id]?.name }}</h3><div class="ic-type">{{ ITEMS[modalItem.id]?.type }} · 持有 {{ store.count(modalItem.id) }}</div></div></div>
+        <div class="ic-desc">{{ ITEMS[modalItem.id]?.desc }}</div>
+        <div class="ic-actions">
+          <button v-if="ITEMS[modalItem.id]?.use" class="btn primary" :class="{ disabled: store.count(modalItem.id) < 1 }" @click="useFromModal()">使用</button>
+          <button class="btn" @click="closeModal()">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useGameStore } from '../stores/gameStore';
 import { useMilestonesStore } from '../stores/milestonesStore';
 import { ITEMS, RECIPES, MILESTONE_DEFS } from '../config';
 import type { SlotItem, MilestoneDef } from '../types';
 
-defineEmits(['close', 'slot-click', 'slot-hover', 'slot-leave', 'use-item', 'craft']);
+const emit = defineEmits(['close', 'use-item', 'craft']);
 
 const store = useInventoryStore();
 const game = useGameStore();
@@ -95,8 +120,93 @@ const tabs = [
   { key: 'disc', label: '发现', en: 'DISCOVERIES' }
 ];
 
+// Pointer capability — hover tooltips only on real mouse devices; touch devices
+// get long-press / double-tap popovers. Hybrid devices enable both.
+const hasFinePointer = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(pointer: fine)').matches
+  : false;
+
 function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
 function tier(def: MilestoneDef, val: number) { let t = 0; for (const th of def.tiers) if (val >= th) t++; return t; }
+
+// --- Detail panel selection (right side) ---
+const detailKey = ref('');
+function isSel(arr: 'slots' | 'hotbar', i: number): boolean { return detailKey.value === arr + ':' + i; }
+function selectSlot(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null): void {
+  detailItem.value = s;
+  detailKey.value = s ? arr + ':' + i : '';
+}
+function useFromDetail(): void {
+  if (!detailItem.value) return;
+  if (store.count(detailItem.value.id) < 1) return;
+  emit('use-item', detailItem.value.id);
+}
+
+// --- PC hover tooltip ---
+const tip = reactive({ visible: false, x: 0, y: 0, id: '' });
+const tipLeftSide = computed(() => tip.x > (typeof innerWidth !== 'undefined' ? innerWidth : 9999) - 260);
+const tipStyle = computed(() => ({
+  left: (tipLeftSide.value ? tip.x - 250 : tip.x + 14) + 'px',
+  top: (tip.y + 14) + 'px'
+}));
+function showTip(s: SlotItem | null, e: MouseEvent): void {
+  if (!hasFinePointer || !s) return;
+  tip.id = s.id; tip.x = e.clientX; tip.y = e.clientY; tip.visible = true;
+}
+function moveTip(e: MouseEvent): void { if (tip.visible) { tip.x = e.clientX; tip.y = e.clientY; } }
+function hideTip(): void { tip.visible = false; }
+
+// --- Slot click (mouse) ---
+function onSlotClick(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null): void {
+  if (!hasFinePointer) return;        // touch handles selection via touchend
+  selectSlot(arr, i, s);
+}
+
+// --- Mobile long-press / double-tap popover ---
+const modalItem = ref<SlotItem | null>(null);
+let pressTimer: ReturnType<typeof setTimeout> | undefined;
+let pressPos = { x: 0, y: 0 };
+let moved = false;
+let lastTap = 0;
+
+function openModal(s: SlotItem): void { modalItem.value = s; }
+function closeModal(): void { modalItem.value = null; }
+function useFromModal(): void {
+  if (!modalItem.value) return;
+  if (store.count(modalItem.value.id) < 1) return;
+  emit('use-item', modalItem.value.id);
+  closeModal();
+}
+
+function onTouchStart(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null, e: TouchEvent): void {
+  if (!s) return;
+  moved = false;
+  const t = e.touches[0];
+  pressPos = { x: t.clientX, y: t.clientY };
+  pressTimer = setTimeout(() => {
+    pressTimer = undefined;
+    openModal(s);
+    if (navigator.vibrate) navigator.vibrate(15);
+  }, 500);
+}
+function onTouchMove(e: TouchEvent): void {
+  const t = e.touches[0];
+  if (Math.abs(t.clientX - pressPos.x) > 10 || Math.abs(t.clientY - pressPos.y) > 10) {
+    moved = true;
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = undefined; }
+  }
+}
+function onTouchEnd(arr: 'slots' | 'hotbar', i: number, s: SlotItem | null): void {
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = undefined;
+    if (!moved) {
+      const now = Date.now();
+      if (now - lastTap < 320) { openModal(s as SlotItem); lastTap = 0; }
+      else { lastTap = now; selectSlot(arr, i, s); }
+    }
+  }
+}
 
 defineExpose({ detailItem });
 </script>
