@@ -5,9 +5,12 @@
 import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
-import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { findAnimationClip, fitCC0Model, loadCC0Model, loadCC0ModelWithAnimations } from './cc0-models';
 import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
+
+/** Layer for world-space player body (hidden from FPS camera, still casts shadows). */
+const PLAYER_BODY_LAYER = 1;
 
 export class Player {
   g: Game;
@@ -41,6 +44,9 @@ export class Player {
   vmTip!: THREE.Object3D;
   weaponMount!: THREE.Group;
   blockInHand!: THREE.Mesh;
+  /** World-space astronaut body (CC0). */
+  bodyRoot!: THREE.Group;
+  bodyModel: THREE.Group | null = null;
   highlight!: THREE.LineSegments;
   crackMat!: THREE.MeshBasicMaterial;
   crack!: THREE.Mesh;
@@ -76,6 +82,15 @@ export class Player {
   private _muzzleAccum = new THREE.Vector3();
   private _shelterCache = 0;
   private _shelterVal = false;
+  private _wishStrength = 0;
+  private _sprinting = false;
+  private _bodyMixer: THREE.AnimationMixer | null = null;
+  private _bodyActions = new Map<string, THREE.AnimationAction>();
+  private _bodyAction: THREE.AnimationAction | null = null;
+  private _bodyAnimKey = '';
+  private _bodyReady = false;
+  private _bodyShadowLayersOk = false;
+  private _landAnimT = 0;
 
   constructor(game: Game) {
     this.g = game;
@@ -104,7 +119,15 @@ export class Player {
     this.lowBeepT = 0;
     this.fallVy = 0;
     this.scanCd = 0;
+    // FPS camera only sees layer 0 (default); body uses layer 1.
+    game.camera.layers.enable(0);
+    game.camera.layers.disable(PLAYER_BODY_LAYER);
+    this.bodyRoot = new THREE.Group();
+    this.bodyRoot.name = 'player-body-root';
+    this.bodyRoot.visible = false;
+    game.scene.add(this.bodyRoot);
     this.buildViewmodel();
+    void this.loadPlayerBody();
     this.highlight = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)),
       new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55 })
@@ -166,6 +189,147 @@ export class Player {
   }
 
   /**
+   * World-space astronaut body: shadows + death pose + movement anims.
+   * Hidden from the FPS camera via layers (still participates in shadow maps).
+   */
+  private async loadPlayerBody(): Promise<void> {
+    try {
+      const { scene, animations } = await loadCC0ModelWithAnimations(CC0_MODEL_URLS.player);
+      // Player capsule ≈ 0.6 wide × 1.8 tall; fit astronaut into that envelope.
+      fitCC0Model(scene, 0.85, 1.78);
+      scene.name = 'quaternius-astronaut';
+      // FPS uses a separate rifle viewmodel — hide baked weapon props on the body.
+      scene.traverse((child) => {
+        const n = child.name.toLowerCase();
+        if (
+          n.includes('pistol') ||
+          n.includes('rifle') ||
+          n.includes('gun') ||
+          n === 'weapon' ||
+          n.includes('weapon')
+        ) {
+          child.visible = false;
+        }
+        // Body on exclusive layer so the eye camera does not clip into the torso.
+        child.layers.set(PLAYER_BODY_LAYER);
+      });
+      scene.layers.set(PLAYER_BODY_LAYER);
+      this.bodyRoot.layers.set(PLAYER_BODY_LAYER);
+
+      while (this.bodyRoot.children.length) this.bodyRoot.remove(this.bodyRoot.children[0]);
+      this.bodyRoot.add(scene);
+      this.bodyModel = scene;
+      this._bodyReady = true;
+      this.bodyRoot.visible = !this.inShip;
+
+      this._bodyMixer = new THREE.AnimationMixer(scene);
+      this._bodyActions.clear();
+      const keys: Record<string, string[]> = {
+        idle: ['Idle_Gun', 'Idle'],
+        walk: ['Walk_Gun', 'Walk'],
+        run: ['Run_Gun', 'Run'],
+        jump: ['Jump'],
+        jumpIdle: ['Jump_Idle', 'Jump'],
+        jumpLand: ['Jump_Land', 'Idle_Gun', 'Idle'],
+        death: ['Death'],
+      };
+      for (const [key, names] of Object.entries(keys)) {
+        const clip = findAnimationClip(animations, ...names);
+        if (!clip) continue;
+        const action = this._bodyMixer.clipAction(clip);
+        if (key === 'death' || key === 'jumpLand' || key === 'jump') {
+          action.setLoop(THREE.LoopOnce, 1);
+          action.clampWhenFinished = true;
+        }
+        this._bodyActions.set(key, action);
+      }
+      this.playBodyAnim('idle', 0);
+      this.syncBodyTransform();
+    } catch {
+      this._bodyReady = false;
+      this.bodyModel = null;
+    }
+  }
+
+  private playBodyAnim(key: string, fade = 0.2): void {
+    if (!this._bodyMixer) return;
+    if (key === this._bodyAnimKey && this._bodyAction) return;
+    const next = this._bodyActions.get(key);
+    if (!next) return;
+    if (this._bodyAction && this._bodyAction !== next) {
+      this._bodyAction.fadeOut(fade);
+    }
+    next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(fade).play();
+    this._bodyAction = next;
+    this._bodyAnimKey = key;
+  }
+
+  private pickBodyAnimKey(): string {
+    if (this.dead) return 'death';
+    if (this._landAnimT > 0) return 'jumpLand';
+    if (!this.onGround) {
+      if (this.vel.y > 1.2) return 'jump';
+      return 'jumpIdle';
+    }
+    if (this._wishStrength > 0.12) {
+      return this._sprinting ? 'run' : 'walk';
+    }
+    return 'idle';
+  }
+
+  private syncBodyTransform(): void {
+    if (!this._bodyReady) return;
+    this.bodyRoot.position.set(this.pos.x, this.pos.y, this.pos.z);
+    // Model faces +Z in Quaternius bind pose; game forward is -Z at yaw=0.
+    this.bodyRoot.rotation.set(0, this.yaw + Math.PI, 0);
+  }
+
+  private ensureBodyShadowLayers(): void {
+    if (this._bodyShadowLayersOk) return;
+    const sky = this.g.sky;
+    if (!sky?.sunLight) return;
+    sky.sunLight.layers.enable(PLAYER_BODY_LAYER);
+    sky.sunLight.shadow.camera.layers.enable(PLAYER_BODY_LAYER);
+    const lights = sky.csm?.lights;
+    if (!lights?.length) return;
+    for (const light of lights) {
+      light.layers.enable(PLAYER_BODY_LAYER);
+      light.shadow.camera.layers.enable(PLAYER_BODY_LAYER);
+    }
+    this._bodyShadowLayersOk = true;
+  }
+
+  private updateBody(dt: number): void {
+    if (!this._bodyReady || !this._bodyMixer) return;
+    this.ensureBodyShadowLayers();
+
+    if (this.inShip) {
+      this.bodyRoot.visible = false;
+      this._bodyMixer.update(dt);
+      return;
+    }
+
+    this.bodyRoot.visible = true;
+    // Death: also enable layer 0 so the corpse is visible under the death UI.
+    if (this.dead) {
+      this.bodyRoot.traverse((c) => {
+        c.layers.enable(0);
+        c.layers.enable(PLAYER_BODY_LAYER);
+      });
+    } else {
+      this.bodyRoot.traverse((c) => {
+        c.layers.disable(0);
+        c.layers.enable(PLAYER_BODY_LAYER);
+      });
+    }
+
+    this.syncBodyTransform();
+    if (this._landAnimT > 0) this._landAnimT = Math.max(0, this._landAnimT - dt);
+    this.playBodyAnim(this.pickBodyAnimKey(), this.dead ? 0.05 : 0.18);
+    this._bodyMixer.update(dt);
+  }
+
+  /**
    * Place the laser/muzzle anchor on the rifle barrel tip in weaponMount space.
    * After -90° Y, the muzzle is the most-negative local Z of the fitted mesh.
    */
@@ -224,12 +388,18 @@ export class Player {
 
   update(dt: number): void {
     const g = this.g;
-    if (this.dead) return;
+    if (this.dead) {
+      this.updateBody(dt);
+      return;
+    }
     if (this.inShip) {
       this.pos.copy(g.ship.group.position);
       this.statsTick(dt, true);
+      this.vm.visible = false;
+      this.updateBody(dt);
       return;
     }
+    this.vm.visible = true;
     const input = g.input;
     if (input.jumpPressed) {
       this._jumpBufferT = 0.12;
@@ -258,6 +428,8 @@ export class Player {
     const sprint = ((input.keys['ShiftLeft'] && input.keys['KeyW']) || input.touchSprint) && this.ls > 5;
     const wishLength = Math.sqrt(wish.lengthSq());
     const wishStrength = Math.min(1, wishLength);
+    this._wishStrength = wishStrength;
+    this._sprinting = sprint && wishStrength > 0.12;
     if (wishLength > 0) wish.multiplyScalar(1 / wishLength);
 
     const feet = this.g.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.2), Math.floor(this.pos.z));
@@ -377,6 +549,7 @@ export class Player {
     this.updateTargeting(dt);
     this.updateMining(dt);
     this.updateInteract(dt);
+    this.updateBody(dt);
     this.statsTick(dt, false);
     this.updateVisor(dt);
     if (this.scanCd > 0) this.scanCd -= dt;
@@ -449,6 +622,7 @@ export class Player {
       }
       // Landing camera dip — proportional to fall speed
       this._landImpact = Math.min(Math.abs(impact) * 0.012, 0.15);
+      if (impact < -3) this._landAnimT = 0.35;
     }
   }
 
@@ -738,6 +912,10 @@ export class Player {
   die(cause?: string): void {
     if (this.dead) return;
     this.dead = true;
+    this.vm.visible = false;
+    this._bodyAnimKey = '';
+    this.playBodyAnim('death', 0.08);
+    this.syncBodyTransform();
     this.g.audio.death();
     this.g.audio.setLoop('laser', false);
     this.g.audio.setLoop('jet', false);
@@ -753,6 +931,10 @@ export class Player {
     this.hazard = 40;
     this.ls = 50;
     this.dead = false;
+    this.vm.visible = true;
+    this._bodyAnimKey = '';
+    this.playBodyAnim('idle', 0);
+    this.syncBodyTransform();
     g.audio.respawn();
   }
 
@@ -923,12 +1105,15 @@ export class Player {
   exitShip(): void {
     const g = this.g;
     this.inShip = false;
+    this.vm.visible = true;
     const sp = g.ship.group.position;
     const side = new THREE.Vector3(3.2, 0, 0).applyQuaternion(g.ship.group.quaternion);
     this.pos.set(sp.x + side.x, sp.y + 0.5, sp.z + side.z);
     let tries = 0;
     while (g.world.collides(this.pos.x - 0.3, this.pos.y, this.pos.z - 0.3, this.pos.x + 0.3, this.pos.y + 1.8, this.pos.z + 0.3) && tries++ < 30) this.pos.y += 0.5;
     this.vel.set(0, 0, 0);
+    this.syncBodyTransform();
+    this.playBodyAnim('idle', 0);
     g.hud.setFlightHud(false);
     g.missions.onEvent('land');
   }

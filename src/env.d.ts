@@ -9,6 +9,10 @@ declare module '*.vue' {
 declare module 'three/addons/loaders/GLTFLoader.js' {
   export interface GLTF {
     scene: THREE.Group;
+    animations: THREE.AnimationClip[];
+    scenes: THREE.Group[];
+    cameras: THREE.Camera[];
+    asset: Record<string, unknown>;
   }
 
   export class GLTFLoader {
@@ -43,8 +47,14 @@ declare module 'three/addons/csm/CSMShadowNode.js' {
     fade: boolean;
     breaks: number[];
     lights: Array<{
+      layers: { enable(channel: number): void };
       shadow: {
-        camera: { near: number; far: number; updateProjectionMatrix(): void };
+        camera: {
+          near: number;
+          far: number;
+          layers: { enable(channel: number): void };
+          updateProjectionMatrix(): void;
+        };
         radius: number;
         bias: number;
         normalBias: number;

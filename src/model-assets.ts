@@ -1,13 +1,26 @@
+/**
+ * CC0 models live in `public/models/cc0/` and are served with the app.
+ * Prefer same-origin paths (works offline / before CDN picks up a push).
+ * CDN mirrors remain available for external tooling / offline packaging docs.
+ */
+const CC0_DIR = `${import.meta.env.BASE_URL}models/cc0`.replace(/\/?$/, '');
 const CDN_BASE = 'https://cdn.jsdelivr.net/gh/lemonhub-io/voxel-horizon-demo@main/public/models/cc0';
 
 export const CC0_MODEL_URLS = Object.freeze({
-  ship: `${CDN_BASE}/quaternius-bob.gltf`,
+  ship: `${CC0_DIR}/quaternius-bob.gltf`,
   fauna: [
-    `${CDN_BASE}/quaternius-alien.gltf`,
-    `${CDN_BASE}/quaternius-crab.gltf`,
-    `${CDN_BASE}/quaternius-deer.gltf`
+    `${CC0_DIR}/quaternius-alien.gltf`,
+    `${CC0_DIR}/quaternius-crab.gltf`,
+    `${CC0_DIR}/quaternius-deer.gltf`,
   ],
-  rifle: `${CDN_BASE}/quaternius-scifi-assault-rifle.glb`
+  rifle: `${CC0_DIR}/quaternius-scifi-assault-rifle.glb`,
+  /** Quaternius Ultimate Space Kit — CC0 astronaut (player body). */
+  player: `${CC0_DIR}/quaternius-astronaut.glb`,
+  /** Legacy CDN mirrors (docs / packaging). */
+  cdn: Object.freeze({
+    base: CDN_BASE,
+    player: `${CDN_BASE}/quaternius-astronaut.glb`,
+  }),
 });
 
 export const CC0_MODEL_ASSETS = Object.freeze([
@@ -15,5 +28,6 @@ export const CC0_MODEL_ASSETS = Object.freeze([
   { id: 'fauna-alien', label: '异星生物模型', url: CC0_MODEL_URLS.fauna[0] },
   { id: 'fauna-crab', label: '甲壳生物模型', url: CC0_MODEL_URLS.fauna[1] },
   { id: 'fauna-deer', label: '四足生物模型', url: CC0_MODEL_URLS.fauna[2] },
-  { id: 'rifle', label: '步枪模型', url: CC0_MODEL_URLS.rifle }
+  { id: 'rifle', label: '步枪模型', url: CC0_MODEL_URLS.rifle },
+  { id: 'player', label: '宇航员玩家模型', url: CC0_MODEL_URLS.player },
 ]);

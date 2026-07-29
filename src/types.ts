@@ -646,6 +646,24 @@ export interface Sky {
   dayMix: number;
   pal: Palette;
   sunLight: THREE.DirectionalLight;
+  /** Cascaded shadow node (CSMShadowNode); cascade lights available after first update. */
+  csm?: {
+    lights?: Array<{
+      layers: { enable(channel: number): void };
+      shadow: {
+        camera: {
+          layers: { enable(channel: number): void };
+          near: number;
+          far: number;
+          updateProjectionMatrix(): void;
+        };
+        radius: number;
+      };
+    }>;
+    camera: THREE.Camera | null;
+    maxFar: number;
+    updateFrustums(): void;
+  };
   /** Soft TSL skydome mesh (palette gradient). */
   dome?: unknown;
   setPalette(pal: Palette): void;
@@ -772,6 +790,8 @@ export interface Player {
   fallVy: number;
   flashlight: THREE.SpotLight;
   scanCd: number;
+  bodyRoot: THREE.Group;
+  bodyModel: THREE.Group | null;
   target: RaycastResult | null;
   flashOn: boolean;
   buildViewmodel(): void;

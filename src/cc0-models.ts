@@ -5,14 +5,52 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { CC0_MODEL_ASSETS } from './model-assets';
 
 const loader = new GLTFLoader();
-/** Cached source scenes (never hand these out — always clone). */
-const templates = new Map<string, Promise<THREE.Group>>();
+
+export interface CC0GltfTemplate {
+  scene: THREE.Group;
+  animations: THREE.AnimationClip[];
+}
+
+export interface LoadedCC0Model {
+  /** Fresh skinned-safe instance (SkeletonUtils.clone). */
+  scene: THREE.Group;
+  /** Clips from the glTF (shared, immutable content). */
+  animations: THREE.AnimationClip[];
+}
+
+/** Cached full glTF templates (never hand the scene out — always clone). */
+const templates = new Map<string, Promise<CC0GltfTemplate>>();
 
 export interface ModelLoadFailure {
   id: string;
   label: string;
   url: string;
   reason: string;
+}
+
+function loadTemplate(url: string): Promise<CC0GltfTemplate> {
+  if (import.meta.env.MODE === 'test') {
+    return Promise.reject(new Error('CC0 model loading is disabled in tests'));
+  }
+  let template = templates.get(url);
+  if (!template) {
+    template = new Promise<CC0GltfTemplate>((resolve, reject) => {
+      loader.load(
+        url,
+        (gltf) => {
+          prepareCC0Scene(gltf.scene);
+          resolve({
+            scene: gltf.scene,
+            animations: gltf.animations ? gltf.animations.slice() : [],
+          });
+        },
+        undefined,
+        reject,
+      );
+    });
+    templates.set(url, template);
+  }
+  return template;
 }
 
 /**
@@ -22,24 +60,31 @@ export interface ModelLoadFailure {
  * SkeletonUtils.clone for correct bone → SkinnedMesh rebinding.
  */
 export function loadCC0Model(url: string): Promise<THREE.Group> {
-  if (import.meta.env.MODE === 'test') return Promise.reject(new Error('CC0 model loading is disabled in tests'));
-  let template = templates.get(url);
-  if (!template) {
-    template = new Promise<THREE.Group>((resolve, reject) => {
-      loader.load(
-        url,
-        (gltf) => {
-          // Normalize once on the template source.
-          prepareCC0Scene(gltf.scene);
-          resolve(gltf.scene);
-        },
-        undefined,
-        reject,
-      );
-    });
-    templates.set(url, template);
+  return loadTemplate(url).then((t) => cloneCC0Scene(t.scene));
+}
+
+/** Load scene + animation clips (clips are shared references from the template). */
+export function loadCC0ModelWithAnimations(url: string): Promise<LoadedCC0Model> {
+  return loadTemplate(url).then((t) => ({
+    scene: cloneCC0Scene(t.scene),
+    animations: t.animations,
+  }));
+}
+
+/** Find a clip by exact name or suffix (Quaternius uses `Armature|Idle`). */
+export function findAnimationClip(
+  clips: THREE.AnimationClip[],
+  ...candidates: string[]
+): THREE.AnimationClip | null {
+  for (const name of candidates) {
+    const exact = clips.find((c) => c.name === name);
+    if (exact) return exact;
+    const ends = clips.find((c) => c.name.endsWith(name) || c.name.endsWith(`|${name}`));
+    if (ends) return ends;
+    const includes = clips.find((c) => c.name.includes(name));
+    if (includes) return includes;
   }
-  return template.then((scene) => cloneCC0Scene(scene));
+  return null;
 }
 
 /** Clone a prepared template (skinned-safe). */
