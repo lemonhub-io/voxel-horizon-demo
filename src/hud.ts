@@ -3,6 +3,7 @@
 // All DOM UI is handled by Vue components via Pinia stores
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import type { Game, PlanetInfo } from './types';
 import { useHudStore } from './stores/hudStore';
@@ -18,7 +19,8 @@ export class HUD {
 
   /** Call after Vue has mounted and #compass canvas exists in DOM */
   initCompass(): void {
-    this.compass = document.getElementById('compass') as HTMLCanvasElement | null;
+    const compass = document.getElementById('compass');
+    this.compass = compass instanceof HTMLCanvasElement ? compass : null;
     if (this.compass) this.cctx = this.compass.getContext('2d');
   }
 

@@ -3,13 +3,12 @@
     <div id="hud-top">
       <div id="compass-wrap"><canvas id="compass" ref="compassCanvas" width="640" height="52"></canvas></div>
       <div id="hud-corner">
-        <div id="hud-units"><span class="u-sym">◈</span><span>{{ inventory.units }}</span></div>
+        <div id="hud-units"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 8 10-8 10L4 12z"/><path d="m12 7 4 5-4 5-4-5z"/></svg><span>{{ inventory.units }}</span></div>
         <div id="hud-planet">{{ game.planetName }}</div>
-        <div id="hud-env"><span>{{ envIcon }}</span><span>{{ envLabel }}</span></div>
+        <div id="hud-env"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg><span>{{ envLabel }}</span></div>
       </div>
     </div>
-
-    <div id="alert-center" :class="{ hidden: !hud.alertOn }"><span class="alert-icon">⚠</span><span>{{ hud.alertText }}</span></div>
+    <div id="alert-center" :class="{ hidden: !hud.alertOn }"><svg class="alert-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5m0 3h.01"/></svg><span>{{ hud.alertText }}</span></div>
 
     <div id="crosshair" :class="{ hidden: hud.flightHudOn }">
       <svg id="mine-ring" width="56" height="56" viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="24"/><circle class="ring-fg" cx="28" cy="28" r="24" :style="mineRingStyle"/></svg>
@@ -24,13 +23,13 @@
     </div>
 
     <div id="stats-left" :class="{ hidden: hud.flightHudOn }">
-      <div id="shield-row" class="stat-row"><span class="stat-ico">⬡</span><div class="bar"><div class="bar-fill shield" :style="{ width: player.hp + '%' }"></div></div></div>
-      <div class="stat-row"><span class="stat-ico">✚</span><div id="hp-segs"><div v-for="i in 4" :key="i" class="hp-seg" :class="{ off: player.hp / 100 < i / 4 - 0.24, hurt: player.hp < 30 }"></div></div></div>
+      <div id="shield-row" class="stat-row"><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 3v5c0 4.5-2.8 8-7 10-4.2-2-7-5.5-7-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg><div class="bar"><div class="bar-fill shield" :style="{ width: player.hp + '%' }"></div></div></div>
+      <div class="stat-row"><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><div id="hp-segs"><div v-for="i in 4" :key="i" class="hp-seg" :class="{ off: player.hp / 100 < i / 4 - 0.24, hurt: player.hp < 30 }"></div></div></div>
     </div>
 
     <div id="stats-right" :class="{ hidden: hud.flightHudOn }">
-      <div class="stat-row"><div class="bar rtl"><div class="bar-fill haz" :class="{ low: player.hazard < 25 }" :style="{ width: player.hazard + '%' }"></div></div><span class="stat-ico">{{ hazIcon }}</span></div>
-      <div class="stat-row"><div class="bar rtl"><div class="bar-fill ls" :class="{ low: player.ls < 25 }" :style="{ width: player.ls + '%' }"></div></div><span class="stat-ico">❍</span></div>
+      <div class="stat-row"><div class="bar rtl"><div class="bar-fill haz" :class="{ low: player.hazard < 25 }" :style="{ width: player.hazard + '%' }"></div></div><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 15H4z"/><path d="M12 9v4m0 3h.01"/></svg></div>
+      <div class="stat-row"><div class="bar rtl"><div class="bar-fill ls" :class="{ low: player.ls < 25 }" :style="{ width: player.ls + '%' }"></div></div><svg class="stat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></div>
     </div>
 
     <Hotbar :items="inventory.hotbar" :sel="inventory.sel" :class="{ hidden: hud.flightHudOn }" />
@@ -44,16 +43,7 @@
       <div v-if="hud.missionMax > 0" id="mission-prog-wrap"><div class="bar slim"><div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div></div><span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span></div>
     </div>
 
-    <!-- Scan markers — projected from 3D world to 2D screen -->
-    <div id="marker-layer">
-      <div v-for="m in screenMarkers" :key="m.id" class="marker" :class="m.type" :style="{ left: m.sx + 'px', top: m.sy + 'px', opacity: m.opacity }">
-        <div class="m-ico">{{ markerIcons[m.type] || '?' }}</div>
-        <div class="m-dist">{{ m.dist }}</div>
-      </div>
-    </div>
-
-    <!-- Visor overlay -->
-    <div id="visor-overlay" :class="{ hidden: !player.visor }">
+    <div id="visor-overlay" class="hidden">
       <div class="visor-ring r1"></div>
       <div class="visor-ring r2"></div>
       <div class="visor-corner tl"></div>
@@ -73,6 +63,13 @@
       </div>
     </div>
 
+    <div id="marker-layer">
+      <div v-for="m in screenMarkers" :key="m.id" class="marker" :class="m.type" :style="{ left: m.sx + 'px', top: m.sy + 'px', opacity: m.opacity }">
+        <div class="m-ico">{{ markerIcons[m.type] || '?' }}</div>
+        <div class="m-dist">{{ m.dist }}</div>
+      </div>
+    </div>
+
     <div id="flight-hud" :class="{ hidden: !hud.flightHudOn }">
       <div id="flight-reticle"><div class="fr-c"></div><div class="fr-l"></div><div class="fr-r"></div></div>
       <div id="flight-data">
@@ -86,13 +83,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { usePlayerStore } from '../stores/playerStore';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useShipStore } from '../stores/shipStore';
 import { useHudStore } from '../stores/hudStore';
-import { HAZ_ICONS } from '../config';
 import Hotbar from './Hotbar.vue';
 import Toasts from './Toasts.vue';
 import Notifications from './Notifications.vue';
@@ -106,37 +102,69 @@ const hud = useHudStore();
 const compassCanvas = ref<HTMLCanvasElement | null>(null);
 
 const markerIcons: Record<string, string> = { na: 'Na', h2: 'H', o2: 'O₂', fe: 'Fe', cu: 'Cu' };
+interface MatrixLike { elements: ArrayLike<number> }
+interface CameraLike { matrixWorldInverse: MatrixLike; projectionMatrix: MatrixLike }
+interface ScreenMarker { id: string; type: string; sx: number; sy: number; opacity: number; dist: string }
 
-// Project 3D world markers to 2D screen positions using the Three.js camera
-const screenMarkers = computed(() => {
-  const engine = (window as unknown as { game?: { camera?: THREE.PerspectiveCamera; player?: { pos: { x: number; y: number; z: number } } } }).game;
-  const cam = engine?.camera;
-  const pp = engine?.player?.pos;
-  if (!cam || !pp) return [];
+const screenMarkers = ref<ScreenMarker[]>([]);
+let markerFrame = 0;
+let lastMarkerUpdate = 0;
 
-  const w = innerWidth;
-  const h = innerHeight;
+function projectMarker(x: number, y: number, z: number, camera: CameraLike): { x: number; y: number; z: number; w: number } | null {
+  const view = camera.matrixWorldInverse.elements;
+  const vx = view[0] * x + view[4] * y + view[8] * z + view[12];
+  const vy = view[1] * x + view[5] * y + view[9] * z + view[13];
+  const vz = view[2] * x + view[6] * y + view[10] * z + view[14];
+  const vw = view[3] * x + view[7] * y + view[11] * z + view[15];
+  const projection = camera.projectionMatrix.elements;
+  const clipX = projection[0] * vx + projection[4] * vy + projection[8] * vz + projection[12] * vw;
+  const clipY = projection[1] * vx + projection[5] * vy + projection[9] * vz + projection[13] * vw;
+  const clipZ = projection[2] * vx + projection[6] * vy + projection[10] * vz + projection[14] * vw;
+  const clipW = projection[3] * vx + projection[7] * vy + projection[11] * vz + projection[15] * vw;
+  if (clipW <= 0) return null;
+  return { x: clipX / clipW, y: clipY / clipW, z: clipZ / clipW, w: clipW };
+}
 
-  return hud.markers.map(m => {
-    // Project world position to NDC
-    const v = new THREE.Vector3(m.x, m.y, m.z).project(cam);
-    const sx = (v.x * 0.5 + 0.5) * w;
-    const sy = (-v.y * 0.5 + 0.5) * h;
+function updateScreenMarkers(): void {
+  const engine = window.game;
+  const camera = engine?.camera;
+  const playerPos = engine?.player?.pos;
+  if (!camera || !playerPos || hud.markers.length === 0) {
+    if (screenMarkers.value.length) screenMarkers.value = [];
+    return;
+  }
 
-    // Distance from player
-    const dx = m.x - pp.x, dy = m.y - pp.y, dz = m.z - pp.z;
-    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    const distStr = d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d) + 'm';
+  const width = innerWidth;
+  const height = innerHeight;
+  screenMarkers.value = hud.markers.flatMap(marker => {
+    const point = projectMarker(marker.x, marker.y, marker.z, camera);
+    if (!point || point.z < -1 || point.z > 1 || Math.abs(point.x) > 1 || Math.abs(point.y) > 1) return [];
+    const dx = marker.x - playerPos.x;
+    const dy = marker.y - playerPos.y;
+    const dz = marker.z - playerPos.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return [{
+      id: marker.id,
+      type: marker.type,
+      sx: (point.x * 0.5 + 0.5) * width,
+      sy: (-point.y * 0.5 + 0.5) * height,
+      opacity: Math.max(0, 1 - distance / 60),
+      dist: distance >= 1000 ? (distance / 1000).toFixed(1) + 'km' : Math.round(distance) + 'm'
+    }];
+  }).filter(marker => marker.opacity > 0);
+}
 
-    // Fade behind camera or far away
-    const opacity = v.z > 1 || v.z < -1 ? 0 : Math.max(0, 1 - d / 60);
+function refreshScreenMarkers(timestamp: number): void {
+  if (timestamp - lastMarkerUpdate >= 1000 / 30) {
+    lastMarkerUpdate = timestamp;
+    updateScreenMarkers();
+  }
+  markerFrame = requestAnimationFrame(refreshScreenMarkers);
+}
 
-    return { ...m, sx, sy, dist: distStr, opacity };
-  }).filter(m => m.opacity > 0 && m.sx > 0 && m.sx < w && m.sy > 0 && m.sy < h);
-});
+onMounted(() => { markerFrame = requestAnimationFrame(refreshScreenMarkers); });
+onUnmounted(() => cancelAnimationFrame(markerFrame));
 
-const hazIcon = computed(() => HAZ_ICONS[game.palette.hazard.type] || '☢');
-const envIcon = computed(() => game.stormActive ? '⚠' : '☀');
 const envLabel = computed(() => game.stormActive ? game.palette.storm.label : '白昼');
 
 const mineRingStyle = computed(() => ({

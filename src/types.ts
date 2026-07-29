@@ -2,6 +2,8 @@
 // types.ts — All shared interfaces and type definitions
 // ============================================================
 
+import type * as THREE from 'three/webgpu';
+
 // --- Block / Item / Recipe types ---
 
 export interface BlockTiles {
@@ -192,7 +194,7 @@ export interface Particle {
   vy: number;
   vz: number;
   life: number;
-  col: THREE.Color;
+  col: { r: number; g: number; b: number };
   grav: number;
 }
 
@@ -294,7 +296,10 @@ export interface AudioNoiseOpts {
 }
 
 export interface LoopHandle {
-  [key: string]: AudioNode | undefined;
+  o1?: OscillatorNode;
+  o2?: OscillatorNode;
+  f?: BiquadFilterNode;
+  nf?: BiquadFilterNode;
 }
 
 export interface LoopEntry {
@@ -400,7 +405,8 @@ export interface InputState {
   moveX: number;
   moveY: number;
   moveActive: boolean;
-  touchLookSensitivity: number;
+  touchSprint: boolean;
+  jumpPressed: boolean;
   init(game: Game): void;
 }
 
@@ -419,11 +425,11 @@ export interface Game {
   discoveries: Discoveries;
   autoSaveT: number;
   input: InputState;
-  renderer: THREE.WebGLRenderer;
+  renderer: THREE.WebGPURenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   atlas: TextureAtlas;
-  clock: THREE.Clock;
+  clock: THREE.Timer;
   seed: number;
   palIdx: number;
   palette: Palette;
@@ -438,10 +444,26 @@ export interface Game {
   missions: Missions;
   milestones: Milestones;
   player: Player;
+  stores: {
+    ship: {
+      comps: Record<string, ShipComponent>;
+      fuel: number;
+      open: boolean;
+      flying: boolean;
+      speed: number;
+      throttle: number;
+    };
+  };
   spawnPoint: { x: number; z: number };
   missionT?: number;
   stormLeft?: number;
-  postProc?: { render(): void; resize(w: number, h: number): void };
+  postProc?: {
+    enabled: boolean;
+    render(): void;
+    resize(w: number, h: number): void;
+    setEnabled?(on: boolean): void;
+    applySettings?(): void;
+  };
   initRenderer(): Promise<void>;
   applySettings(): void;
   uiOpen(): boolean;
@@ -450,6 +472,7 @@ export interface Game {
   newGame(): void;
   continueGame(): void;
   beginLoad(seed: number, palIdx: number, saveData: SaveData | null): void;
+  continueWithFailedModels(): void;
   finishLoad(saveData: SaveData | null): void;
   playIntro(): void;
   planetInfo(): PlanetInfo;
@@ -466,6 +489,13 @@ export interface Game {
   loop(): void;
 }
 
+declare global {
+  interface Window {
+    game?: Game;
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 // Forward references for classes defined in other modules
 // These are resolved at runtime via imports in main.ts
 export interface TextureAtlas {
@@ -474,6 +504,7 @@ export interface TextureAtlas {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture | null;
+  normalTexture: THREE.CanvasTexture | null;
   iconCache: Record<string, string>;
   avgCache: Record<string, string>;
   tileRect(t: number): [number, number, number, number];
@@ -570,9 +601,9 @@ export interface World {
   noiseC: SimplexNoise;
   offA: number;
   lamps: number[][];
-  matOpaque: THREE.MeshLambertMaterial;
-  matCutout: THREE.MeshLambertMaterial;
-  matWater: THREE.MeshLambertMaterial;
+  matOpaque: THREE.MeshStandardMaterial;
+  matCutout: THREE.MeshStandardMaterial;
+  matWater: THREE.MeshStandardMaterial;
   setPlanet(seed: number, pal: Palette): void;
   buildMaterials(): void;
   key(cx: number, cz: number): string;
@@ -614,8 +645,13 @@ export interface Sky {
   t: number;
   dayMix: number;
   pal: Palette;
+  sunLight: THREE.DirectionalLight;
+  /** Soft TSL skydome mesh (palette gradient). */
+  dome?: unknown;
   setPalette(pal: Palette): void;
   update(dt: number): void;
+  /** Recompute CSM cascade splits after camera projection or render-distance changes. */
+  updateCsmFrustums(): void;
 }
 
 export interface FX {
@@ -749,6 +785,7 @@ export interface Player {
   blockColor(id: number): string;
   breakBlock(t: RaycastResult): void;
   vmTipWorld(): THREE.Vector3;
+  tryOpenShipPanel(clientX: number, clientY: number): boolean;
   placeBlock(): void;
   statsTick(dt: number, inShip: boolean): void;
   checkShelter(): boolean;
@@ -869,7 +906,8 @@ export interface Save {
 // --- THREE.js global declaration (loaded via script tag) ---
 
 declare global {
-namespace THREE {
+// Historical declarations are isolated from the actual r185 THREE namespace.
+namespace LegacyThreeCompat {
   class Vector2 { constructor(x?: number, y?: number); x: number; y: number; set(x: number, y: number): this; }
   class Vector3 {
     constructor(x?: number, y?: number, z?: number);
@@ -1079,6 +1117,8 @@ namespace THREE {
     normalBias: number;
     radius: number;
     mapSize: Vector2;
+    /** Custom TSL shadow node (e.g. CSMShadowNode) for WebGPURenderer. */
+    shadowNode: unknown;
     dispose(): void;
   }
   class DirectionalLightShadow extends LightShadow {
@@ -1106,6 +1146,7 @@ namespace THREE {
     target: Object3D;
   }
   class Clock { constructor(); getDelta(): number; }
+  class Timer { constructor(); update(timestamp?: number): void; getDelta(): number; }
 
   const AdditiveBlending: number;
   const BackSide: number;

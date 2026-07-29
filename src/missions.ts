@@ -133,7 +133,7 @@ export class Missions {
     const p = m.prog ? m.prog() : null;
     let desc = m.desc;
     if (m.progText) desc = m.desc + '\n' + m.progText();
-    if (p && typeof p[0] === 'number') { cur = p[0] as number; max = p[1] as number; }
+    if (p && typeof p[0] === 'number' && typeof p[1] === 'number') { cur = p[0]; max = p[1]; }
     this.g.hud.setMission('任务 ' + (this.idx + 1) + '/' + this.defs.length + ' · ' + m.title, desc, cur, max);
   }
 

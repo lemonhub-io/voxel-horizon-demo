@@ -1,3 +1,4 @@
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { T, ITEMS, BLOCK_DEF } from './config';
 import type { Palette } from './types';
@@ -5,33 +6,41 @@ import type { Palette } from './types';
 export class TextureAtlas {
   size: number;
   px: number;
+  stride: number;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture | null;
+  normalTexture: THREE.CanvasTexture | null;
   iconCache: Record<string, string>;
   avgCache: Record<string, string>;
 
   constructor() {
     this.size = 8;
     this.px = 32;
+    // Leave one duplicated pixel around every tile to isolate atlas sampling.
+    this.stride = this.px + 2;
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.canvas.height = this.size * this.px;
-    this.ctx = this.canvas.getContext('2d')!;
+    this.canvas.width = this.canvas.height = this.size * this.stride;
+    // Atlas is read back often (tileAvg / normal map); prefer CPU-backed 2D for getImageData.
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
     this.texture = null;
+    this.normalTexture = null;
     this.iconCache = {};
     this.avgCache = {};
   }
 
   tileRect(t: number): [number, number, number, number] {
     const s = this.px;
-    return [(t % this.size) * s, Math.floor(t / this.size) * s, s, s];
+    return [(t % this.size) * this.stride + 1, Math.floor(t / this.size) * this.stride + 1, s, s];
   }
 
   uv(t: number): [number, number, number, number] {
-    const s = 1 / this.size;
-    const u = (t % this.size) * s, v = Math.floor(t / this.size) * s;
-    const e = 0.001;
-    return [u + e, 1 - v - s + e, u + s - e, 1 - v - e];
+    const atlasPx = this.size * this.stride;
+    const [x, y] = this.tileRect(t);
+    // Address texel centres inside the padded tile, never an adjacent tile.
+    const u0 = (x + 0.5) / atlasPx, u1 = (x + this.px - 0.5) / atlasPx;
+    const v0 = 1 - (y + this.px - 0.5) / atlasPx, v1 = 1 - (y + 0.5) / atlasPx;
+    return [u0, v0, u1, v1];
   }
 
   build(pal: Palette, seed: number): THREE.CanvasTexture {
@@ -46,6 +55,16 @@ export class TextureAtlas {
       ctx.translate(ox, oy);
       fn((x: number, y: number, c: string) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); });
       ctx.restore();
+      // Duplicate edge texels into the surrounding gutter. This prevents mipmaps
+      // from sampling a neighbouring tile (notably the green grass tile).
+      ctx.drawImage(this.canvas, ox, oy, px, 1, ox, oy - 1, px, 1);
+      ctx.drawImage(this.canvas, ox, oy + px - 1, px, 1, ox, oy + px, px, 1);
+      ctx.drawImage(this.canvas, ox, oy, 1, px, ox - 1, oy, 1, px);
+      ctx.drawImage(this.canvas, ox + px - 1, oy, 1, px, ox + px, oy, 1, px);
+      ctx.drawImage(this.canvas, ox, oy, 1, 1, ox - 1, oy - 1, 1, 1);
+      ctx.drawImage(this.canvas, ox + px - 1, oy, 1, 1, ox + px, oy - 1, 1, 1);
+      ctx.drawImage(this.canvas, ox, oy + px - 1, 1, 1, ox - 1, oy + px, 1, 1);
+      ctx.drawImage(this.canvas, ox + px - 1, oy + px - 1, 1, 1, ox + px, oy + px, 1, 1);
     };
     const noiseFill = (put: (x: number, y: number, c: string) => void, base: string, amt: number, holes?: number) => {
       for (let y = 0; y < px; y++) for (let x = 0; x < px; x++) {
@@ -198,13 +217,55 @@ export class TextureAtlas {
     if (this.texture) this.texture.dispose();
     const tex = new THREE.CanvasTexture(this.canvas);
     tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.generateMipmaps = true;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     this.texture = tex;
+
+    if (this.normalTexture) this.normalTexture.dispose();
+    this.normalTexture = this._buildNormalTexture();
     this.iconCache = {};
     this.avgCache = {};
     return tex;
+  }
+
+  /** Derive a subtle normal map from the procedural atlas for richer PBR lighting. */
+  private _buildNormalTexture(): THREE.CanvasTexture {
+    const width = this.canvas.width;
+    const source = this.ctx.getImageData(0, 0, width, this.canvas.height).data;
+    const normalCanvas = document.createElement('canvas');
+    normalCanvas.width = normalCanvas.height = width;
+    const normalCtx = normalCanvas.getContext('2d')!;
+    const normal = normalCtx.createImageData(width, width);
+
+    const heightAt = (x: number, y: number): number => {
+      // Tile gutters already duplicate edge pixels, so clamping to the atlas is
+      // sufficient and keeps normal-map gradients inside the correct tile.
+      const sx = Math.max(0, Math.min(width - 1, x));
+      const sy = Math.max(0, Math.min(width - 1, y));
+      const i = (sy * width + sx) * 4;
+      if (source[i + 3] < 16) return 0.5;
+      return (source[i] * 0.2126 + source[i + 1] * 0.7152 + source[i + 2] * 0.0722) / 255;
+    };
+
+    for (let y = 0; y < width; y++) for (let x = 0; x < width; x++) {
+      const dx = (heightAt(x - 1, y) - heightAt(x + 1, y)) * 0.6;
+      const dy = (heightAt(x, y - 1) - heightAt(x, y + 1)) * 0.6;
+      const length = Math.hypot(dx, dy, 1);
+      const i = (y * width + x) * 4;
+      normal.data[i] = Math.round((dx / length * 0.5 + 0.5) * 255);
+      normal.data[i + 1] = Math.round((dy / length * 0.5 + 0.5) * 255);
+      normal.data[i + 2] = Math.round((1 / length * 0.5 + 0.5) * 255);
+      normal.data[i + 3] = source[i + 3];
+    }
+
+    normalCtx.putImageData(normal, 0, 0);
+    const texture = new THREE.CanvasTexture(normalCanvas);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
   }
 
   tileAvg(t: number, f: number): string {

@@ -3,6 +3,7 @@
 // All UI is handled by Vue components via Pinia stores
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import type { InputState, Settings, SaveData, Palette, PlanetInfo, Discoveries } from './types';
 import { U } from './utils';
 import { PALETTES } from './config';
@@ -20,6 +21,7 @@ import { Missions, Milestones } from './missions';
 import { Save } from './save';
 import { PostProcessing } from './post-processing';
 import { PostFX } from './postfx';
+import { preloadCC0Models } from './cc0-models';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -33,22 +35,20 @@ import { useMilestonesStore } from './stores/milestonesStore';
 // --- Input singleton ---
 
 export const Input: InputState = {
-  keys: {} as Record<string, boolean>,
-  buttons: {} as Record<number, boolean>,
+  keys: {},
+  buttons: {},
   dx: 0, dy: 0, dxSmooth: 0,
   isTouchDevice: false,
   moveX: 0, moveY: 0, moveActive: false,
-  touchLookSensitivity: 0.7,
+  touchSprint: false,
+  jumpPressed: false,
   init(game: Game): void {
-    // Touch detection: use CSS pointer media query + maxTouchPoints.
-    // Do NOT use 'ontouchstart' in window — Chrome desktop has it even without a touchscreen.
     this.isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
-    if (this.isTouchDevice) document.body.classList.add('touch-device');
-
-    // --- Keyboard ---
+    document.body.classList.toggle('touch-device', this.isTouchDevice);
     addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.repeat) return;
       this.keys[e.code] = true;
+      if (e.code === 'Space') this.jumpPressed = true;
       game.onKey(e.code, e);
     });
     addEventListener('keyup', (e: KeyboardEvent) => { this.keys[e.code] = false; });
@@ -69,23 +69,13 @@ export const Input: InputState = {
     addEventListener('wheel', (e: WheelEvent) => game.onWheel(e));
     addEventListener('contextmenu', (e: Event) => e.preventDefault());
     addEventListener('blur', () => {
-      this.keys = {} as Record<string, boolean>;
-      this.buttons = {} as Record<number, boolean>;
-      this.moveActive = false; this.moveX = 0; this.moveY = 0;
+      this.keys = {};
+      this.buttons = {};
+      this.moveX = this.moveY = 0;
+      this.moveActive = false;
+      this.touchSprint = false;
+      this.jumpPressed = false;
     });
-
-    // --- Touch/gesture suppression (only on touch devices) ---
-    if (this.isTouchDevice) {
-      const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-      if (canvas) {
-        canvas.addEventListener('pointermove', (e: PointerEvent) => { e.preventDefault(); }, { passive: false });
-        canvas.addEventListener('pointerdown', (e: PointerEvent) => { e.preventDefault(); }, { passive: false });
-      }
-      // Prevent iOS Safari gesture events
-      document.addEventListener('gesturestart', (e: Event) => { e.preventDefault(); }, { passive: false } as AddEventListenerOptions);
-      document.addEventListener('gesturechange', (e: Event) => { e.preventDefault(); }, { passive: false } as AddEventListenerOptions);
-      document.addEventListener('gestureend', (e: Event) => { e.preventDefault(); }, { passive: false } as AddEventListenerOptions);
-    }
   }
 };
 
@@ -104,11 +94,11 @@ export class Game {
   discoveries: Discoveries;
   autoSaveT: number;
   input: InputState;
-  renderer!: THREE.WebGLRenderer;
+  renderer!: THREE.WebGPURenderer;
   scene!: THREE.Scene;
   camera!: THREE.PerspectiveCamera;
   atlas!: TextureAtlas;
-  clock!: THREE.Clock;
+  clock!: THREE.Timer;
   seed!: number;
   palIdx!: number;
   palette!: Palette;
@@ -126,11 +116,14 @@ export class Game {
   spawnPoint!: { x: number; z: number };
   postProc!: PostProcessing;
   postFx!: PostFX;
+  ready: Promise<void>;
   missionT?: number;
   stormLeft?: number;
   private _prevX = 0;
   private _prevZ = 0;
   private _syncFrame = 0;
+  private _worldUpdateT = 0;
+  private pendingLoad: { seed: number; palIdx: number; saveData: SaveData | null } | null = null;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -166,33 +159,28 @@ export class Game {
     this.autoSaveT = 0;
     this.input = Input;
     Input.init(this);
-    this.initRenderer().then(() => { this.loop(); });
+    this.ready = this.initRenderer().then(() => { this.loop(); });
   }
 
   async initRenderer(): Promise<void> {
-    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const canvas = document.getElementById('game-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Game canvas is missing');
 
-    // Use WebGPURenderer with automatic WebGL2 fallback
-    const WGPU = (THREE as unknown as Record<string, unknown>).WebGPURenderer as
-      (new (opts: Record<string, unknown>) => { init: () => Promise<void>; setPixelRatio: (r: number) => void; setSize: (w: number, h: number) => void; outputColorSpace: string; render: (s: unknown, c: unknown) => void }) | undefined;
+    // WebGPURenderer automatically selects the WebGL2 backend when WebGPU is
+    // unavailable, so a legacy WebGLRenderer branch is no longer required.
+    // Omit powerPreference: Chromium on Windows ignores it and logs a noisy
+    // console warning (crbug.com/369219127) when it is passed to requestAdapter().
+    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true });
+    await this.renderer.init();
 
-    if (WGPU) {
-      this.renderer = new WGPU({ canvas, antialias: false }) as unknown as THREE.WebGLRenderer;
-      await (this.renderer as unknown as { init: () => Promise<void> }).init();
-      console.warn('[VoxelHorizon] WebGPURenderer initialized');
-    } else {
-      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-      console.warn('[VoxelHorizon] WebGLRenderer initialized (legacy)');
-    }
-
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
-    (this.renderer as unknown as Record<string, unknown>).outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // HDR tone mapping for better light range
-    const r = this.renderer as unknown as Record<string, unknown>;
-    r.toneMapping = THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure = 2.5;
+    // ACES exposure balanced with soft TSL sky + CFG.CINEMATIC gain≈1.0.
+    // ~0.9: terrain readable, sky not clipped; pair with CINEMATIC.clip 1.1.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.9;
 
     // Shadow maps
     this.renderer.shadowMap.enabled = true;
@@ -209,8 +197,10 @@ export class Game {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.postProc.resize(innerWidth, innerHeight);
+      // CSM cascade ortho bounds depend on the active camera projection.
+      if (this.sky) this.sky.updateCsmFrustums();
     });
-    this.clock = new THREE.Clock();
+    this.clock = new THREE.Timer();
   }
 
   applySettings(): void {
@@ -222,6 +212,9 @@ export class Game {
       this.camera.fov = this.settings.fov;
       this.camera.updateProjectionMatrix();
     }
+    // FOV / render-distance changes affect cascade splits and maxFar.
+    if (this.sky) this.sky.updateCsmFrustums();
+    if (this.postProc?.applySettings) this.postProc.applySettings();
   }
 
   uiOpen(): boolean {
@@ -232,7 +225,10 @@ export class Game {
   requestPointerLock(): void {
     if (Input.isTouchDevice) return;
     if (this.state === 'play' && !this.uiOpen()) {
-      try { (document.getElementById('game-canvas') as HTMLCanvasElement).requestPointerLock(); } catch { /* requires user gesture */ }
+      const canvas = document.getElementById('game-canvas');
+      if (canvas instanceof HTMLCanvasElement) {
+        try { canvas.requestPointerLock(); } catch { /* requires user gesture */ }
+      }
     }
   }
   exitPointerLock(): void { if (document.pointerLockElement) document.exitPointerLock(); }
@@ -257,6 +253,8 @@ export class Game {
     this.state = 'loading';
     const s = this.stores;
     s.game.state = 'loading';
+    s.game.loadProgress = 0;
+    s.game.modelLoadFailures = [];
     this.seed = seed;
     this.palIdx = palIdx;
     this.palette = PALETTES[palIdx];
@@ -266,7 +264,34 @@ export class Game {
     const rng = U.mulberry32(seed);
     this.planetName = saveData ? saveData.planetName : U.planetName(rng);
     s.game.planetName = this.planetName;
+    this.pendingLoad = { seed, palIdx, saveData };
+    void this.verifyRemoteModels();
+  }
 
+  private async verifyRemoteModels(): Promise<void> {
+    const failures = await preloadCC0Models();
+    const pending = this.pendingLoad;
+    if (!pending) return;
+    if (failures.length > 0) {
+      this.stores.game.modelLoadFailures = failures.map(failure => `${failure.label}: ${failure.reason}`);
+      this.state = 'model-error';
+      this.stores.game.state = 'model-error';
+      return;
+    }
+    this.startWorldLoad(pending.seed, pending.saveData);
+  }
+
+  continueWithFailedModels(): void {
+    const pending = this.pendingLoad;
+    if (!pending) return;
+    this.state = 'loading';
+    this.stores.game.state = 'loading';
+    this.stores.game.loadProgress = 0;
+    this.startWorldLoad(pending.seed, pending.saveData);
+  }
+
+  private startWorldLoad(seed: number, saveData: SaveData | null): void {
+    const s = this.stores;
     this.atlas.build(this.palette, seed);
     if (!this.world) {
       this.world = new World(this);
@@ -281,7 +306,6 @@ export class Game {
     }
     this.world.setPlanet(seed, this.palette);
     this.sky.setPalette(this.palette);
-
     if (saveData) {
       for (const k in saveData.edits) {
         const arr = saveData.edits[k];
@@ -298,13 +322,11 @@ export class Game {
       this.playTime = saveData.playTime || 0;
       s.game.playTime = this.playTime;
     }
-
     const land = this.world.findLand(8, 8);
     const spawnX = land.x, spawnZ = land.z;
     this.spawnPoint = { x: spawnX, z: spawnZ };
     if (!this.player) this.player = new Player(this);
     this.player.crackMat.map = this.atlas.texture;
-
     let frame = 0;
     const step = (): void => {
       const px = saveData ? saveData.player.pos[0] : spawnX;
@@ -318,7 +340,6 @@ export class Game {
     };
     step();
   }
-
   finishLoad(saveData: SaveData | null): void {
     const s = this.stores;
     const sx = this.spawnPoint.x, sz = this.spawnPoint.z;
@@ -624,6 +645,7 @@ export class Game {
 
   loop(): void {
     requestAnimationFrame(() => this.loop());
+    this.clock.update();
     const dt = Math.min(this.clock.getDelta(), 0.08);
     this.time += dt;
     this.timeUniform.value = this.time;
@@ -656,7 +678,11 @@ export class Game {
         if (this._syncFrame >= 3) { this._syncFrame = 0; this.syncPlayerStore(); }
         if (this.postFx) this.postFx.update(this.player.hp, this.player.headInWater);
       }
-      this.world.update(this.player.pos.x, this.player.pos.z, 6);
+      this._worldUpdateT += dt;
+      if (this._worldUpdateT >= 1 / 30) {
+        this._worldUpdateT = 0;
+        this.world.update(this.player.pos.x, this.player.pos.z, 6);
+      }
       this.sky.update(this.state === 'pause' ? 0 : dt);
       this.world.updateWaterFresnel();
       this.fx.update(dt);

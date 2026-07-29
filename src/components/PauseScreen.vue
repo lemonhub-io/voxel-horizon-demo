@@ -30,6 +30,6 @@ const statsHtml = computed(() => {
   return `星球：${game.planetName} · ${game.palette.climate}<br>` +
     `游玩时长：${U.fmtTime(game.playTime)} · 行走 ${Math.round(st.walk || 0)}m<br>` +
     `采集 ${st.mined || 0} · 建造 ${st.placed || 0} · 分析 ${st.scans || 0} · 跃迁 ${st.warps || 0}<br>` +
-    `记录点数：◈ ${inventory.units}`;
+    `记录点数：${inventory.units}`;
 });
 </script>

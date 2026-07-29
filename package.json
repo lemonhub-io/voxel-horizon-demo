@@ -1,6 +1,6 @@
 {
   "name": "voxel-horizon-demo",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "",
   "main": "index.js",
@@ -30,10 +30,10 @@
   "homepage": "https://github.com/lemonhub-io/voxel-horizon-demo#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/three": "^0.128.0",
+    "@types/three": "^0.185.1",
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/devtools-api": "^8.2.1",
-    "@vue/test-utils": "^2.4.11",
+    "@vue/test-utils": "^2.2.7",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",

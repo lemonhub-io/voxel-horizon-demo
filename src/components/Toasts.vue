@@ -8,5 +8,5 @@
 
 <script setup lang="ts">
 defineProps<{ toasts: { id: string; itemId: string; name: string; n: number }[] }>();
-function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
+function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
 </script>

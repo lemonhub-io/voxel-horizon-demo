@@ -2,16 +2,27 @@
 // entities.ts — Fauna (creatures)
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B } from './config';
+import { cloneCC0Scene, fitCC0Model, loadCC0Model } from './cc0-models';
+import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, Palette, CreatureSpec, Creature, CreatureHit } from './types';
 
 export class Fauna {
+  /**
+   * Temporary master switch — when true, no creatures are spawned.
+   * Implementation is kept intact; set to `false` to re-enable fauna.
+   */
+  static SPAWN_DISABLED = true;
+
   g: Game;
   creatures: Creature[];
   group: THREE.Group;
   speciesList: CreatureSpec[];
   callTimer: number;
+  /** Prepared source templates (skinned); always clone via SkeletonUtils. */
+  private faunaModels: THREE.Group[];
 
   constructor(game: Game) {
     this.g = game;
@@ -20,10 +31,44 @@ export class Fauna {
     game.scene.add(this.group);
     this.speciesList = [];
     this.callTimer = 0;
+    this.faunaModels = [];
+    void this.loadCC0Fauna();
+  }
+
+  private async loadCC0Fauna(): Promise<void> {
+    try {
+      // loadCC0Model returns instances; keep them as templates and re-clone per creature.
+      const results = await Promise.allSettled(CC0_MODEL_URLS.fauna.map(loadCC0Model));
+      this.faunaModels = results.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
+      // Attach to anything spawned before models finished loading.
+      this.creatures.forEach(creature => this.attachCC0Model(creature));
+    } catch {
+      // Asset preflight reports unavailable fauna models before world generation.
+    }
+  }
+
+  private attachCC0Model(creature: Creature): void {
+    if (!this.faunaModels.length) return;
+    // Avoid stacking multiple models if attach is called twice.
+    const existing = creature.grp.children.find(c => c.name === 'cc0-fauna-model');
+    if (existing) return;
+
+    const template = this.faunaModels[creature.seed % this.faunaModels.length];
+    if (!template) return;
+
+    // SkeletonUtils clone — Object3D.clone breaks SkinnedMesh bone binding
+    // (mesh invisible; only the ground blob shadow remains).
+    const model = cloneCC0Scene(template);
+    model.name = 'cc0-fauna-model';
+    fitCC0Model(model, creature.sp.size * 1.9, creature.sp.size * 2.15);
+    model.rotation.y = Math.PI;
+    creature.grp.add(model);
   }
 
   spawnPlanet(seed: number, pal: Palette): void {
     this.dispose();
+    // TEMP: fauna generation disabled — keep implementation below for re-enable.
+    if (Fauna.SPAWN_DISABLED) return;
     const rng = U.mulberry32(seed ^ 0xfa17);
     const nSpecies = Math.max(1, pal.fauna - 1 + Math.floor(rng() * 3));
     this.speciesList = [];
@@ -42,14 +87,24 @@ export class Fauna {
     }
     const px = this.g.spawnPoint ? this.g.spawnPoint.x : 8;
     const pz = this.g.spawnPoint ? this.g.spawnPoint.z : 8;
-    const count = 6 + Math.floor(rng() * 5);
+    const count = 8 + Math.floor(rng() * 5);
+    const nearbyCount = Math.min(3, count);
     for (let i = 0; i < count; i++) {
       const sp = this.speciesList[Math.floor(rng() * this.speciesList.length)];
-      let x = px + (rng() - 0.5) * 160, z = pz + (rng() - 0.5) * 160;
+      const nearby = i < nearbyCount;
+      const minRadius = nearby ? 18 : 38;
+      const maxRadius = nearby ? 42 : 100;
+      let angle = rng() * Math.PI * 2;
+      let radius = minRadius + rng() * (maxRadius - minRadius);
+      let x = px + Math.cos(angle) * radius;
+      let z = pz + Math.sin(angle) * radius;
       for (let t = 0; t < 8; t++) {
         const gy = this.g.world.surfaceY(Math.floor(x), Math.floor(z));
         if (!pal.sea || gy > CFG.SEA) break;
-        x = px + (rng() - 0.5) * 160; z = pz + (rng() - 0.5) * 160;
+        angle = rng() * Math.PI * 2;
+        radius = minRadius + rng() * (maxRadius - minRadius);
+        x = px + Math.cos(angle) * radius;
+        z = pz + Math.sin(angle) * radius;
       }
       this.spawnCreature(sp, x, z, rng);
     }
@@ -57,97 +112,26 @@ export class Fauna {
 
   spawnCreature(sp: CreatureSpec, x: number, z: number, rng: () => number): Creature {
     const grp = new THREE.Group();
-    const s = sp.size;
-    // PBR materials for better lighting
-    const matBody = new THREE.MeshStandardMaterial({ color: sp.col, roughness: 0.7, metalness: 0.05 });
-    const matAcc = new THREE.MeshStandardMaterial({ color: sp.col2, roughness: 0.65, metalness: 0.05 });
-
-    // Body — tapered cylinder for organic shape
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.4, s * 0.35, s * 1.4, 8), matBody);
-    body.rotation.z = Math.PI / 2;
-    body.position.y = s * 0.95;
-    grp.add(body);
-
-    // Head — sphere for rounded look
-    const head = new THREE.Mesh(new THREE.SphereGeometry(s * 0.35, 10, 8), matAcc);
-    head.scale.set(1.1, 0.9, 0.95);
-    head.position.set(s * 0.95, s * 1.25, 0);
-    grp.add(head);
-
-    // Snout — small protruding shape
-    const snout = new THREE.Mesh(new THREE.BoxGeometry(s * 0.25, s * 0.18, s * 0.22), matAcc);
-    snout.position.set(s * 1.25, s * 1.2, 0);
-    grp.add(snout);
-
-    // Eyes — spheres
-    const eyeMat = new THREE.MeshBasicMaterial({ color: '#1a1a22' });
-    for (const dz of [-0.15, 0.15]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(s * 0.06, 6, 4), eyeMat);
-      eye.position.set(s * 1.15, s * 1.32, s * dz * 2);
-      grp.add(eye);
-    }
-
-    // Ears — small cones
-    for (const dz of [-0.18, 0.18]) {
-      const ear = new THREE.Mesh(new THREE.ConeGeometry(s * 0.08, s * 0.2, 5), matAcc);
-      ear.position.set(s * 0.85, s * 1.6, s * dz * 2);
-      ear.rotation.z = dz > 0 ? -0.3 : 0.3;
-      grp.add(ear);
-    }
-
-    if (sp.horn) {
-      const horn = new THREE.Mesh(new THREE.ConeGeometry(s * 0.1, s * 0.5, 6), matBody);
-      horn.position.set(s * 0.95, s * 1.75, 0);
-      grp.add(horn);
-    }
-
-    // Legs — cylinders for rounded look
-    const legs: THREE.Mesh[] = [];
-    const legGeo = new THREE.CylinderGeometry(s * 0.08, s * 0.1, s * 0.7, 6);
-    legGeo.translate(0, -s * 0.35, 0);
-    const legPos: [number, number][] = sp.legs === 4 ? [[0.5, 0.3], [0.5, -0.3], [-0.5, 0.3], [-0.5, -0.3]] : [[0.25, 0.28], [0.25, -0.28]];
-    for (const [lx, lz] of legPos) {
-      const leg = new THREE.Mesh(legGeo, matAcc);
-      leg.position.set(s * lx, s * 0.72, s * lz);
-      grp.add(leg);
-      legs.push(leg);
-    }
-
-    let tail: THREE.Mesh | null = null;
-    if (sp.tail) {
-      tail = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.04, s * 0.08, s * 0.7, 6), matAcc);
-      tail.rotation.z = Math.PI / 2;
-      tail.position.set(-s * 1.05, s * 1.1, 0);
-      grp.add(tail);
-    }
-
-    const shadow = new THREE.Mesh(new THREE.CircleGeometry(s * 0.9, 12), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.25, depthWrite: false }));
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(sp.size * 0.9, 12),
+      new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.25, depthWrite: false })
+    );
     shadow.rotation.x = -Math.PI / 2;
     grp.add(shadow);
-
-    // Enable shadow casting on creature body parts
-    for (const child of grp.children) {
-      if (child instanceof THREE.Mesh && child !== shadow) {
-        child.castShadow = true;
-      }
-    }
-
     const y = this.g.world.surfaceY(Math.floor(x), Math.floor(z)) + 1;
     grp.position.set(x, y, z);
     this.group.add(grp);
     const c: Creature = {
-      grp, sp, legs, tail, shadow,
+      grp, sp, legs: [], tail: null, shadow,
       state: 'idle', stateT: U.rand(1, 4),
-      dir: U.rand(0, Math.PI * 2),
-      hp: 20 * sp.size,
-      phase: U.rand(0, 9),
-      panic: 0,
+      dir: U.rand(0, Math.PI * 2), hp: 20 * sp.size,
+      phase: U.rand(0, 9), panic: 0,
       seed: Math.floor((rng ? rng() : Math.random()) * 1e9)
     };
     this.creatures.push(c);
+    this.attachCC0Model(c);
     return c;
   }
-
   update(dt: number): void {
     const g = this.g;
     const p = g.player;

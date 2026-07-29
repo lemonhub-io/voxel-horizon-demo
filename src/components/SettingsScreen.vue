@@ -24,7 +24,7 @@ defineEmits(['back', 'wipe']);
 const game = useGameStore();
 const settings = game.settings;
 
-function update(key: keyof Settings, value: number | boolean) {
-  (settings as Record<string, unknown>)[key] = value;
+function update<K extends keyof Settings>(key: K, value: Settings[K]) {
+  settings[key] = value;
 }
 </script>

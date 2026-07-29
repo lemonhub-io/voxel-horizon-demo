@@ -6,86 +6,95 @@ declare module '*.vue' {
   export default component;
 }
 
-// three/webgpu re-exports all of three + adds WebGPU-specific classes
-declare module 'three/webgpu' {
-  export * from 'three';
-  export class WebGPURenderer {
-    constructor(params?: Record<string, unknown>);
-    setPixelRatio(ratio: number): void;
-    setSize(width: number, height: number): void;
-    setClearColor(color: string | number): void;
-    render(scene: unknown, camera: unknown): void;
-    outputColorSpace: string;
-    toneMapping: number;
-    toneMappingExposure: number;
-    shadowMap: { enabled: boolean; type: number };
-    init(): Promise<void>;
+declare module 'three/addons/loaders/GLTFLoader.js' {
+  export interface GLTF {
+    scene: THREE.Group;
   }
-  export class MeshBasicNodeMaterial {
-    colorNode: unknown;
-    positionNode: unknown;
-    opacityNode: unknown;
-    side: number;
-    depthWrite: boolean;
-    fog: boolean;
-    transparent: boolean;
-  }
-  export class MeshStandardNodeMaterial {
-    colorNode: unknown;
-    positionNode: unknown;
-    opacityNode: unknown;
-    roughness: number;
-    metalness: number;
-    transparent: boolean;
-    opacity: number;
-    depthWrite: boolean;
-    side: number;
-    map: unknown;
-    vertexColors: boolean;
-    alphaTest: number;
+
+  export class GLTFLoader {
+    load(url: string, onLoad: (gltf: GLTF) => void, onProgress?: undefined, onError?: (error: unknown) => void): void;
   }
 }
 
-// three/tsl — TSL node functions
-declare module 'three/tsl' {
-  export function uniform(type: string): TSLNode & { value: unknown };
-  export function float(value: number): TSLNode;
-  export function vec3(x: number | TSLNode, y?: number | TSLNode, z?: number | TSLNode): TSLNode;
-  export function vec4(x: number | TSLNode, y?: number | TSLNode, z?: number | TSLNode, w?: number | TSLNode): TSLNode;
-  export function mix(a: TSLNode, b: TSLNode, t: TSLNode | number): TSLNode;
-  export function pow(a: TSLNode, b: TSLNode | number): TSLNode;
-  export function max(a: TSLNode | number, b: TSLNode | number): TSLNode;
-  export function min(a: TSLNode | number, b: TSLNode | number): TSLNode;
-  export function dot(a: TSLNode, b: TSLNode): TSLNode;
-  export function normalize(v: TSLNode): TSLNode;
-  export function abs(v: TSLNode): TSLNode;
-  export function sin(v: TSLNode): TSLNode;
-  export function cos(v: TSLNode): TSLNode;
-  export function floor(v: TSLNode): TSLNode;
-  export function exp(v: TSLNode): TSLNode;
-  export function fract(v: TSLNode): TSLNode;
-  export function step(edge: TSLNode | number, x: TSLNode): TSLNode;
-  export function smoothstep(edge0: TSLNode | number, edge1: TSLNode | number, x: TSLNode): TSLNode;
-  export function clamp(x: TSLNode, min: TSLNode | number, max: TSLNode | number): TSLNode;
-  export function Fn(body: (args?: TSLNode[]) => TSLNode): (...args: unknown[]) => TSLNode;
-  export function color(r: number, g: number, b: number): TSLNode;
-  export function texture(tex: unknown, uv?: TSLNode): TSLNode;
-  export function uv(channel?: number): TSLNode;
-  export function attribute(name: string): TSLNode;
-  export const positionLocal: TSLNode;
-  export const positionWorld: TSLNode;
-  export const cameraPosition: TSLNode;
-  export const normalLocal: TSLNode;
-  export const time: TSLNode;
+declare module 'three/addons/utils/SkeletonUtils.js' {
+  import type { Object3D } from 'three';
+  /** Deep-clone that rebinds SkinnedMesh skeletons (Object3D.clone does not). */
+  export function clone(source: Object3D): Object3D;
+}
 
-  export interface TSLNode {
-    add(other: TSLNode | number): TSLNode;
-    sub(other: TSLNode | number): TSLNode;
-    mul(other: TSLNode | number): TSLNode;
-    div(other: TSLNode | number): TSLNode;
-    negate(): TSLNode;
-    x: TSLNode;
-    y: TSLNode;
-    z: TSLNode;
+declare module 'three/addons/csm/CSMShadowNode.js' {
+  import type { Camera, DirectionalLight } from 'three/webgpu';
+
+  export interface CSMShadowNodeData {
+    cascades?: number;
+    maxFar?: number;
+    mode?: 'practical' | 'uniform' | 'logarithmic' | 'custom';
+    customSplitsCallback?: (cascades: number, near: number, far: number, breaks: number[]) => void;
+    lightMargin?: number;
+  }
+
+  /** TSL cascaded shadow node for WebGPURenderer (three/addons). */
+  export class CSMShadowNode {
+    camera: Camera | null;
+    cascades: number;
+    maxFar: number;
+    mode: 'practical' | 'uniform' | 'logarithmic' | 'custom';
+    lightMargin: number;
+    fade: boolean;
+    breaks: number[];
+    lights: Array<{
+      shadow: {
+        camera: { near: number; far: number; updateProjectionMatrix(): void };
+        radius: number;
+        bias: number;
+        normalBias: number;
+      };
+    }>;
+    constructor(light: DirectionalLight, data?: CSMShadowNodeData);
+    updateFrustums(): void;
+    dispose(): void;
+  }
+}
+
+declare module 'three/addons/tsl/display/GTAONode.js' {
+  import type { Camera } from 'three/webgpu';
+
+  /** Screen-space AO node (WebGPU GTAO — SSAOPass equivalent for WebGPURenderer). */
+  export function ao(depthNode: unknown, normalNode: unknown, camera: Camera): {
+    resolutionScale: number;
+    useTemporalFiltering: boolean;
+    samples: { value: number };
+    radius: { value: number };
+    scale: { value: number };
+    thickness: { value: number };
+    distanceExponent: { value: number };
+    distanceFallOff: { value: number };
+    getTextureNode(): { r: unknown; rgb: unknown };
+    dispose(): void;
+  };
+}
+
+declare module 'three/addons/objects/SkyMesh.js' {
+  import type { Mesh, Vector3 } from 'three/webgpu';
+
+  /**
+   * Official WebGPU Preetham skydome (TSL NodeMaterial).
+   * @see three.js examples/webgpu_sky.html
+   */
+  export class SkyMesh extends Mesh {
+    turbidity: { value: number };
+    rayleigh: { value: number };
+    mieCoefficient: { value: number };
+    mieDirectionalG: { value: number };
+    sunPosition: { value: Vector3 };
+    upUniform: { value: Vector3 };
+    cloudScale: { value: number };
+    cloudSpeed: { value: number };
+    cloudCoverage: { value: number };
+    cloudDensity: { value: number };
+    cloudElevation: { value: number };
+    showSunDisc: { value: number };
+    readonly isSkyMesh: true;
+    constructor();
   }
 }

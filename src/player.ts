@@ -2,8 +2,11 @@
 // player.ts — First-person player controller
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { CFG, B, BLOCK_DEF, T, ITEMS } from './config';
+import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
 
 export class Player {
@@ -35,7 +38,8 @@ export class Player {
   flashlight!: THREE.SpotLight;
   scanCd: number;
   vm!: THREE.Group;
-  vmTip!: THREE.Mesh;
+  vmTip!: THREE.Object3D;
+  weaponMount!: THREE.Group;
   blockInHand!: THREE.Mesh;
   highlight!: THREE.LineSegments;
   crackMat!: THREE.MeshBasicMaterial;
@@ -56,6 +60,8 @@ export class Player {
   private _eyePos = new THREE.Vector3();
   private _lookDir = new THREE.Vector3();
   private _jumpTime = 0;
+  private _jumpBufferT = 0;
+  private _coyoteT = 0;
   private _landImpact = 0;
   private _stepUpTarget = 0;
   private _stepUpFrom = 0;
@@ -65,6 +71,9 @@ export class Player {
   private _wish = new THREE.Vector3();
   private _vmTipWorld = new THREE.Vector3();
   private _hitP = new THREE.Vector3();
+  private _weaponAimPoint = new THREE.Vector3();
+  private _muzzleTmp = new THREE.Vector3();
+  private _muzzleAccum = new THREE.Vector3();
   private _shelterCache = 0;
   private _shelterVal = false;
 
@@ -112,52 +121,21 @@ export class Player {
   buildViewmodel(): void {
     const g = this.g;
     this.vm = new THREE.Group();
-    const dark = new THREE.MeshStandardMaterial({ color: '#2e333c', roughness: 0.6, metalness: 0.3 });
-    const grey = new THREE.MeshStandardMaterial({ color: '#5a616e', roughness: 0.5, metalness: 0.4 });
-    const acc = new THREE.MeshStandardMaterial({ color: '#ff8a5c', emissive: '#ff8a5c', emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.2 });
-    const screenMat = new THREE.MeshBasicMaterial({ color: '#66d9e8' });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.42), dark);
-    this.vm.add(body);
-
-    // Barrel — 12 segments for smooth cylinder
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.3, 12), grey);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.03, -0.32);
-    this.vm.add(barrel);
-
-    // Tip — emissive accent
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.06), acc);
-    tip.position.set(0, 0.03, -0.47);
-    this.vm.add(tip);
-    this.vmTip = tip;
-
-    // Scope/lens on top
-    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8), grey);
-    scope.position.set(0, 0.1, -0.1);
-    this.vm.add(scope);
-    const lens = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), new THREE.MeshBasicMaterial({ color: '#a8d8e8', transparent: true, opacity: 0.6 }));
-    lens.position.set(0, 0.1, -0.16);
-    this.vm.add(lens);
-
-    // Antenna
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.18, 4), grey);
-    antenna.position.set(0.05, 0.16, 0.05);
-    this.vm.add(antenna);
-
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.1), grey);
-    grip.position.set(0, -0.15, 0.1);
-    grip.rotation.x = 0.3;
-    this.vm.add(grip);
-
-    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), screenMat);
-    screen.position.set(0, 0.1, 0.05);
-    this.vm.add(screen);
-
     this.blockInHand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
-    this.blockInHand.position.set(-0.22, 0.05, 0);
+    this.blockInHand.position.set(-0.28, -0.05, -0.32);
     this.blockInHand.visible = false;
     this.vm.add(this.blockInHand);
+
+    // A camera child inherits the player's position and look direction exactly.
+    this.weaponMount = new THREE.Group();
+    this.weaponMount.name = 'player-rifle-mount';
+    this.weaponMount.position.set(0.2, -0.12, -0.34);
+    this.vm.add(this.weaponMount);
+    this.vmTip = new THREE.Object3D();
+    this.vmTip.name = 'rifle-muzzle-anchor';
+    // Fallback until the GLB loads and alignVmTipToMuzzle() snaps to the real barrel tip.
+    this.vmTip.position.set(0.195, 0.03, -0.97);
+    this.weaponMount.add(this.vmTip);
     this.vm.position.set(0.32, -0.3, -0.55);
     g.camera.add(this.vm);
     this.flashlight = new THREE.SpotLight('#cfe8f0', 0, 26, 0.6, 0.5, 1.2);
@@ -166,6 +144,74 @@ export class Player {
     g.camera.add(this.flashlight.target);
     this.flashlight.target.position.set(0, 0, -10);
     this.flashOn = false;
+    void this.loadCC0Viewmodel();
+  }
+
+  private async loadCC0Viewmodel(): Promise<void> {
+    try {
+      const model = await loadCC0Model(CC0_MODEL_URLS.rifle);
+      fitCC0Model(model, 0.92, 0.36);
+      model.name = 'quaternius-scifi-assault-rifle';
+      model.position.set(0.04, -0.19, -0.36);
+      // Mesh is longest on X: barrel toward -X, stock/receiver toward +X
+      // (vertex density is higher on +X). Mount lookAt() aims local -Z forward,
+      // so rotate Y by -90°: -X → -Z (muzzle out), +X → +Z (stock toward player).
+      // +90° was inverted and left the stock facing outward.
+      model.rotation.y = -Math.PI / 2;
+      this.weaponMount.add(model);
+      this.alignVmTipToMuzzle(model);
+    } catch {
+      // Never restore a legacy weapon mesh if the remote model cannot load.
+    }
+  }
+
+  /**
+   * Place the laser/muzzle anchor on the rifle barrel tip in weaponMount space.
+   * After -90° Y, the muzzle is the most-negative local Z of the fitted mesh.
+   */
+  private alignVmTipToMuzzle(model: THREE.Object3D): void {
+    this.weaponMount.updateMatrixWorld(true);
+    model.updateMatrixWorld(true);
+
+    const v = this._muzzleTmp;
+    let minZ = Infinity;
+
+    const forEachMountLocal = (fn: (p: THREE.Vector3) => void): void => {
+      model.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const pos = child.geometry?.attributes?.position;
+        if (!pos || typeof pos.count !== 'number') return;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i);
+          child.localToWorld(v);
+          this.weaponMount.worldToLocal(v);
+          fn(v);
+        }
+      });
+    };
+
+    forEachMountLocal((p) => {
+      if (p.z < minZ) minZ = p.z;
+    });
+    if (!isFinite(minZ)) return;
+
+    // Average the forward-most vertices (within 1.5cm of the tip) for a stable center.
+    const tipBand = minZ + 0.015;
+    this._muzzleAccum.set(0, 0, 0);
+    let n = 0;
+    forEachMountLocal((p) => {
+      if (p.z <= tipBand) {
+        this._muzzleAccum.x += p.x;
+        this._muzzleAccum.y += p.y;
+        this._muzzleAccum.z += p.z;
+        n++;
+      }
+    });
+    if (n === 0) return;
+    this._muzzleAccum.multiplyScalar(1 / n);
+    // Sit just outside the mesh so the beam doesn't start inside the barrel.
+    this._muzzleAccum.z = minZ - 0.004;
+    this.vmTip.position.copy(this._muzzleAccum);
   }
 
   eyePos(): THREE.Vector3 {
@@ -185,6 +231,13 @@ export class Player {
       return;
     }
     const input = g.input;
+    if (input.jumpPressed) {
+      this._jumpBufferT = 0.12;
+      input.jumpPressed = false;
+    } else {
+      this._jumpBufferT = Math.max(0, this._jumpBufferT - dt);
+    }
+    this._coyoteT = this.onGround ? 0.1 : Math.max(0, this._coyoteT - dt);
     const sens = g.settings.sens / 100 * 0.0023;
     this.yaw -= input.dx * sens;
     this.pitch -= input.dy * sens;
@@ -198,27 +251,29 @@ export class Player {
     if (input.keys['KeyS']) wish.sub(fwd);
     if (input.keys['KeyD']) wish.add(right);
     if (input.keys['KeyA']) wish.sub(right);
-    // Touch joystick movement (adds to keyboard for hybrid devices)
     if (input.moveActive) {
       wish.addScaledVector(fwd, -input.moveY);
       wish.addScaledVector(right, input.moveX);
     }
-    const sprint = (input.keys['ShiftLeft'] && input.keys['KeyW'] && this.ls > 5)
-      || (input.moveActive && -input.moveY > 0.85 && this.ls > 5 && Math.abs(input.moveX) < 0.5);
-    if (wish.lengthSq() > 0) wish.normalize();
+    const sprint = ((input.keys['ShiftLeft'] && input.keys['KeyW']) || input.touchSprint) && this.ls > 5;
+    const wishLength = Math.sqrt(wish.lengthSq());
+    const wishStrength = Math.min(1, wishLength);
+    if (wishLength > 0) wish.multiplyScalar(1 / wishLength);
 
     const feet = this.g.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.2), Math.floor(this.pos.z));
     const wasInWater = this.inWater;
     this.inWater = feet === B.WATER;
     this.headInWater = this.g.world.isWater(this.pos.x, this.pos.y + 1.62, this.pos.z);
     if (this.inWater && !wasInWater && this.vel.y < -3) g.audio.splash();
-    (document.getElementById('water-tint') as HTMLElement).style.opacity = this.headInWater ? '1' : '0';
+    const waterTint = document.getElementById('water-tint');
+    if (waterTint) waterTint.style.opacity = this.headInWater ? '1' : '0';
 
     let speed = sprint ? 6.6 : 4.35;
     if (this.inWater) speed *= 0.55;
-    const accel = this.onGround ? 60 : 18;
-    this.vel.x = U.lerp(this.vel.x, wish.x * speed, U.clamp(accel * dt, 0, 1));
-    this.vel.z = U.lerp(this.vel.z, wish.z * speed, U.clamp(accel * dt, 0, 1));
+    const accel = wishStrength > 0 ? (this.onGround ? 64 : 20) : (this.onGround ? 20 : 6);
+    const targetSpeed = speed * wishStrength;
+    this.vel.x = U.lerp(this.vel.x, wish.x * targetSpeed, U.clamp(accel * dt, 0, 1));
+    this.vel.z = U.lerp(this.vel.z, wish.z * targetSpeed, U.clamp(accel * dt, 0, 1));
 
     if (this.inWater) {
       this.vel.y -= 5 * dt;
@@ -232,30 +287,34 @@ export class Player {
       } else {
         this.vel.y = 0;
       }
-      if (input.keys['Space']) {
-        if (this.onGround) {
-          this.vel.y = 7.2;
-          this.onGround = false;
-          this._jumpTime = 0;
-          g.audio.jump();
-        } else if (this.jetFuel > 1) {
-          this.vel.y = Math.min(this.vel.y + 30 * dt, 6.2);
-          this.jetFuel -= 42 * dt;
-          this.ls -= 0.6 * dt;
-          g.audio.setLoop('jet', true, 0.7);
-          if (Math.random() < 0.6) {
-            const bx = this.pos.x - fwd.x * 0.2, bz = this.pos.z - fwd.z * 0.2;
-            g.fx.spawn(bx, this.pos.y + 0.35, bz, { n: 1, col: '#8fd8f4', speed: 1, life: 0.4, grav: 2, up: -2 });
-          }
-        } else g.audio.setLoop('jet', false);
+      const startJump = this._jumpBufferT > 0 && this._coyoteT > 0;
+      if (startJump) {
+        this.vel.y = 7.2;
+        this.onGround = false;
+        this._coyoteT = 0;
+        this._jumpBufferT = 0;
+        this._jumpTime = 0;
+        g.audio.jump();
+      } else if (!input.keys['Space'] && this._jumpTime < 0.18 && this.vel.y > 3.2) {
+        this.vel.y = 3.2;
+      } else if (input.keys['Space'] && !this.onGround && this.jetFuel > 1) {
+        this.vel.y = Math.min(this.vel.y + 30 * dt, 6.2);
+        this.jetFuel -= 42 * dt;
+        this.ls -= 0.6 * dt;
+        g.audio.setLoop('jet', true, 0.7);
+        if (Math.random() < 0.6) {
+          const bx = this.pos.x - fwd.x * 0.2, bz = this.pos.z - fwd.z * 0.2;
+          g.fx.spawn(bx, this.pos.y + 0.35, bz, { n: 1, col: '#8fd8f4', speed: 1, life: 0.4, grav: 2, up: -2 });
+        }
       } else g.audio.setLoop('jet', false);
     }
     if (this.onGround) this.jetFuel = Math.min(100, this.jetFuel + 30 * dt);
 
     this.fallVy = this.vel.y;
     this.moveCollide(dt);
+    if (this.onGround) this._jumpTime = 0;
 
-    if (this.onGround && wish.lengthSq() > 0) {
+    if (this.onGround && wishStrength > 0.03) {
       this.stepT -= dt * (sprint ? 1.6 : 1);
       if (this.stepT <= 0) {
         this.stepT = 0.42;
@@ -280,7 +339,7 @@ export class Player {
 
     const cam = g.camera;
     cam.position.copy(this.eyePos());
-    const moving = wish.lengthSq() > 0;
+    const moving = wishStrength > 0.03;
     const bob = this.onGround && moving ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
     // Idle sway — subtle breathing motion when standing still
     const idleSwayX = this.onGround && !moving ? Math.sin(g.time * 1.1) * 0.008 : 0;
@@ -309,7 +368,10 @@ export class Player {
     this.blockInHand.visible = !!isBlock;
     if (isBlock && this.lastHandItem !== selItem!.id) {
       this.lastHandItem = selItem!.id;
-      (this.blockInHand.material as THREE.MeshLambertMaterial).color.set(this.blockColor(ITEMS[selItem!.id].place!));
+    const item = selItem ? ITEMS[selItem.id] : undefined;
+    if (item?.place !== undefined && this.blockInHand.material instanceof THREE.MeshLambertMaterial) {
+      this.blockInHand.material.color.set(this.blockColor(item.place));
+    }
     }
 
     this.updateTargeting(dt);
@@ -394,10 +456,25 @@ export class Player {
     const g = this.g;
     const hit = g.world.raycast(this.eyePos(), this.lookDir(), CFG.REACH);
     this.target = hit;
+    this.updateWeaponAim(hit);
     if (hit && !this.visor) {
       this.highlight.visible = true;
       this.highlight.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
     } else this.highlight.visible = false;
+  }
+
+  private updateWeaponAim(hit: RaycastResult | null): void {
+    const aim = this._weaponAimPoint;
+    if (hit) {
+      // Use the exposed face, matching the mining beam's actual impact point.
+      aim.set(hit.x + 0.5 + hit.nx * 0.52, hit.y + 0.5 + hit.ny * 0.52, hit.z + 0.5 + hit.nz * 0.52);
+    } else {
+      aim.copy(this.eyePos()).addScaledVector(this.lookDir(), CFG.REACH);
+    }
+    // The mount is parented to the camera. Updating the hierarchy first keeps
+    // lookAt in world space even immediately after a player turn or movement.
+    this.g.camera.updateMatrixWorld(true);
+    this.weaponMount.lookAt(aim);
   }
 
   updateMining(dt: number): void {
@@ -455,9 +532,9 @@ export class Player {
       if (this.sfxT <= 0) {
         this.sfxT = 0.14;
         g.audio.mineHit(def.snd || 'stone');
-        // Mining sparks — small burst at hit point
+        // Mining sparks — tiny chips at hit point
         g.fx.burst(hitP.x, hitP.y, hitP.z, {
-          n: 5, col: this.blockColor(t.id), speed: 2.2, life: 0.35,
+          n: 3, col: this.blockColor(t.id), speed: 1.6, life: 0.28,
           nx: t.nx * 0.5, ny: t.ny * 0.5, nz: t.nz * 0.5
         });
       }
@@ -487,7 +564,7 @@ export class Player {
 
   applyCrackUV(uv: [number, number, number, number]): void {
     const [u0, v0, u1, v1] = uv;
-    const attr = this.crack.geometry.attributes.uv as THREE.BufferAttribute;
+    const attr = this.crack.geometry.getAttribute('uv');
     for (let i = 0; i < attr.count; i += 4) {
       attr.setXY(i, u0, v1);
       attr.setXY(i + 1, u1, v1);
@@ -519,12 +596,12 @@ export class Player {
     const def = BLOCK_DEF[t.id];
     g.world.setBlock(t.x, t.y, t.z, B.AIR);
     g.audio.blockBreak(def.snd || 'stone');
-    // Directional burst — particles fly away from the break face
+    // Subtle directional chips — not a screen-filling explosion
     g.fx.burst(t.x + 0.5, t.y + 0.5, t.z + 0.5, {
-      n: 20, col: this.blockColor(t.id), speed: 3.2, life: 0.7,
+      n: 10, col: this.blockColor(t.id), speed: 2.0, life: 0.45,
       nx: t.nx, ny: t.ny, nz: t.nz
     });
-    g.fx.shake(0.08);
+    g.fx.shake(0.05);
     if (def.drops) {
       let pi = 0;
       for (const d of def.drops) {
@@ -547,6 +624,24 @@ export class Player {
     return this._vmTipWorld;
   }
 
+  tryOpenShipPanel(clientX: number, clientY: number): boolean {
+    const g = this.g;
+    if (this.inShip || g.uiOpen() || this.pos.distanceTo(g.ship.group.position) >= 5) return false;
+    const canvas = document.getElementById('game-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) return false;
+    const rect = canvas.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return false;
+    const pointer = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    g.ship.group.updateMatrixWorld(true);
+    raycaster.setFromCamera(pointer, g.camera);
+    if (raycaster.intersectObject(g.ship.group, true).length === 0) return false;
+    g.ship.openPanel();
+    return true;
+  }
   placeBlock(): void {
     const g = this.g;
     const sel = g.inv.selected();
@@ -668,7 +763,13 @@ export class Player {
     if (!this.inShip) {
       const shipD = this.pos.distanceTo(g.ship.group.position);
       if (shipD < 5) {
-        prompt = { key: 'E', text: g.ship.canLaunch() ? '进入飞船 · 起飞' : '检查飞船（修复 / 加注）', hold: 0.5, action: () => g.ship.openPanel() };
+        const touchPrompt = input.isTouchDevice;
+        prompt = {
+          key: touchPrompt ? '点击飞船' : 'E',
+          text: touchPrompt ? '查看飞船状态 / 修复 / 加注 / 登舰' : (g.ship.canLaunch() ? '进入飞船 · 起飞' : '检查飞船（修复 / 加注）'),
+          hold: touchPrompt ? 0 : 0.5,
+          action: () => g.ship.openPanel()
+        };
       }
     }
     if (input.keys['KeyZ'] && this.ls < 99) {
@@ -698,13 +799,14 @@ export class Player {
       } else if (!this.xWarned) { g.hud.notify('没有 钠 —— 采集黄色钠光花', 'warn'); this.xWarned = true; setTimeout(() => this.xWarned = false, 3000); }
     }
 
-    if (prompt && prompt.key === 'E') {
+    const interactAction = prompt?.action;
+    if (prompt && interactAction) {
       if (input.keys['KeyE']) {
         this.holdE += dt;
         if (this.holdE >= prompt.hold) {
           this.holdE = 0;
           input.keys['KeyE'] = false;
-          prompt.action!();
+          interactAction();
         }
       } else this.holdE = 0;
       g.hud.showPrompt(prompt.key, prompt.text, prompt.hold > 0 ? this.holdE / prompt.hold : (prompt.progress || 0));
@@ -813,7 +915,7 @@ export class Player {
     g.inv.units += entry.units;
     g.inv.syncStore();
     g.audio.analyze();
-    g.hud.notify(`已记录 ${entry.name} —— +${entry.units} ◈`, 'success');
+    g.hud.notify(`已记录 ${entry.name} —— +${entry.units}`, 'success');
     g.milestones.addStat('scans', 1);
     g.missions.onEvent('analyze');
   }

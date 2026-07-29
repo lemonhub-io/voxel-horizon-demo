@@ -42,7 +42,7 @@ describe('Missions', () => {
     });
     it('advances when condition met', () => {
       // Place player near ship
-      (game.player as { pos: THREE.Vector3 }).pos.set(14, 0, 9);
+      (game.player as { pos: import('three/webgpu').Vector3 }).pos.set(14, 0, 9);
       missions.tick();
       expect(missions.idx).toBe(1);
       expect(game.hud.notify).toHaveBeenCalled();

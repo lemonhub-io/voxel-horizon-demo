@@ -2,8 +2,11 @@
 // ship.ts — Ship components, flight, landing, warp
 // ============================================================
 
+import * as THREE from 'three/webgpu';
 import { U } from './utils';
 import { Sky } from './sky';
+import { fitCC0Model, loadCC0Model } from './cc0-models';
+import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, ShipComponent, ShipSaveData } from './types';
 
 export class Ship {
@@ -141,6 +144,20 @@ export class Ship {
         child.castShadow = true;
       }
     }
+    void this.loadCC0Visual();
+  }
+
+  private async loadCC0Visual(): Promise<void> {
+    try {
+      const model = await loadCC0Model(CC0_MODEL_URLS.ship);
+      fitCC0Model(model, 8.2, 4.4);
+      model.rotation.y = Math.PI;
+      const fallbackMeshes = this.group.children.filter(child => child instanceof THREE.Mesh && child !== this.shadow);
+      fallbackMeshes.forEach(mesh => { mesh.visible = false; });
+      this.group.add(model);
+    } catch {
+      // Keep the procedural fallback available if an asset cannot be loaded.
+    }
   }
 
   repaired(): boolean { return !this.comps.thruster.broken && !this.comps.pulse.broken; }
@@ -172,7 +189,7 @@ export class Ship {
         }
       }
       const glow = this.repaired() ? 0.5 + Math.sin(g.time * 3) * 0.15 : 0;
-      this.engineGlows.forEach(s => { (s.material as THREE.SpriteMaterial).opacity = glow; });
+    this.engineGlows.forEach(s => { s.material.opacity = glow; });
       return;
     }
 
@@ -207,7 +224,7 @@ export class Ship {
     this.group.quaternion.slerp(q, dt * 5);
 
     this.engineGlows.forEach(s => {
-      (s.material as THREE.SpriteMaterial).opacity = 0.5 + this.throttle * 0.5 + boost * 0.4;
+    s.material.opacity = 0.5 + this.throttle * 0.5 + boost * 0.4;
       s.scale.setScalar(1.2 + this.throttle * 1.2 + boost * 1 + Math.random() * 0.2);
     });
     if (boost || this.throttle > 0.5) {
@@ -336,7 +353,7 @@ export class Ship {
 
   /** Sync ship state to Pinia store */
   syncStore(): void {
-    const s = (this.g as unknown as { stores: { ship: { comps: Record<string, ShipComponent>; fuel: number; open: boolean; flying: boolean; speed: number; throttle: number } } }).stores;
+    const s = this.g.stores;
     if (!s) return;
     s.ship.comps = { ...this.comps };
     s.ship.fuel = this.fuel;

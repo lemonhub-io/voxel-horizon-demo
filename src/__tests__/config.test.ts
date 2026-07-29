@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CFG, B, BLOCK_DEF, ITEMS, RECIPES, PALETTES, HAZ_ICONS, MILESTONE_DEFS, DEFAULT_SETTINGS } from '../config';
+import { CFG, B, BLOCK_DEF, ITEMS, RECIPES, PALETTES, MILESTONE_DEFS, DEFAULT_SETTINGS } from '../config';
 
 describe('CFG constants', () => {
   it('has valid chunk size', () => expect(CFG.CHUNK).toBe(16));
@@ -8,6 +8,33 @@ describe('CFG constants', () => {
   it('has positive gravity', () => expect(CFG.GRAVITY).toBeGreaterThan(0));
   it('has positive reach', () => expect(CFG.REACH).toBeGreaterThan(0));
   it('has save key', () => expect(CFG.SAVE_KEY).toBeTruthy());
+  it('has 3-cascade CSM config', () => {
+    expect(CFG.CSM.cascades).toBe(3);
+    expect(CFG.CSM.mapSize).toBeGreaterThanOrEqual(1024);
+    expect(CFG.CSM.mode).toBe('custom');
+    expect(CFG.CSM.breaks).toHaveLength(3);
+    expect(CFG.CSM.breaks[CFG.CSM.breaks.length - 1]).toBe(1);
+    expect(CFG.CSM.radiusFar).toBeGreaterThan(CFG.CSM.radiusNear);
+    expect(CFG.CSM.hardCap).toBeGreaterThan(CFG.CSM.minFar);
+    expect(CFG.CSM.lightDistance).toBeGreaterThan(0);
+  });
+  it('has SSAO config for screen-space AO', () => {
+    expect(CFG.SSAO.enabled).toBe(true);
+    expect(CFG.SSAO.samples).toBeGreaterThanOrEqual(4);
+    expect(CFG.SSAO.resolutionScale).toBeGreaterThan(0);
+    expect(CFG.SSAO.resolutionScale).toBeLessThanOrEqual(1);
+    expect(CFG.SSAO.intensity).toBeGreaterThan(0);
+    expect(CFG.SSAO.intensity).toBeLessThanOrEqual(1);
+    expect(CFG.SSAO.radius).toBeGreaterThan(0);
+  });
+  it('has cinematic post-processing config', () => {
+    expect(CFG.POST.enabled).toBe(true);
+    expect(CFG.BLOOM.enabled).toBe(true);
+    expect(CFG.BLOOM.threshold).toBeGreaterThan(0);
+    expect(CFG.CINEMATIC.contrast).toBeGreaterThan(0);
+    expect(CFG.CINEMATIC.vignetteStrength).toBeGreaterThan(0);
+    expect(CFG.CINEMATIC.fxaa).toBe(true);
+  });
 });
 
 describe('Block types (B)', () => {
@@ -100,15 +127,6 @@ describe('PALETTES', () => {
   it('hazard types are valid', () => {
     const valid = ['heat', 'cold', 'toxic', 'rad'];
     for (const p of PALETTES) expect(valid).toContain(p.hazard.type);
-  });
-});
-
-describe('HAZ_ICONS', () => {
-  it('has icons for all hazard types', () => {
-    expect(HAZ_ICONS.cold).toBeDefined();
-    expect(HAZ_ICONS.heat).toBeDefined();
-    expect(HAZ_ICONS.toxic).toBeDefined();
-    expect(HAZ_ICONS.rad).toBeDefined();
   });
 });
 

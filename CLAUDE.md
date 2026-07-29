@@ -17,11 +17,12 @@ npm run typecheck   # type-check only (no output)
 npm run lint        # ESLint check
 npm run lint:fix    # ESLint auto-fix
 npm run format      # Prettier format
-npm run test        # run tests (193 tests)
+npm run test        # run tests (~199 tests)
 npm run test:coverage # coverage report
+node scripts/generate-icons.mjs  # regenerate PWA/favicon square icons
 ```
 
-Three.js r185 is installed via npm, bundled by Vite. WebGPU renderer with WebGL2 fallback.
+Three.js r185 is installed via npm, bundled by Vite. WebGPU renderer with WebGL2 fallback. Production builds register a service worker (`src/pwa.ts` + `public/sw.js`).
 
 ## Architecture
 
@@ -38,27 +39,27 @@ TypeScript (strict mode, no `any`) with Vite. Vue 3 + Pinia for UI. Three.js r18
 | `Ship` | ship.ts | Starship, flight physics, launch/land/warp |
 | `Inventory` | inventory.ts | Item storage, crafting, hotbar |
 | `HUD` | hud.ts | Compass canvas, marker management |
-| `Sky` | sky.ts | TSL sky dome shader, lighting, fog |
+| `Sky` | sky.ts | Soft TSL skydome + sun disc, directional light, CSM |
 | `Starfield` | starfield.ts | 2D canvas star overlay |
-| `FX` | effects.ts | Particles, laser, screen shake |
-| `Fauna` | entities.ts | Creature generation and AI |
+| `FX` | effects.ts | InstancedMesh debris, laser beam, shake, warp |
+| `Fauna` | entities.ts | Creature AI (generation gated by `Fauna.SPAWN_DISABLED`) |
 | `AudioEngine` | audio.ts | Web Audio API procedural sound |
 | `TextureAtlas` | atlas.ts | 32×32 procedural texture atlas |
-| `PostFX` | postfx.ts | CSS post-processing effects |
-| `PostProcessing` | post-processing.ts | EffectComposer pipeline |
+| `PostFX` | postfx.ts | CSS health vignette / letterbox |
+| `PostProcessing` | post-processing.ts | WebGPU cinematic pipeline (GTAO/Bloom/grade/FXAA) |
 | `Missions` | missions.ts | Quest progression + milestones |
 | `Save` | save.ts | OPFS multi-slot save system |
 
 ### Key Patterns
 
 - **All state lives on `Game` or its sub-instances.** `window.game` is the singleton.
-- **Procedural everything.** Textures, terrain, creatures, planet names, flora names, and audio are all generated at runtime from seeds. Zero external asset files.
+- **Mostly procedural.** Textures, terrain, audio, names from seeds; optional CC0 glTF models under `public/models/cc0/` (skinned fauna must use `SkeletonUtils.clone` via `cc0-models.ts`).
 - **Palettes drive the planet.** `PALETTES` in config.ts defines 4 biome types. Each specifies colors, hazard type, tree types, flora/fauna density, and storm behavior.
-- **Block/item definitions are data-driven.** `B` enum → `BLOCK_DEF` array. `ITEMS` object. `RECIPES` array. All in config.ts.
-- **ES modules with Vue.** Files use `import`/`export`. Entry point `src/vue-main.ts` bootstraps Vue + Pinia + Game engine.
+- **Block/item definitions are data-driven.** `B` enum → `BLOCK_DEF` array. `ITEMS` object. `RECIPES` array. All in config.ts. Graphics knobs: `CFG.CSM`, `CFG.SSAO`, `CFG.BLOOM`, `CFG.CINEMATIC`, `CFG.POST`.
+- **ES modules with Vue.** Entry point `src/vue-main.ts` bootstraps Vue + Pinia + Game engine + PWA registration.
 - **Pinia stores bridge engine and UI.** Game engine writes to stores, Vue components read reactively.
 - **Chinese UI.** All user-facing strings are in Simplified Chinese.
-- **TSL shaders.** Sky dome uses Three.js Shading Language node materials for WebGPU compatibility.
+- **TSL shaders.** Soft sky dome and cinematic post stack use Three.js Shading Language for WebGPU.
 
 ### Game State Machine
 
@@ -74,6 +75,7 @@ TypeScript (strict mode, no `any`) with Vite. Vue 3 + Pinia for UI. Three.js r18
 ### World/Chunk System
 
 - Chunks: 16×64×16 voxels. Terrain height generated via `SimplexNoise` with palette-specific parameters.
+- **Ores:** ferrite forms shallow dual-noise veins / surface outcrops (depth 0–9); copper remains deeper stone veins. Do not place ferrite as isolated props on grass.
 - `World.edits` is a `Map<string, Map<number, number>>` tracking player block modifications.
 - `World.update(px, pz, radius)` loads/unloads chunks around the player. Render distance is configurable (3-6 chunks).
 - Block meshing uses face culling with ambient occlusion and palette-colored UVs from the texture atlas.
@@ -90,12 +92,13 @@ TypeScript (strict mode, no `any`) with Vite. Vue 3 + Pinia for UI. Three.js r18
 ### Rendering Pipeline
 
 - **Three.js r185** with `WebGPURenderer` (auto WebGL2 fallback)
-- **TSL sky shader** — Rayleigh scattering, stars, dusk band via node materials
-- **PBR materials** — `MeshStandardMaterial` with roughness/metalness
-- **Shadow maps** — 2048² PCFSoftShadowMap
-- **HDR tone mapping** — ACES Filmic, exposure 2.5
+- **Soft TSL sky** — palette gradient dome + sun disc/halo (`sky.ts`); 2D starfield at night
+- **CSM** — `CSMShadowNode` on directional sun light (`CFG.CSM`, near/mid/far)
+- **Cinematic post** — GTAO → Bloom → grade → vignette → grain → ACES → FXAA (`post-processing.ts`)
+- **PBR materials** — `MeshStandardMaterial` with roughness/metalness + atlas normals
+- **Tone mapping** — ACES Filmic, exposure ≈ 0.9
 - **32×32 pixel textures** — NearestFilter mag + LinearMipmapLinearFilter min
-- **CSS post-processing** — contrast(1.12), saturate(1.2), brightness(1.02)
+- **CSS overlays** — health vignette, light letterbox (`postfx.ts`)
 
 ## Important Conventions
 

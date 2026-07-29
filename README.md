@@ -6,7 +6,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org/)
 [![Vue 3](https://img.shields.io/badge/Vue%203-Composition%20API-42b883?logo=vuedotjs)](https://vuejs.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-r185%20WebGPU-049ef4?logo=three.js)](https://threejs.org/)
-[![Tests](https://img.shields.io/badge/Tests-193%20passed-44cc11)](#测试)
+[![Tests](https://img.shields.io/badge/Tests-199%20passed-44cc11)](#测试)
+[![PWA](https://img.shields.io/badge/PWA-ready-5a0fc8)](#pwa)
 
 ---
 
@@ -20,19 +21,20 @@
 - 🏗️ **建造庇护所** — 放置方块建造基地，抵御风暴和恶劣环境
 - 📷 **扫描万物** — 用分析目镜记录生物、植物和矿物
 
-**所有内容均为程序化生成** — 零外部资源文件，纹理、地形、生物、音频全部运行时生成。
+**程序化生成** — 纹理、地形、音频、名称等运行时生成；飞船 / 步枪 / 生物等使用仓库内 **CC0** glTF（亦可经 CDN 加载）。
 
 ## 技术栈
 
 | 技术 | 用途 |
 |---|---|
 | **TypeScript** (strict) | 全量类型安全，禁止 `any` |
-| **Vue 3** + Composition API | UI 框架，15 个响应式组件 |
+| **Vue 3** + Composition API | UI 框架，响应式组件 |
 | **Pinia** | 状态管理，7 个 store |
 | **Three.js r185** + WebGPU | 3D 渲染，TSL 着色器，自动降级 WebGL2 |
 | **Vite** | 开发服务器 + HMR + 生产构建 |
-| **Vitest** | 单元/集成测试，193 个用例 |
+| **Vitest** | 单元/集成测试，约 199 个用例 |
 | **ESLint** + **Prettier** | 代码质量 + 格式化 |
+| **PWA** | Manifest + Service Worker，可安装 / 可离线壳层 |
 
 ## 快速开始
 
@@ -70,7 +72,25 @@ npm run format        # Prettier 格式化
 npm run test          # 运行测试
 npm run test:watch    # 监听模式测试
 npm run test:coverage # 生成覆盖率报告
+node scripts/generate-icons.mjs  # 重新生成 PWA / favicon 正方形图标
 ```
+
+## PWA
+
+生产构建支持安装为 Progressive Web App：
+
+- `public/manifest.webmanifest` — 名称、standalone、主题色、图标
+- `public/sw.js` — 预缓存壳层 + 运行时缓存同源静态资源
+- `src/pwa.ts` — 仅在 **production** 注册 Service Worker（避免 dev HMR 冲突）
+- 图标：简洁 2D 正方形（深底 + 青色方块），见 `public/favicon.svg` 与 `public/icons/`
+
+验证：
+
+```bash
+npm run build && npm run preview
+```
+
+在 Chrome DevTools → Application 中检查 Manifest 与 Service Worker。
 
 ## 操作方式
 
@@ -91,6 +111,26 @@ npm run test:coverage # 生成覆盖率报告
 | `T` | 手电 |
 | `Esc` | 暂停 |
 
+### 移动与跳跃手感
+
+- 跳跃输入会保留 **120ms**；在落地前按下跳跃也能及时起跳。
+- 离开边缘后的 **100ms** 内仍可跳跃，降低误操作造成的坠落感。
+- 轻触后松开跳跃键可获得较低的跳跃高度；持续按住则可在空中启用喷气背包。
+
+### 移动端
+
+游戏会在触控设备上自动显示操作界面：
+
+| 手势 / 按钮 | 功能 |
+|---|---|
+| 左侧虚拟摇杆 | 移动；双击切换疾跑 |
+| 右侧空白区域拖动 | 转动视角 |
+| 短击场景 | 放置当前快捷栏方块 / 使用物品 |
+| 长按场景 | 持续采集方块或攻击生物 |
+| 点击近处飞船模型 | 打开飞船状态面板，可修复、加注并登舰起飞 |
+| 右下角跳跃键 | 跳跃 / 按住喷气背包 |
+| 顶部图标 | 扫描、分析目镜、背包与暂停 |
+
 ### 飞行模式
 
 | 按键 | 功能 |
@@ -105,49 +145,26 @@ npm run test:coverage # 生成覆盖率报告
 
 ```
 src/
-├── main.ts              # 游戏引擎核心（Three.js 渲染 + 游戏循环）
-├── vue-main.ts          # Vue 应用入口 + 引擎初始化
-├── App.vue              # 根组件（屏幕切换管理）
-├── three-setup.ts       # Three.js WebGPU 全局初始化
-├── types.ts             # 共享类型定义 + THREE.js 声明
-├── utils.ts             # 数学工具、噪声、名称生成器
-├── config.ts            # 游戏配置（方块/物品/配方/调色板）
-├── save.ts              # OPFS 多存档系统
-├── atlas.ts             # 程序化纹理图集（32×32 像素）
-├── audio.ts             # Web Audio API 程序化音效
-├── world.ts             # 体素世界/区块系统
-├── sky.ts               # TSL 天空穹顶着色器
-├── starfield.ts         # 2D canvas 星空叠加层
-├── effects.ts           # 粒子系统、激光、屏幕震动
-├── postfx.ts            # CSS 后处理效果
-├── entities.ts          # 生物生成与 AI
-├── inventory.ts         # 背包、合成、快捷栏
-├── ship.ts              # 星舰系统
-├── player.ts            # 玩家控制器
-├── hud.ts               # HUD 引擎逻辑
-├── missions.ts          # 任务与里程碑
-├── stores/              # Pinia 状态管理
-│   ├── gameStore.ts     # 游戏全局状态
-│   ├── playerStore.ts   # 玩家状态
-│   ├── inventoryStore.ts# 背包状态
-│   ├── shipStore.ts     # 飞船状态
-│   ├── missionsStore.ts # 任务状态
-│   ├── milestonesStore.ts# 里程碑状态
-│   └── hudStore.ts      # HUD 状态
-├── components/          # Vue 组件（15 个）
-│   ├── TitleScreen.vue  # 标题画面
-│   ├── LoadingScreen.vue# 加载画面
-│   ├── IntroScreen.vue  # 开场动画
-│   ├── HudOverlay.vue   # 游戏内 HUD
-│   ├── InventoryScreen.vue# 背包界面（3 标签页）
-│   ├── ShipPanel.vue    # 飞船面板
-│   ├── PauseScreen.vue  # 暂停菜单
-│   ├── DeathScreen.vue  # 死亡画面
-│   ├── SettingsScreen.vue# 设置界面
-│   ├── HelpScreen.vue   # 帮助手册
-│   └── ...
-├── post-processing.ts  # 后处理管线
-└── __tests__/           # 测试文件（25 个，193 个用例）
+├── main.ts              # 游戏引擎核心（渲染 + 游戏循环）
+├── vue-main.ts          # Vue 入口 + PWA 注册
+├── pwa.ts               # Service Worker 注册辅助
+├── App.vue              # 根组件（屏幕切换）
+├── types.ts / env.d.ts  # 类型与 three/addons 模块声明
+├── utils.ts / config.ts # 工具与数据驱动配置（含 CSM/SSAO/电影滤镜）
+├── world.ts             # 体素世界（浅层铁脉、深层铜矿）
+├── sky.ts               # 柔和 TSL 天空 + 日轮 + CSM 太阳光
+├── starfield.ts         # 2D 夜间星空叠加
+├── post-processing.ts   # WebGPU 电影级后期（GTAO/Bloom/调色/FXAA）
+├── postfx.ts            # CSS 健康晕影 / 电影黑边
+├── effects.ts           # InstancedMesh 碎屑、激光光束
+├── entities.ts          # 生物 AI（SPAWN_DISABLED 可关生成）
+├── cc0-models.ts        # glTF 加载（SkeletonUtils 蒙皮克隆）
+├── player.ts / ship.ts / inventory.ts / audio.ts / …
+├── stores/ · components/
+└── __tests__/           # 约 199 个用例
+public/
+├── manifest.webmanifest · sw.js · favicon* · icons/
+└── models/cc0/          # CC0 飞船 / 步枪 / 生物模型
 ```
 
 ## 游戏设计
@@ -176,18 +193,18 @@ src/
 |---|---|---|---|---|
 | 🌿 温带 | 温和 | 严寒（夜间） | 热浪风暴 | 丰饶 |
 | 🔥 灼热 | 干旱 | 极端高温 | 烈焰风暴 | 稀疏 |
-| ❄️ 冰封 | 严寒 | 极寒 | 暴风雪 | 稀疏 |
+| 冰封 | 严寒 | 极寒 | 暴风雪 | 稀疏 |
 | 💜 异常 | 辐射 | 强辐射 | 辐射风暴 | 奇异 |
 
 ### 渲染管线
 
 - **WebGPU 渲染器**（Three.js r185）自动降级 WebGL2
-- **TSL 天空着色器** — Rayleigh 散射、Mie 散射、星空、黄昏光带
-- **PBR 材质** — `MeshStandardMaterial`（粗糙度/金属度）
-- **阴影系统** — 2048² PCFSoftShadowMap
-- **HDR 色调映射** — ACES Filmic，exposure 2.5
-- **CSS 后处理** — 对比度、饱和度、健康晕影
-- **32×32 像素纹理** — Mipmap 远景平滑
+- **柔和 TSL 天空** — 调色板渐变穹顶、日轮光晕、黄昏光带（`sky.ts`）
+- **级联阴影 CSM** — `CSMShadowNode`，近/中/远三级（`CFG.CSM`）
+- **电影级后期** — GTAO → Bloom → 青橙调色 → 暗角 → 胶片颗粒 → ACES → FXAA（`CFG.CINEMATIC` 等）
+- **PBR 材质** — `MeshStandardMaterial` + 程序化法线
+- **ACES 色调映射** — exposure 约 0.9（与柔和天空匹配）
+- **32×32 像素纹理图集** — Mipmap 远景平滑
 
 ### 存档系统
 

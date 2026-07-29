@@ -10,6 +10,12 @@
     @settings="showSettings = true"
   />
 
+  <div v-if="engineLoading" id="engine-loading" role="status" aria-live="polite">
+    <div class="engine-loading__spinner"></div>
+    <div>正在准备星球渲染器</div>
+    <small>INITIALIZING RENDERER</small>
+  </div>
+
   <SaveSlotScreen
     v-if="showSaves"
     :slots="saveSlots"
@@ -26,6 +32,7 @@
     :progress="game.loadProgress"
   />
 
+  <ModelLoadError v-if="game.state === 'model-error'" :failures="game.modelLoadFailures" @continue="onContinueWithFailedModels" @report-exit="onReportModelFailure" />
   <IntroScreen
     v-if="game.state === 'intro'"
     :lines="game.introLines"
@@ -33,7 +40,7 @@
   />
 
   <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" />
-  <TouchControls v-if="(game.state === 'play' || game.state === 'warp') && isTouchDevice" />
+  <TouchControls v-if="(game.state === 'play' || game.state === 'warp') && !inv.open && !ship.open" />
   <InventoryScreen v-if="inv.open" @close="onCloseInv" @use-item="onUseItem" @craft="onCraft" />
   <ShipPanel v-if="ship.open" @close="onCloseShip" @repair="onRepair" @refuel="onRefuel" @launch="onLaunch" />
   <PauseScreen v-if="game.state === 'pause'" @resume="onResume" @save="onSave" @help="showHelp = true" @settings="showSettings = true" @quit="onQuit" />
@@ -63,10 +70,12 @@ import { useShipStore } from './stores/shipStore';
 import { useHudStore } from './stores/hudStore';
 import { Input } from './main';
 import { Save } from './save';
-import type { SaveSlotMeta } from './types';
+import { loadGame } from './engine-loader';
+import type { Game, SaveSlotMeta } from './types';
 
 import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
+import ModelLoadError from './components/ModelLoadError.vue';
 import IntroScreen from './components/IntroScreen.vue';
 import HudOverlay from './components/HudOverlay.vue';
 import TouchControls from './components/TouchControls.vue';
@@ -91,6 +100,7 @@ const isTouchDevice = ref(false);
 const showSettings = ref(false);
 const showHelp = ref(false);
 const showSaves = ref(false);
+const engineLoading = ref(false);
 const damageFlash = ref(false);
 const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
 const currentSlot = ref(0);
@@ -108,18 +118,30 @@ async function refreshSlots() {
   hasSave.value = saveSlots.value.some(s => s !== null);
 }
 
-function getEngine() {
-  return (window as unknown as { game: { [k: string]: unknown } }).game;
+function getEngine(): Game | undefined {
+  return window.game;
 }
 
-function onNewGame() {
-  const engine = getEngine();
-  const seed = titleRef.value?.seed || '';
-  if (engine && typeof engine.newGame === 'function') (engine.newGame as (s?: string) => void)(seed);
+async function onNewGame() {
+  if (engineLoading.value) return;
+  engineLoading.value = true;
+  try {
+    const engine = await loadGame();
+    const seed = titleRef.value?.seed || '';
+    engine.newGame(seed);
+  } finally {
+    engineLoading.value = false;
+  }
 }
-function onContinue() {
-  const engine = getEngine();
-  if (engine && typeof engine.continueGame === 'function') (engine.continueGame as () => Promise<void>)();
+async function onContinue() {
+  if (engineLoading.value) return;
+  engineLoading.value = true;
+  try {
+    const engine = await loadGame();
+    await engine.continueGame();
+  } finally {
+    engineLoading.value = false;
+  }
 }
 async function onLoadSlot(slot: number) {
   Save.setCurrentSlot(slot);
@@ -128,11 +150,11 @@ async function onLoadSlot(slot: number) {
   const data = await Save.load(slot);
   if (data) {
     showSaves.value = false;
-    onContinue();
+    await onContinue();
   } else {
     // Empty slot — start new game in this slot
     showSaves.value = false;
-    onNewGame();
+    await onNewGame();
   }
 }
 async function onDeleteSlot(slot: number) {
@@ -143,67 +165,69 @@ async function onDeleteSlot(slot: number) {
 }
 function onIntroSkip() {
   const engine = getEngine();
-  if (engine && typeof engine.finishLoad === 'function') (engine.finishLoad as (d: null) => void)(null);
+  engine?.finishLoad(null);
+}
+function onContinueWithFailedModels() {
+  getEngine()?.continueWithFailedModels();
+}
+function onReportModelFailure() {
+  const issueUrl = new URL('https://github.com/lemonhub-io/voxel-horizon-demo/issues/new');
+  issueUrl.searchParams.set('title', '模型资源加载失败');
+  issueUrl.searchParams.set('body', `自动生成的错误报告：\n\n- ${game.modelLoadFailures.join('\n- ')}\n\n浏览器：${navigator.userAgent}`);
+  window.location.assign(issueUrl.toString());
 }
 function onCloseInv() { inv.open = false; }
 function onUseItem(id: string) {
   const engine = getEngine();
-  if (engine?.inv && typeof (engine.inv as Record<string, unknown>).useItem === 'function') {
-    (engine.inv as { useItem: (id: string) => boolean }).useItem(id);
-    (engine.inv as { syncStore: () => void }).syncStore();
+  if (engine) {
+    engine.inv.useItem(id);
+    engine.inv.syncStore();
   }
 }
 function onCraft(recipe: { id: string; req: [string, number][]; out: number }) {
   const engine = getEngine();
-  if (engine?.inv && typeof (engine.inv as Record<string, unknown>).craft === 'function') {
-    (engine.inv as { craft: (r: typeof recipe) => void }).craft(recipe);
-    (engine.inv as { syncStore: () => void }).syncStore();
+  if (engine) {
+    engine.inv.craft(recipe);
+    engine.inv.syncStore();
   }
 }
 function onCloseShip() {
   const engine = getEngine();
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).closePanel === 'function') {
-    (engine.ship as { closePanel: () => void }).closePanel();
-  }
+  engine?.ship.closePanel();
 }
 function onRepair(key: string) {
   const engine = getEngine();
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).repair === 'function') {
-    (engine.ship as { repair: (k: string) => boolean }).repair(key);
-  }
+  engine?.ship.repair(key);
 }
 function onRefuel() {
   const engine = getEngine();
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).refuel === 'function') {
-    (engine.ship as { refuel: () => boolean }).refuel();
-  }
+  engine?.ship.refuel();
 }
 function onLaunch() {
   const engine = getEngine();
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).closePanel === 'function') {
-    (engine.ship as { closePanel: () => void }).closePanel();
-  }
-  if (engine?.ship && typeof (engine.ship as Record<string, unknown>).enter === 'function') {
-    (engine.ship as { enter: () => void }).enter();
-  }
+  engine?.ship.closePanel();
+  engine?.ship.enter();
 }
 function onResume() {
   const engine = getEngine();
-  if (engine && typeof engine.togglePause === 'function') (engine.togglePause as (v: boolean) => void)(false);
+  engine?.togglePause(false);
 }
 async function onSave() {
-  await Save.save(getEngine() as Parameters<typeof Save.save>[0]);
+  const engine = getEngine();
+  if (!engine) return;
+  await Save.save(engine);
   await refreshSlots();
   hud.addNotification('进度已保存', 'success');
   onResume();
 }
 async function onQuit() {
-  await Save.save(getEngine() as Parameters<typeof Save.save>[0]);
+  const engine = getEngine();
+  if (engine) await Save.save(engine);
   location.reload();
 }
 function onRespawn() {
   const engine = getEngine();
-  if (engine && typeof engine.respawn === 'function') (engine.respawn as () => void)();
+  engine?.respawn();
 }
 async function onWipe() {
   if (confirm('确定清除全部存档？')) { await Save.clear(); location.reload(); }

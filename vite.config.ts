@@ -2,10 +2,36 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
+  // Keep asset URLs valid when the game is hosted below a repository path
+  // (for example, GitHub Pages at /voxel-horizon-demo/).
+  base: './',
   plugins: [vue()],
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // Three's WebGPU runtime is a single, non-splittable module (about 568 kB
+    // minified). Keep the warning limit just above that measured runtime size.
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'three',
+              test: /node_modules[\\/]three[\\/]/,
+              maxSize: 280000,
+              priority: 20,
+            },
+            {
+              name: 'vendor',
+              test: /node_modules[\\/]/,
+              maxSize: 280000,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
   },
   server: {
     open: true,

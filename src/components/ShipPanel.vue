@@ -23,7 +23,7 @@
         <span>{{ Math.round(ship.fuel) }}%</span>
         <button class="btn sm" :class="{ disabled: inventory.count('launch_fuel') < 1 || ship.fuel >= 100 }" @click="$emit('refuel')">加注燃料</button>
       </div>
-      <div class="ship-actions"><button class="btn primary" :class="{ disabled: !ship.canLaunch }" @click="$emit('launch')">起飞 // LAUNCH</button></div>
+      <div class="ship-actions"><button class="btn primary" :class="{ disabled: !ship.canLaunch }" @click="$emit('launch')">登舰起飞 // BOARD</button></div>
     </div>
   </div>
 </template>
@@ -36,5 +36,5 @@ import { ITEMS } from '../config';
 defineEmits(['close', 'repair', 'refuel', 'launch']);
 const ship = useShipStore();
 const inventory = useInventoryStore();
-function icon(id: string) { return (window as unknown as { game: { atlas: { icon(id: string): string } } }).game?.atlas?.icon(id) || ''; }
+function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
 </script>

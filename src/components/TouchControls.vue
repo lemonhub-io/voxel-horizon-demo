@@ -1,17 +1,13 @@
 <template>
-  <div v-if="isTouch" id="touch-controls">
-    <!-- Full-screen camera look + tap-to-mine zone (base layer) -->
+  <div v-if="isTouch" id="touch-controls" aria-label="触控操作">
     <div
       id="touch-look-zone"
       @pointerdown.prevent="onLookStart"
       @pointermove.prevent="onLookMove"
       @pointerup.prevent="onLookEnd"
-      @pointercancel.prevent="onLookEnd"
-    >
-      <div id="touch-look-indicator" :class="{ active: lookActive }"></div>
-    </div>
+      @pointercancel.prevent="onLookCancel"
+    />
 
-    <!-- Left joystick area (movement) — on top of look zone -->
     <div
       id="touch-joy-zone"
       @pointerdown.prevent="onJoyStart"
@@ -19,237 +15,267 @@
       @pointerup.prevent="onJoyEnd"
       @pointercancel.prevent="onJoyEnd"
     >
-      <div id="touch-joy-base" :class="{ active: joyActive, fadeout: joyFading }" :style="joyBaseStyle">
-        <div id="touch-joy-thumb" :class="{ snap: joySnapping }" :style="joyThumbStyle"></div>
+      <div id="touch-joy-base" :class="{ active: joyActive }" :style="joyBaseStyle">
+        <div id="touch-joy-thumb" :class="{ snap: joySnapping }" :style="joyThumbStyle" />
       </div>
     </div>
 
-    <!-- Action buttons (on top of look zone) -->
-    <div id="touch-actions">
-      <button class="touch-btn touch-btn-jump" @pointerdown.prevent="pressKey('Space')" @pointerup.prevent="releaseKey('Space')" @pointercancel.prevent="releaseKey('Space')">
-        <span>跳</span>
-      </button>
-      <button class="touch-btn touch-btn-interact" @pointerdown.prevent="pressKey('KeyE')" @pointerup.prevent="releaseKey('KeyE')" @pointercancel.prevent="releaseKey('KeyE')">
-        <span>E</span>
-      </button>
-      <button class="touch-btn touch-btn-mine" @pointerdown.prevent="pressBtn(0)" @pointerup.prevent="releaseBtn(0)" @pointercancel.prevent="releaseBtn(0)">
-        <span>采</span>
-      </button>
-      <button class="touch-btn touch-btn-place" @pointerdown.prevent="onPlace">
-        <span>放</span>
+    <div id="touch-actions" aria-label="移动操作">
+      <button class="touch-btn touch-btn-jump" aria-label="跳跃或喷气" @pointerdown.prevent="pressKey('Space')" @pointerup.prevent="releaseKey('Space')" @pointercancel.prevent="releaseKey('Space')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V5m0 0-5 5m5-5 5 5M5 21h14"/></svg>
       </button>
     </div>
 
-    <!-- Top bar: inventory / pause -->
-    <div id="touch-top-bar">
-      <button class="touch-top-btn" @pointerdown.prevent="onInventory">背 包</button>
-      <button class="touch-top-btn" @pointerdown.prevent="onPause">暂 停</button>
+    <div id="touch-utilities" aria-label="功能操作">
+      <button class="touch-utility-btn" aria-label="扫描脉冲或跃迁" @pointerdown.prevent="scanOrWarp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 11a1 1 0 1 0 1 1"/><path d="M12 12 21 3"/></svg></button>
+      <button class="touch-utility-btn" aria-label="分析目镜" @pointerdown.prevent="triggerKey('KeyF')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-5 9.5-5 9.5 5 9.5 5-3.3 5-9.5 5-9.5-5-9.5-5Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+      <button class="touch-utility-btn" aria-label="打开背包" @pointerdown.prevent="triggerKey('Tab')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14v12H5zM8 8V5h8v3M9 13h6"/></svg></button>
+      <button class="touch-utility-btn" aria-label="暂停游戏" @pointerdown.prevent="triggerKey('Escape')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14M17 5v14"/></svg></button>
     </div>
 
-    <!-- Sprint indicator -->
-    <div id="touch-sprint-indicator" :class="{ active: sprintActive }">疾跑</div>
+    <div id="touch-sprint-indicator" :class="{ active: sprintActive }" :aria-label="sprintActive ? '疾跑已开启' : '双击摇杆切换疾跑'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 11h6l-1 9 9-13h-6z"/></svg></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { Input } from '../main';
+import { computed, onMounted, ref } from 'vue';
+
+interface TouchInput {
+  keys: Record<string, boolean>;
+  buttons: Record<number, boolean>;
+  dx: number;
+  dy: number;
+  moveX: number;
+  moveY: number;
+  moveActive: boolean;
+  touchSprint: boolean;
+  jumpPressed: boolean;
+}
+interface RuntimeGame {
+  input: TouchInput;
+  settings: { touchSens: number };
+  player?: {
+    inShip: boolean;
+    visor: boolean;
+    placeBlock: () => void;
+    tryOpenShipPanel: (clientX: number, clientY: number) => boolean;
+  };
+  onKey: (code: string, event: KeyboardEvent) => void;
+}
 
 const isTouch = ref(false);
+const joyActive = ref(false);
+const joySnapping = ref(false);
+const sprintActive = ref(false);
 const joyBaseX = ref(0);
 const joyBaseY = ref(0);
 const joyThumbX = ref(0);
 const joyThumbY = ref(0);
-const joyActive = ref(false);
-const joyFading = ref(false);
-const joySnapping = ref(false);
-const lookActive = ref(false);
-const sprintActive = ref(false);
-const joyRadius = 60;
+const joyRadius = 58;
+const longPressDelay = 360;
+const lookMoveThreshold = 12;
+const touchLookScale = 2.3;
+let joyPointer = -1;
+let lastJoyTap = 0;
+let joyCenterX = 0;
+let joyCenterY = 0;
+let lookPointer = -1;
+let lookX = 0;
+let lookY = 0;
+let lookStartX = 0;
+let lookStartY = 0;
+let lookMoved = false;
+let lookMining = false;
+let longPressTimer: number | undefined;
 
-// Dead zone + response curve constants
-const DEAD_ZONE = 0.15; // 15% inner radius → no output
-const CURVE_POWER = 1.4; // >1 = ease-out (precise small movements, quick ramp to max)
+const joyBaseStyle = computed(() => ({ left: `${joyBaseX.value}px`, top: `${joyBaseY.value}px` }));
+const joyThumbStyle = computed(() => ({ transform: `translate(${joyThumbX.value}px, ${joyThumbY.value}px)` }));
 
-const joyBaseStyle = computed(() => ({
-  left: `${joyBaseX.value}px`,
-  top: `${joyBaseY.value}px`,
-}));
+function getGame(): RuntimeGame | undefined {
+  return window.game;
+}
 
-const joyThumbStyle = computed(() => ({
-  transform: `translate(${joyThumbX.value}px, ${joyThumbY.value}px)`,
-}));
+function releasePointer(element: HTMLElement, pointerId: number): void {
+  if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+}
 
-// ===== Movement joystick (semi-fixed, dead zone, non-linear curve) =====
+function syncFlightThrottle(input: TouchInput, shipActive: boolean): void {
+  if (!shipActive) return;
+  input.keys.KeyW = input.moveY < -0.15;
+  input.keys.KeyS = input.moveY > 0.15;
+}
 
-function onJoyStart(e: PointerEvent): void {
-  (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  // Cancel any in-progress fade-out / snap animation
-  joyFading.value = false;
-  joySnapping.value = false;
-
-  // Semi-fixed: base snaps to touch position
-  joyBaseX.value = e.clientX - joyRadius;
-  joyBaseY.value = e.clientY - joyRadius;
+function onJoyStart(event: PointerEvent): void {
+  if (joyPointer !== -1) return;
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
+  element.setPointerCapture(event.pointerId);
+  joyPointer = event.pointerId;
+  const bounds = element.getBoundingClientRect();
+  joyCenterX = event.clientX;
+  joyCenterY = event.clientY;
+  joyBaseX.value = event.clientX - bounds.left - joyRadius;
+  joyBaseY.value = event.clientY - bounds.top - joyRadius;
   joyThumbX.value = 0;
   joyThumbY.value = 0;
   joyActive.value = true;
-  Input.moveActive = true;
-  Input.moveX = 0;
-  Input.moveY = 0;
-
-  const now = Date.now();
-  if (now - _lastJoyTap < 350) {
-    sprintActive.value = !sprintActive.value;
-    _sprintToggled = sprintActive.value;
+  joySnapping.value = false;
+  const input = getGame()?.input;
+  if (input) {
+    input.moveActive = true;
+    input.moveX = input.moveY = 0;
+    const now = performance.now();
+    if (now - lastJoyTap < 320) {
+      input.touchSprint = !input.touchSprint;
+      sprintActive.value = input.touchSprint;
+    }
+    lastJoyTap = now;
   }
-  _lastJoyTap = now;
-}
-let _lastJoyTap = 0;
-
-function onJoyMove(e: PointerEvent): void {
-  const cx = joyBaseX.value + joyRadius;
-  const cy = joyBaseY.value + joyRadius;
-  const dx = e.clientX - cx;
-  const dy = e.clientY - cy;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const nx = dist > 0.001 ? dx / dist : 0;
-  const ny = dist > 0.001 ? dy / dist : 0;
-
-  // Visual thumb: follows finger exactly, clamped to radius
-  const visualClamp = Math.min(dist, joyRadius);
-  joyThumbX.value = nx * visualClamp;
-  joyThumbY.value = ny * visualClamp;
-
-  // Output: dead zone → non-linear curve
-  const rawMag = Math.min(dist / joyRadius, 1.0);
-  let effective: number;
-  if (rawMag <= DEAD_ZONE) {
-    effective = 0;
-  } else {
-    // Remap from [DEAD_ZONE, 1.0] → [0, 1.0]
-    const t = (rawMag - DEAD_ZONE) / (1.0 - DEAD_ZONE);
-    effective = Math.pow(t, CURVE_POWER);
-  }
-  Input.moveX = nx * effective;
-  Input.moveY = ny * effective;
-
-  // Sprint: triggered by far-forward push (not toggle)
-  sprintActive.value = sprintActive.value || (Input.moveY < -0.85 && Math.abs(Input.moveX) < 0.4);
 }
 
-function onJoyEnd(e: PointerEvent): void {
-  (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-  Input.moveActive = false;
-  Input.moveX = 0;
-  Input.moveY = 0;
+function onJoyMove(event: PointerEvent): void {
+  if (event.pointerId !== joyPointer) return;
+  const input = getGame()?.input;
+  if (!input) return;
+  const dx = event.clientX - joyCenterX;
+  const dy = event.clientY - joyCenterY;
+  const distance = Math.hypot(dx, dy);
+  const nx = distance > 0.001 ? dx / distance : 0;
+  const ny = distance > 0.001 ? dy / distance : 0;
+  const visualDistance = Math.min(distance, joyRadius);
+  joyThumbX.value = nx * visualDistance;
+  joyThumbY.value = ny * visualDistance;
+  const raw = Math.min(distance / joyRadius, 1);
+  const strength = raw <= 0.14 ? 0 : Math.pow((raw - 0.14) / 0.86, 1.35);
+  input.moveX = nx * strength;
+  input.moveY = ny * strength;
+  const shipActive = getGame()?.player?.inShip ?? false;
+  syncFlightThrottle(input, shipActive);
+  if (!shipActive && input.moveY < -0.88 && Math.abs(input.moveX) < 0.38) sprintActive.value = true;
+}
 
-  if (sprintActive.value && !_sprintToggled) {
-    sprintActive.value = false;
+function onJoyEnd(event: PointerEvent): void {
+  if (event.pointerId !== joyPointer) return;
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
+  releasePointer(element, event.pointerId);
+  const input = getGame()?.input;
+  if (input) {
+    input.moveActive = false;
+    input.moveX = input.moveY = 0;
+    input.keys.KeyW = false;
+    input.keys.KeyS = false;
   }
-  _sprintToggled = false;
-
-  // Strong snap: animate thumb back to center via CSS transition
-  joySnapping.value = true;
-  joyThumbX.value = 0;
-  joyThumbY.value = 0;
-
-  // Fade out base after snap completes
-  joyFading.value = true;
+  joyPointer = -1;
   joyActive.value = false;
-
-  // Clean up snap class after transition (100ms matches CSS)
-  setTimeout(() => {
-    joySnapping.value = false;
-    joyFading.value = false;
-  }, 110);
-}
-let _sprintToggled = false;
-
-// ===== Camera look (full-screen, base layer) =====
-
-let _lookPointerId = -1;
-let _lookLastX = 0;
-let _lookLastY = 0;
-let _lookMoved = false;
-
-function onLookStart(e: PointerEvent): void {
-  (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  _lookPointerId = e.pointerId;
-  _lookLastX = e.clientX;
-  _lookLastY = e.clientY;
-  _lookMoved = false;
-  lookActive.value = true;
+  joySnapping.value = true;
+  joyThumbX.value = joyThumbY.value = 0;
+  if (input && !input.touchSprint) sprintActive.value = false;
+  window.setTimeout(() => { joySnapping.value = false; }, 120);
 }
 
-function onLookMove(e: PointerEvent): void {
-  if (e.pointerId !== _lookPointerId) return;
-  const dx = e.clientX - _lookLastX;
-  const dy = e.clientY - _lookLastY;
-  _lookLastX = e.clientX;
-  _lookLastY = e.clientY;
-  if (Math.abs(dx) > 1 || Math.abs(dy) > 1) _lookMoved = true;
-  Input.dx += dx * Input.touchLookSensitivity;
-  Input.dy += dy * Input.touchLookSensitivity;
-}
-
-function onLookEnd(e: PointerEvent): void {
-  if (e.pointerId !== _lookPointerId) return;
-  (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-  if (!_lookMoved) {
-    Input.buttons[0] = true;
-    setTimeout(() => { Input.buttons[0] = false; }, 150);
+function clearLongPressTimer(): void {
+  if (longPressTimer !== undefined) {
+    window.clearTimeout(longPressTimer);
+    longPressTimer = undefined;
   }
-  _lookPointerId = -1;
-  lookActive.value = false;
 }
 
-// ===== Action button helpers =====
+function startMining(pointerId: number): void {
+  if (lookPointer !== pointerId || lookMoved) return;
+  const game = getGame();
+  const player = game?.player;
+  if (!game || !player || player.inShip || player.visor) return;
+  game.input.buttons[0] = true;
+  lookMining = true;
+}
+
+function stopMining(): void {
+  if (lookMining) {
+    const input = getGame()?.input;
+    if (input) input.buttons[0] = false;
+  }
+  lookMining = false;
+}
+
+function onLookStart(event: PointerEvent): void {
+  if (lookPointer !== -1) return;
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
+  element.setPointerCapture(event.pointerId);
+  lookPointer = event.pointerId;
+  lookX = lookStartX = event.clientX;
+  lookY = lookStartY = event.clientY;
+  lookMoved = false;
+  lookMining = false;
+  clearLongPressTimer();
+  longPressTimer = window.setTimeout(() => startMining(event.pointerId), longPressDelay);
+}
+
+function onLookMove(event: PointerEvent): void {
+  if (event.pointerId !== lookPointer) return;
+  const input = getGame()?.input;
+  if (!input) return;
+  const dx = event.clientX - lookX;
+  const dy = event.clientY - lookY;
+  lookX = event.clientX;
+  lookY = event.clientY;
+  if (Math.hypot(event.clientX - lookStartX, event.clientY - lookStartY) > lookMoveThreshold) {
+    lookMoved = true;
+    clearLongPressTimer();
+    stopMining();
+  }
+  const sensitivity = (getGame()?.settings.touchSens ?? 100) / 100 * touchLookScale;
+  input.dx += dx * sensitivity;
+  input.dy += dy * sensitivity;
+}
+
+function placeOrOpenShip(event: PointerEvent): void {
+  const player = getGame()?.player;
+  if (!player || player.inShip || player.visor) return;
+  if (!player.tryOpenShipPanel(event.clientX, event.clientY)) player.placeBlock();
+}
+
+function finishLook(event: PointerEvent, placeOnRelease: boolean): void {
+  if (event.pointerId !== lookPointer) return;
+  const element = event.currentTarget;
+  if (!(element instanceof HTMLElement)) return;
+  releasePointer(element, event.pointerId);
+  clearLongPressTimer();
+  const shouldPlace = placeOnRelease && !lookMoved && !lookMining;
+  stopMining();
+  lookPointer = -1;
+  if (shouldPlace) placeOrOpenShip(event);
+}
+
+function onLookEnd(event: PointerEvent): void {
+  finishLook(event, true);
+}
+
+function onLookCancel(event: PointerEvent): void {
+  finishLook(event, false);
+}
 
 function pressKey(code: string): void {
-  Input.keys[code] = true;
-  const engine = (window as unknown as { game: { onKey: (code: string, e: KeyboardEvent) => void } }).game;
-  if (engine?.onKey) {
-    try { engine.onKey(code, new KeyboardEvent('keydown', { code })); } catch { /* ignore */ }
-  }
+  const game = getGame();
+  if (!game) return;
+  game.input.keys[code] = true;
+  if (code === 'Space') game.input.jumpPressed = true;
+  game.onKey(code, new KeyboardEvent('keydown', { code }));
 }
-
 function releaseKey(code: string): void {
-  Input.keys[code] = false;
+  const input = getGame()?.input;
+  if (input) input.keys[code] = false;
 }
-
-function pressBtn(btn: number): void {
-  Input.buttons[btn] = true;
+function triggerKey(code: string): void {
+  pressKey(code);
+  window.setTimeout(() => releaseKey(code), 80);
 }
-
-function releaseBtn(btn: number): void {
-  Input.buttons[btn] = false;
-}
-
-function onPlace(): void {
-  Input.buttons[2] = true;
-  setTimeout(() => { Input.buttons[2] = false; }, 80);
-  const engine = (window as unknown as { game: { player: { placeBlock: () => void } } }).game;
-  if (engine?.player?.placeBlock) {
-    try { engine.player.placeBlock(); } catch { /* ignore */ }
-  }
-}
-
-function onInventory(): void {
-  const engine = (window as unknown as { game: { onKey: (code: string, e: KeyboardEvent) => void } }).game;
-  if (engine?.onKey) {
-    try { engine.onKey('Tab', new KeyboardEvent('keydown', { code: 'Tab' })); } catch { /* ignore */ }
-  }
-}
-
-function onPause(): void {
-  const engine = (window as unknown as { game: { onKey: (code: string, e: KeyboardEvent) => void } }).game;
-  if (engine?.onKey) {
-    try { engine.onKey('Escape', new KeyboardEvent('keydown', { code: 'Escape' })); } catch { /* ignore */ }
-  }
+function scanOrWarp(): void {
+  triggerKey(getGame()?.player?.inShip ? 'KeyJ' : 'KeyC');
 }
 
 onMounted(() => {
-  isTouch.value = Input.isTouchDevice;
+  isTouch.value = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 });
 </script>

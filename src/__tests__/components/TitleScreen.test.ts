@@ -11,6 +11,7 @@ beforeAll(() => {
         return {
           clearRect: vi.fn(),
           fillRect: vi.fn(),
+          setTransform: vi.fn(),
           fillStyle: '',
         } as unknown as CanvasRenderingContext2D;
       }
