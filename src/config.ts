@@ -142,6 +142,21 @@ export const CFG = Object.freeze({
    *
    * Order in pipeline: contrast → sat → teal/orange split → gamma → gain → clip → vignette → grain → FXAA
    */
+  /**
+   * Restrained atmospheric scattering for the LDR TSL sky. Values are tuned
+   * below HDR levels so the sun halo and aerial haze remain soft under ACES.
+   */
+  ATMOSPHERE: Object.freeze({
+    rayleighStrength: 0.045,
+    rayleighHorizonDensity: 0.34,
+    mieStrength: 0.012,
+    mieDirectionalG: 0.72,
+    miePhaseCap: 7,
+    mieHorizonDensity: 0.16,
+    fogSunMix: 0.1,
+    stormAttenuation: 0.72,
+    skyCeiling: 1.12,
+  }),
   CINEMATIC: Object.freeze({
     /** Mild S-curve; >1.1 feels crushed, <1.02 feels flat. */
     contrast: 1.05,

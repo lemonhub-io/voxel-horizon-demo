@@ -38,6 +38,14 @@ describe('CFG constants', () => {
     expect(CFG.DOF.bokehScale).toBeGreaterThan(0);
     expect(CFG.DOF.focusSmoothing).toBeGreaterThan(0);
   });
+  it('has restrained atmospheric scattering settings', () => {
+    expect(CFG.ATMOSPHERE.rayleighStrength).toBeGreaterThan(0);
+    expect(CFG.ATMOSPHERE.mieStrength).toBeGreaterThan(0);
+    expect(CFG.ATMOSPHERE.mieDirectionalG).toBeGreaterThan(0);
+    expect(CFG.ATMOSPHERE.mieDirectionalG).toBeLessThan(1);
+    expect(CFG.ATMOSPHERE.miePhaseCap).toBeLessThanOrEqual(8);
+    expect(CFG.ATMOSPHERE.skyCeiling).toBeLessThanOrEqual(1.2);
+  });
   it('has bounded tessellation and parallax settings', () => {
     expect(CFG.TESSELLATION.enabled).toBe(true);
     expect(CFG.TESSELLATION.maxEdgeLength).toBeGreaterThan(0);

@@ -94,6 +94,7 @@ export class Sky {
     const uDay = uniform(1.0);
     const uDusk = uniform(0.0);
     const uStorm = uniform(0.0);
+    const atmosphere = CFG.ATMOSPHERE;
 
     this._uTop = uTop as unknown as UniformVec3;
     this._uHor = uHor as unknown as UniformVec3;
@@ -120,6 +121,35 @@ export class Sky {
     const groundMask = tslClamp(under.mul(2.2), float(0), float(1));
     col = mix(col, mix(uHor, uGround, float(0.65)), groundMask);
 
+    // Physically inspired single-scattering, deliberately constrained for LDR.
+    // Rayleigh favors cool broad sky light; Mie adds a soft Tyndall veil around
+    // the sun without a high-energy volumetric pass.
+    const scatteringSunDir = normalize(uSunDir);
+    const cosTheta = tslClamp(dot(dir, scatteringSunDir), float(-1), float(1));
+    const stormVisibility = float(1).sub(uStorm.mul(float(atmosphere.stormAttenuation)));
+    const horizonRayleigh = pow(float(1).sub(h), float(1.35));
+    const rayleighPhase = float(0.5).mul(float(1).add(cosTheta.mul(cosTheta)));
+    const rayleighScatter = rayleighPhase
+      .mul(horizonRayleigh)
+      .mul(float(atmosphere.rayleighStrength * atmosphere.rayleighHorizonDensity))
+      .mul(uDay)
+      .mul(stormVisibility);
+    col = col.add(vec3(0.2, 0.45, 0.82).mul(rayleighScatter));
+
+    const mieG = float(atmosphere.mieDirectionalG);
+    const mieDenominator = float(1)
+      .add(mieG.mul(mieG))
+      .sub(mieG.mul(cosTheta).mul(float(2)));
+    const miePhase = min(
+      float(1).sub(mieG.mul(mieG)).div(pow(max(mieDenominator, float(0.001)), float(1.5))),
+      float(atmosphere.miePhaseCap),
+    );
+    const mieScatter = miePhase
+      .mul(horizonRayleigh)
+      .mul(float(atmosphere.mieStrength * atmosphere.mieHorizonDensity))
+      .mul(uDay)
+      .mul(stormVisibility);
+    col = col.add(uSunCol.mul(mieScatter));
     // Soft sky body first (no HDR sun energy), then add a visible sun disc on top.
     col = min(col, vec3(0.88));
 
@@ -157,7 +187,7 @@ export class Sky {
     col = mix(nightCol, col, max(uDay, uDusk.mul(0.5)));
 
     // Soft ceiling: allow sun to read brighter than sky, ACES will roll it off.
-    col = min(col, vec3(1.25));
+    col = min(col, vec3(atmosphere.skyCeiling));
 
     const mat = new THREE.MeshBasicNodeMaterial();
     mat.colorNode = col;
@@ -442,6 +472,9 @@ export class Sky {
     const fogMix = U.lerp(CFG.NIGHT.fogHorizonMix, 0.55, day);
     let fogCol = U.mixHex(U.mixHex(pal.fogNight, pal.fogDay, day), skyHorizon, fogMix);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
+    // A small sun-colored aerial perspective term extends Mie scatter into distant haze.
+    const sunHaze = CFG.ATMOSPHERE.fogSunMix * day * (1 - storm * CFG.ATMOSPHERE.stormAttenuation);
+    fogCol = U.mixHex(fogCol, U.mixHex(pal.sun, '#ffe2c2', 0.35), sunHaze);
     const dist = g.settings.dist * 16;
     let fogNear = dist * (day > 0.2 ? 0.85 : 0.95);
     let fogFar = dist * (day > 0.2 ? 2.15 : 2.45);
