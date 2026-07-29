@@ -224,13 +224,14 @@ export class Player {
 
       this._bodyMixer = new THREE.AnimationMixer(scene);
       this._bodyActions.clear();
+      // Modular Men Astronaut clips (no dedicated Jump set — map aerial to Run_Back/Roll).
       const keys: Record<string, string[]> = {
-        idle: ['Idle_Gun', 'Idle'],
+        idle: ['Idle_Gun', 'Idle_Neutral', 'Idle'],
         walk: ['Walk_Gun', 'Walk'],
-        run: ['Run_Gun', 'Run'],
-        jump: ['Jump'],
-        jumpIdle: ['Jump_Idle', 'Jump'],
-        jumpLand: ['Jump_Land', 'Idle_Gun', 'Idle'],
+        run: ['Run_Shoot', 'Run_Gun', 'Run'],
+        jump: ['Run_Back', 'Roll', 'Jump'],
+        jumpIdle: ['Run_Back', 'Idle_Gun', 'Jump_Idle', 'Jump'],
+        jumpLand: ['Idle_Gun', 'Idle_Neutral', 'Jump_Land', 'Idle'],
         death: ['Death'],
       };
       for (const [key, names] of Object.entries(keys)) {
