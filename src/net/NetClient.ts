@@ -12,14 +12,17 @@ import {
 
 export type NetHandler = (msg: ServerMsg) => void;
 
+/** Production Worker URL (overridden by VITE_MP_HTTP_URL). */
+const DEFAULT_PROD_MP = 'https://voxel-horizon-mp.mzhub.workers.dev';
+
 function defaultHttpBase(): string {
   const env = import.meta.env.VITE_MP_HTTP_URL as string | undefined;
   if (env) return env.replace(/\/$/, '');
-  if (typeof location !== 'undefined') {
-    // Dev: vite proxy /mp → wrangler :8787
+  // Local Vite dev uses proxy /mp → wrangler :8787
+  if (import.meta.env.DEV && typeof location !== 'undefined') {
     return `${location.protocol}//${location.host}/mp`;
   }
-  return 'http://127.0.0.1:8787';
+  return DEFAULT_PROD_MP;
 }
 
 function wsUrlFromHttp(httpBase: string, wsPath: string): string {
@@ -71,10 +74,15 @@ export class NetClient {
   }
 
   async joinPublic(name: string): Promise<PublicJoinResponse> {
-    const res = await fetch(`${this.httpBase}/api/public/join`, { method: 'POST' });
+    // GET is sufficient (no body); avoids edge cases with empty POST bodies.
+    const res = await fetch(`${this.httpBase}/api/public/join`);
     const data = (await res.json()) as PublicJoinResponse | { ok: false; reason: string };
-    if (!data.ok) {
-      throw new Error(('reason' in data && data.reason) || '加入公开房间失败');
+    if (!res.ok || !data || !('ok' in data) || !data.ok) {
+      const reason =
+        data && typeof data === 'object' && 'reason' in data
+          ? String((data as { reason?: string }).reason || '')
+          : '';
+      throw new Error(reason || '加入公开房间失败');
     }
     await this.connect(data.wsPath, name);
     this.roomId = data.roomId;

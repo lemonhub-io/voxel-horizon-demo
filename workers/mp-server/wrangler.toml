@@ -12,4 +12,6 @@ class_name = "PlanetRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["PlanetRoom"]
+# Free plan requires SQLite-backed DO classes. Session state stays in-memory;
+# we still do not host player/world saves on the server.
+new_sqlite_classes = ["PlanetRoom"]
