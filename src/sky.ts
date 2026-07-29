@@ -41,10 +41,6 @@ export class Sky {
   csm!: CSMShadowNode;
   hemi!: THREE.HemisphereLight;
   ambientFill!: THREE.AmbientLight;
-  celestial!: THREE.Group;
-  planetBig!: THREE.Mesh;
-  moon!: THREE.Mesh;
-  planetGlow!: THREE.Sprite;
   sunSprite!: THREE.Sprite;
   clouds!: THREE.Group;
   starfield!: Starfield;

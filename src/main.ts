@@ -52,6 +52,7 @@ export const Input: InputState = {
       game.onKey(e.code, e);
     });
     addEventListener('keyup', (e: KeyboardEvent) => { this.keys[e.code] = false; });
+
     addEventListener('mousedown', (e: MouseEvent) => {
       if (document.pointerLockElement) this.buttons[e.button] = true;
       game.onMouseDown(e);
