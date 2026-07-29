@@ -38,6 +38,16 @@ describe('CFG constants', () => {
     expect(CFG.DOF.bokehScale).toBeGreaterThan(0);
     expect(CFG.DOF.focusSmoothing).toBeGreaterThan(0);
   });
+  it('has bounded tessellation and parallax settings', () => {
+    expect(CFG.TESSELLATION.enabled).toBe(true);
+    expect(CFG.TESSELLATION.maxEdgeLength).toBeGreaterThan(0);
+    expect(CFG.TESSELLATION.maxIterations).toBeGreaterThanOrEqual(1);
+    expect(CFG.POM.enabled).toBe(true);
+    expect(CFG.POM.layers).toBeGreaterThanOrEqual(4);
+    expect(CFG.POM.heightScale).toBeGreaterThan(0);
+    expect(CFG.POM.minViewZ).toBeGreaterThan(0);
+    expect(CFG.POM.atlasCells).toBe(8);
+  });
   it('has cinematic post-processing config', () => {
     expect(CFG.POST.enabled).toBe(true);
     expect(CFG.BLOOM.enabled).toBe(true);

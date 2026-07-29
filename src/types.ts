@@ -613,7 +613,7 @@ export interface World {
   noiseC: SimplexNoise;
   offA: number;
   lamps: number[][];
-  matOpaque: THREE.MeshStandardMaterial;
+  matOpaque: THREE.Material;
   matCutout: THREE.MeshStandardMaterial;
   matWater: THREE.MeshStandardMaterial;
   setPlanet(seed: number, pal: Palette): void;

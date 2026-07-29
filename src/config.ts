@@ -89,6 +89,25 @@ export const CFG = Object.freeze({
     focusSmoothing: 8,
   }),
   /**
+   * WebGPU terrain detail. Hardware tessellation stages are not part of
+   * WebGPU, so opaque voxel faces are subdivided once while their chunk mesh
+   * is built. POM remains desktop-first because it adds texture ray-marching.
+   */
+  TESSELLATION: Object.freeze({
+    enabled: true,
+    maxEdgeLength: 0.75,
+    maxIterations: 1,
+  }),
+  POM: Object.freeze({
+    enabled: true,
+    mobileEnabled: false,
+    layers: 6,
+    heightScale: 0.015,
+    minViewZ: 0.35,
+    atlasCells: 8,
+    edgeInset: 0.006,
+  }),
+  /**
    * Bloom — only hot emissives (lamps / crystals / laser tips).
    * Threshold high enough that the soft LDR sky never blooms.
    */

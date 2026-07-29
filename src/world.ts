@@ -3,6 +3,8 @@
 // ============================================================
 
 import * as THREE from 'three/webgpu';
+import { Fn, If, Loop, float, int, normalMap, positionViewDirection, texture, uv, vec2, vec3, vertexColor } from 'three/tsl';
+import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import { U, SimplexNoise } from './utils';
 import { CFG, B, BLOCK_DEF } from './config';
 import type { Game, Palette, RaycastResult, ScanTarget, MeshBuffers } from './types';
@@ -48,12 +50,13 @@ export class World {
   noiseC!: SimplexNoise;
   offA!: number;
   lamps!: number[][];
-  matOpaque!: THREE.MeshStandardMaterial;
+  matOpaque!: THREE.MeshStandardNodeMaterial;
   matCutout!: THREE.MeshStandardMaterial;
   matWater!: THREE.MeshStandardMaterial;
   private _waterTSLMat: THREE.Material | null = null;
   waterCamPos: THREE.Vector3 | null = null;
   cullFrame: number;
+  private _terrainTessellator: TessellateModifier | null;
 
   constructor(game: Game) {
     this.g = game;
@@ -69,6 +72,9 @@ export class World {
     this.heightCache = new Map();
     this.matsReady = false;
     this.cullFrame = 0;
+    this._terrainTessellator = CFG.TESSELLATION.enabled
+      ? new TessellateModifier(CFG.TESSELLATION.maxEdgeLength, CFG.TESSELLATION.maxIterations)
+      : null;
   }
 
   setPlanet(seed: number, pal: Palette): void {
@@ -88,21 +94,23 @@ export class World {
 
   buildMaterials(): void {
     const tex = this.g.atlas.texture;
-    const normalMap = this.g.atlas.normalTexture;
+    const normalTexture = this.g.atlas.normalTexture;
     if (this.matOpaque) {
       this.matOpaque.map = tex; this.matCutout.map = tex; this.matWater.map = tex;
-      this.matOpaque.normalMap = normalMap;
+      this.matOpaque.normalMap = normalTexture;
+      this._configureTerrainDetail(tex, normalTexture);
       this.matOpaque.needsUpdate = this.matCutout.needsUpdate = this.matWater.needsUpdate = true;
       return;
     }
 
     // PBR materials for better lighting
-    this.matOpaque = new THREE.MeshStandardMaterial({
+    this.matOpaque = new THREE.MeshStandardNodeMaterial({
       vertexColors: true, roughness: 0.72, metalness: 0.05
     });
-    this.matOpaque.normalMap = normalMap;
+    this.matOpaque.normalMap = normalTexture;
     // Stronger normals read better under cinematic lighting / CSM.
     this.matOpaque.normalScale.set(0.42, 0.42);
+    this._configureTerrainDetail(tex, normalTexture);
     this.matCutout = new THREE.MeshStandardMaterial({
       vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
       alphaToCoverage: true, roughness: 0.8, metalness: 0.02
@@ -116,6 +124,44 @@ export class World {
     this.matWater.map = tex;
   }
 
+  /** Build bounded POM UVs for opaque terrain atlas sampling. */
+  private _createPomUv(albedo: THREE.Texture) {
+    const pom = CFG.POM;
+    const sourceUv = uv();
+    const cells = float(pom.atlasCells);
+    const cellMin = sourceUv.mul(cells).floor().div(cells).add(float(pom.edgeInset));
+    const cellMax = cellMin.add(float(1).div(cells).sub(float(pom.edgeInset * 2)));
+    const layerDepth = float(1).div(float(pom.layers));
+
+    return Fn(() => {
+      const rayUv = sourceUv.toVar('pomUv');
+      const rayDepth = float(0).toVar('pomDepth');
+      const safeViewZ = positionViewDirection.z.abs().max(float(pom.minViewZ));
+      const rayStep = positionViewDirection.xy.div(safeViewZ).mul(float(pom.heightScale / pom.layers));
+
+      Loop({ start: int(0), end: int(pom.layers), type: 'int', condition: '<' }, () => {
+        const sampleHeight = texture(albedo, rayUv).rgb.dot(vec3(0.2126, 0.7152, 0.0722));
+        If(rayDepth.lessThan(sampleHeight), () => {
+          rayUv.assign(rayUv.sub(rayStep).max(cellMin).min(cellMax));
+          rayDepth.addAssign(layerDepth);
+        });
+      });
+
+      return rayUv;
+    })();
+  }
+
+  private _canUsePom(): boolean {
+    if (CFG.POM.mobileEnabled || typeof matchMedia === 'undefined') return true;
+    return !matchMedia('(pointer: coarse)').matches;
+  }
+
+  private _configureTerrainDetail(albedo: THREE.Texture | null, normalTexture: THREE.Texture | null): void {
+    if (!CFG.POM.enabled || !albedo || !this._canUsePom()) return;
+    const parallaxUv = this._createPomUv(albedo);
+    this.matOpaque.colorNode = texture(albedo, parallaxUv).rgb.mul(vertexColor());
+    if (normalTexture) this.matOpaque.normalNode = normalMap(texture(normalTexture, parallaxUv), vec2(0.42, 0.42));
+  }
   /** Update water Fresnel effect — more reflective at grazing angles */
   updateWaterFresnel(): void {
     if (!this.g.player) return;
@@ -452,7 +498,13 @@ export class World {
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(dat.col), 3));
       if (dat.sway) geo.setAttribute('sway', new THREE.BufferAttribute(new Float32Array(dat.sway), 1));
       geo.setIndex(dat.idx);
-      const mesh = new THREE.Mesh(geo, mat);
+      // WebGPU has no fixed-function tessellation. Subdivide opaque terrain once
+      // while building its chunk mesh, retaining a bounded triangle increase.
+      const renderGeo = mat === this.matOpaque && this._terrainTessellator
+        ? this._terrainTessellator.modify(geo)
+        : geo;
+      if (renderGeo !== geo) geo.dispose();
+      const mesh = new THREE.Mesh(renderGeo, mat);
       mesh.position.set(ox, 0, oz);
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
