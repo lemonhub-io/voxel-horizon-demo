@@ -251,6 +251,12 @@ export class Player {
     }
   }
 
+  /** Current locomotion clip key for multiplayer pose replication. */
+  getBodyAnimKey(): string {
+    if (this.dead) return 'death';
+    return this._bodyAnimKey || this.pickBodyAnimKey();
+  }
+
   private playBodyAnim(key: string, fade = 0.2): void {
     if (!this._bodyMixer) return;
     if (key === this._bodyAnimKey && this._bodyAction) return;
@@ -768,7 +774,10 @@ export class Player {
   breakBlock(t: RaycastResult): void {
     const g = this.g;
     const def = BLOCK_DEF[t.id];
+    const prev = t.id;
     g.world.setBlock(t.x, t.y, t.z, B.AIR);
+    // Multiplayer: predictive edit + server authority
+    g.mp?.submitBlock(t.x, t.y, t.z, B.AIR, prev);
     g.audio.blockBreak(def.snd || 'stone');
     // Subtle directional chips — not a screen-filling explosion
     g.fx.burst(t.x + 0.5, t.y + 0.5, t.z + 0.5, {
@@ -837,7 +846,9 @@ export class Player {
       py + 1 > p.y && py < p.y + 1.8) return;
     const existing = g.world.getBlock(px, py, pz);
     if (existing !== B.AIR && !BLOCK_DEF[existing].cross && !BLOCK_DEF[existing].water) return;
+    const prev = g.world.getBlock(px, py, pz);
     if (g.world.setBlock(px, py, pz, def.place)) {
+      g.mp?.submitBlock(px, py, pz, def.place, prev);
       g.inv.consume(sel.id, 1);
       g.audio.place(BLOCK_DEF[def.place].snd);
       g.milestones.addStat('placed', 1);

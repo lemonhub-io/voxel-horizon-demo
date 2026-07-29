@@ -3,8 +3,10 @@
     v-if="game.state === 'title' && !showSaves"
     ref="titleRef"
     :has-save="hasSave"
+    :mp-busy="mpBusy"
     @new-game="onNewGame"
     @continue="onContinue"
+    @public-mp="onPublicMp"
     @saves="showSaves = true"
     @help="showHelp = true"
     @settings="showSettings = true"
@@ -99,6 +101,7 @@ const showSettings = ref(false);
 const showHelp = ref(false);
 const showSaves = ref(false);
 const engineLoading = ref(false);
+const mpBusy = ref(false);
 const damageFlash = ref(false);
 const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
 const currentSlot = ref(0);
@@ -131,6 +134,23 @@ async function onNewGame() {
     const seed = titleRef.value?.seed || '';
     engine.newGame(seed);
   } finally {
+    engineLoading.value = false;
+  }
+}
+
+async function onPublicMp() {
+  if (engineLoading.value || mpBusy.value) return;
+  mpBusy.value = true;
+  engineLoading.value = true;
+  try {
+    const engine = await loadGame();
+    await engine.joinPublicMultiplayer?.('远行者');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '公开联机失败';
+    hud.addNotification(msg, 'danger');
+    console.warn('public multiplayer failed', e);
+  } finally {
+    mpBusy.value = false;
     engineLoading.value = false;
   }
 }
@@ -222,6 +242,10 @@ function onResume() {
 async function onSave() {
   const engine = getEngine();
   if (!engine) return;
+  if (engine.multiplayer) {
+    hud.addNotification('公开联机不托管存档，进度仅会话内有效', 'warn');
+    return;
+  }
   const ok = await Save.save(engine);
   await refreshSlots();
   hud.addNotification(ok ? '进度已保存' : '存档失败，请重试', ok ? 'success' : 'danger');
@@ -229,6 +253,11 @@ async function onSave() {
 }
 async function onQuit() {
   const engine = getEngine();
+  if (engine?.multiplayer) {
+    engine.leaveMultiplayer?.();
+    location.reload();
+    return;
+  }
   if (engine) {
     const ok = await Save.save(engine);
     if (!ok) {

@@ -51,8 +51,17 @@ describe('TitleScreen', () => {
 
   it('emits new-game on click', async () => {
     const wrapper = mount(TitleScreen, { props: { hasSave: false } });
-    await wrapper.find('.btn.t-btn').trigger('click');
+    const newGame = wrapper.findAll('.btn.t-btn').find((b) => b.text().includes('新的旅程'));
+    await newGame!.trigger('click');
     expect(wrapper.emitted('new-game')).toBeTruthy();
+  });
+
+  it('emits public-mp on click', async () => {
+    const wrapper = mount(TitleScreen, { props: { hasSave: false } });
+    const btn = wrapper.findAll('.btn.t-btn').find((b) => b.text().includes('公开联机'));
+    expect(btn).toBeDefined();
+    await btn!.trigger('click');
+    expect(wrapper.emitted('public-mp')).toBeTruthy();
   });
 
   it('has seed input', () => {

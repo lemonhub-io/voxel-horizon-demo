@@ -475,6 +475,15 @@ export interface Game {
   continueWithFailedModels(): void;
   finishLoad(saveData: SaveData | null): void;
   playIntro(): void;
+  multiplayer: boolean;
+  mp: {
+    active: boolean;
+    submitBlock(x: number, y: number, z: number, id: number, prevId: number): void;
+    bind(game: Game): void;
+    update(dt: number): void;
+  } | null;
+  joinPublicMultiplayer?(name?: string): Promise<void>;
+  leaveMultiplayer?(): void;
   planetInfo(): PlanetInfo;
   startPlay(): void;
   togglePause(on?: boolean): void;
@@ -813,6 +822,7 @@ export interface Player {
   damage(amt: number, cause?: string, silent?: boolean): void;
   die(cause?: string): void;
   respawn(): void;
+  getBodyAnimKey(): string;
   updateInteract(dt: number): void;
   doScan(): void;
   toggleVisor(force?: boolean): void;

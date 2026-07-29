@@ -35,6 +35,15 @@ export default defineConfig({
   },
   server: {
     open: true,
+    proxy: {
+      // Local multiplayer Worker (wrangler dev --port 8787)
+      '/mp': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/mp/, ''),
+      },
+    },
   },
   test: {
     environment: 'happy-dom',

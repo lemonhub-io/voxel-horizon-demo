@@ -22,6 +22,8 @@ import { Save } from './save';
 import { PostProcessing } from './post-processing';
 import { PostFX } from './postfx';
 import { preloadCC0Models } from './cc0-models';
+import { multiplayer, type MultiplayerSession } from './net/MultiplayerSession';
+import type { EditEntry } from './net/protocol';
 
 // Pinia stores (accessed lazily after pinia is initialized)
 import { useGameStore } from './stores/gameStore';
@@ -118,11 +120,15 @@ export class Game {
   ready: Promise<void>;
   missionT?: number;
   stormLeft?: number;
+  /** Active public multiplayer session (no server save hosting). */
+  mp: MultiplayerSession | null = null;
+  multiplayer = false;
   private _prevX = 0;
   private _prevZ = 0;
   private _syncFrame = 0;
   private _worldUpdateT = 0;
-  private pendingLoad: { seed: number; palIdx: number; saveData: SaveData | null } | null = null;
+  private pendingLoad: { seed: number; palIdx: number; saveData: SaveData | null; mpEdits?: EditEntry[] } | null = null;
+  private pendingMpEdits: EditEntry[] | null = null;
 
   // Pinia store refs (lazy init)
   private _stores: ReturnType<typeof this._getStores> | null = null;
@@ -159,12 +165,47 @@ export class Game {
     this.input = Input;
     Input.init(this);
     // Prefer visibilitychange over beforeunload alone — OPFS writes often abort on unload.
+    // Multiplayer sessions do not write OPFS (server does not host saves either).
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && this.state === 'play') {
+      if (document.visibilityState === 'hidden' && this.state === 'play' && !this.multiplayer) {
         void Save.save(this);
       }
     });
     this.ready = this.initRenderer().then(() => { this.loop(); });
+  }
+
+  /**
+   * Join a public multiplayer shard (ephemeral session, no server save).
+   * Resolves after world load has started.
+   */
+  async joinPublicMultiplayer(name?: string): Promise<void> {
+    this.audio.ensure();
+    this.audio.initLoops();
+    this.multiplayer = true;
+    this.mp = multiplayer;
+    multiplayer.bind(this);
+    try {
+      const helloPromise = multiplayer.waitHello(15000);
+      await multiplayer.joinPublic(this, name);
+      const hello = await helloPromise;
+      this.pendingMpEdits = hello.edits;
+      this.planetName = hello.planetName;
+      this.beginLoad(hello.seed, hello.palIdx, null);
+      // Skip crash intro in multiplayer — drop into play after pregen.
+      this.stores.hud.addNotification(`公开联机 · ${hello.roomId} · ${hello.planetName}`, 'success');
+    } catch (e) {
+      this.multiplayer = false;
+      this.mp = null;
+      multiplayer.leave();
+      throw e;
+    }
+  }
+
+  leaveMultiplayer(): void {
+    multiplayer.leave();
+    this.mp = null;
+    this.multiplayer = false;
+    this.pendingMpEdits = null;
   }
 
   /** Clear run progress so a second new-game / load does not inherit prior inventory, quests, etc. */
@@ -311,6 +352,7 @@ export class Game {
   exitPointerLock(): void { if (document.pointerLockElement) document.exitPointerLock(); }
 
   newGame(seedInput?: string): void {
+    this.leaveMultiplayer();
     this.audio.ensure();
     this.audio.initLoops();
     const seedStr = (seedInput || '').trim();
@@ -319,6 +361,7 @@ export class Game {
   }
 
   async continueGame(): Promise<void> {
+    this.leaveMultiplayer();
     this.audio.ensure();
     this.audio.initLoops();
     const d = await Save.load();
@@ -334,14 +377,16 @@ export class Game {
     s.game.modelLoadFailures = [];
     this.seed = seed;
     this.palIdx = palIdx;
-    this.palette = PALETTES[palIdx];
+    this.palette = PALETTES[palIdx % PALETTES.length];
     s.game.seed = seed;
-    s.game.palIdx = palIdx;
+    s.game.palIdx = this.palIdx;
     s.game.palette = this.palette;
     const rng = U.mulberry32(seed);
-    this.planetName = saveData ? saveData.planetName : U.planetName(rng);
+    if (!this.multiplayer || !this.planetName) {
+      this.planetName = saveData ? saveData.planetName : U.planetName(rng);
+    }
     s.game.planetName = this.planetName;
-    this.pendingLoad = { seed, palIdx, saveData };
+    this.pendingLoad = { seed, palIdx: this.palIdx, saveData, mpEdits: this.pendingMpEdits || undefined };
     void this.verifyRemoteModels();
   }
 
@@ -409,6 +454,19 @@ export class Game {
       this.sky.t = 0.28;
       this.playTime = 0;
       s.game.playTime = 0;
+      // Session-only multiplayer edits (not a server-hosted save).
+      const mpEdits = this.pendingLoad?.mpEdits;
+      if (mpEdits && mpEdits.length) {
+        for (const e of mpEdits) {
+          const k = `${e.cx},${e.cz}`;
+          let m = this.world.edits.get(k);
+          if (!m) {
+            m = new Map();
+            this.world.edits.set(k, m);
+          }
+          m.set(e.idx, e.id);
+        }
+      }
     }
     const land = this.world.findLand(8, 8);
     const spawnX = land.x, spawnZ = land.z;
@@ -460,8 +518,14 @@ export class Game {
     this.missions.updateCard();
     s.game.planetName = this.planetName;
     this.autoSaveT = 0;
+    this.pendingMpEdits = null;
 
-    if (!saveData) this.playIntro();
+    if (this.multiplayer) {
+      // Public co-op: skip typewriter intro and drop into play.
+      if (this.mp) this.mp.bind(this);
+      this.startPlay();
+      s.hud.addNotification('公开联机会话 · 服务端不保存进度', 'info');
+    } else if (!saveData) this.playIntro();
     else this.startPlay();
   }
 
@@ -766,12 +830,13 @@ export class Game {
         this.missionT = (this.missionT || 0) - dt;
         if (this.missionT <= 0) { this.missionT = 0.5; this.missions.tick(); }
         this.autoSaveT += dt;
-        if (this.autoSaveT > 60) {
+        if (!this.multiplayer && this.autoSaveT > 60) {
           this.autoSaveT = 0;
           Save.save(this).then(ok => {
             if (ok) this.stores.hud.addNotification('自动存档完成', 'info');
           }).catch(() => {});
         }
+        if (this.mp?.active) this.mp.update(dt);
         // Sync to Pinia every 3 frames to reduce reactive setter overhead
         this._syncFrame++;
         if (this._syncFrame >= 3) { this._syncFrame = 0; this.syncPlayerStore(); }

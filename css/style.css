@@ -281,6 +281,7 @@ h1 span{color:var(--acc);text-shadow:0 0 40px rgba(255,150,100,.5)}
 .t-seed label{font-size:12px;letter-spacing:2px}
 .t-seed input{width:150px;background:rgba(255,255,255,.06);border:1px solid var(--line2);color:var(--ink);padding:6px 10px;font-family:var(--fh);letter-spacing:2px;outline:none}
 .t-seed input:focus{border-color:var(--acc2)}
+.t-mp-hint{margin-top:10px;font-size:11px;letter-spacing:1px;opacity:.55;font-family:var(--fh)}
 .t-foot{position:fixed;left:9vw;bottom:4vh;font-size:11px;letter-spacing:2px;opacity:.4}
 
 /* ---------- loading ---------- */
