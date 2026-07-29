@@ -941,5 +941,10 @@ export class Player {
     this.pos.fromArray(d.pos);
     this.yaw = d.yaw; this.pitch = d.pitch;
     this.hp = d.hp; this.hazard = d.hazard; this.ls = d.ls;
+    this.dead = false;
+    this.inShip = false;
+    this.vel.set(0, 0, 0);
+    this.flashOn = !!d.flash;
+    if (this.flashlight) this.flashlight.intensity = this.flashOn ? 2.2 : 0;
   }
 }

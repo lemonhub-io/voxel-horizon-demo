@@ -8,7 +8,10 @@
           <template v-if="slot">
             <div class="save-info">
               <div class="save-planet">{{ slot.planetName }}</div>
-              <div class="save-meta">{{ formatTime(slot.playTime) }} · HP {{ Math.round(slot.playerHp) }}</div>
+              <div class="save-meta">
+                {{ slot.climate ? slot.climate + ' · ' : '' }}{{ formatTime(slot.playTime) }} · HP {{ Math.round(slot.playerHp) }}
+                <span v-if="slot.timestamp" class="save-date"> · {{ formatDate(slot.timestamp) }}</span>
+              </div>
             </div>
             <button class="btn sm danger" @click.stop="$emit('delete', i)">删除</button>
           </template>
@@ -39,5 +42,18 @@ defineEmits(['load', 'delete', 'back']);
 
 function formatTime(s: number): string {
   return U.fmtTime(s);
+}
+
+function formatDate(ts: number): string {
+  try {
+    return new Date(ts).toLocaleString('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
 }
 </script>

@@ -123,6 +123,10 @@ async function onNewGame() {
   if (engineLoading.value) return;
   engineLoading.value = true;
   try {
+    // Prefer an empty slot so "新游戏" does not silently overwrite an existing one.
+    const slot = await Save.pickSlotForNewGame();
+    Save.setCurrentSlot(slot);
+    currentSlot.value = slot;
     const engine = await loadGame();
     const seed = titleRef.value?.seed || '';
     engine.newGame(seed);
@@ -143,15 +147,21 @@ async function onContinue() {
 async function onLoadSlot(slot: number) {
   Save.setCurrentSlot(slot);
   currentSlot.value = slot;
-  // Check if slot has data
   const data = await Save.load(slot);
   if (data) {
     showSaves.value = false;
     await onContinue();
   } else {
-    // Empty slot — start new game in this slot
+    // Empty slot — start a new game bound to this slot
     showSaves.value = false;
-    await onNewGame();
+    engineLoading.value = true;
+    try {
+      const engine = await loadGame();
+      const seed = titleRef.value?.seed || '';
+      engine.newGame(seed);
+    } finally {
+      engineLoading.value = false;
+    }
   }
 }
 async function onDeleteSlot(slot: number) {
@@ -212,14 +222,20 @@ function onResume() {
 async function onSave() {
   const engine = getEngine();
   if (!engine) return;
-  await Save.save(engine);
+  const ok = await Save.save(engine);
   await refreshSlots();
-  hud.addNotification('进度已保存', 'success');
-  onResume();
+  hud.addNotification(ok ? '进度已保存' : '存档失败，请重试', ok ? 'success' : 'danger');
+  if (ok) onResume();
 }
 async function onQuit() {
   const engine = getEngine();
-  if (engine) await Save.save(engine);
+  if (engine) {
+    const ok = await Save.save(engine);
+    if (!ok) {
+      hud.addNotification('存档失败，仍将退出', 'warn');
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
   location.reload();
 }
 function onRespawn() {

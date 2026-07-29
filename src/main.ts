@@ -158,7 +158,85 @@ export class Game {
     this.autoSaveT = 0;
     this.input = Input;
     Input.init(this);
+    // Prefer visibilitychange over beforeunload alone — OPFS writes often abort on unload.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && this.state === 'play') {
+        void Save.save(this);
+      }
+    });
     this.ready = this.initRenderer().then(() => { this.loop(); });
+  }
+
+  /** Clear run progress so a second new-game / load does not inherit prior inventory, quests, etc. */
+  private resetRunState(): void {
+    const s = this.stores;
+    this.playTime = 0;
+    this.autoSaveT = 0;
+    this.stormActive = false;
+    this.stormFactor = 0;
+    this.stormTimer = U.rand(150, 320);
+    this.stormLeft = undefined;
+    this.discoveries = { planets: [], entries: [] };
+    s.game.discoveries = this.discoveries;
+    s.game.playTime = 0;
+    s.game.stormActive = false;
+    s.game.stormFactor = 0;
+
+    if (this.inv) {
+      this.inv.slots = new Array(24).fill(null);
+      this.inv.hotbar = new Array(9).fill(null);
+      this.inv.sel = 0;
+      this.inv.units = 0;
+      this.inv.open = false;
+      this.inv.tab = 'items';
+      this.inv.drag = null;
+      this.inv.selRecipe = null;
+      this.inv.syncStore();
+    }
+    if (this.missions) {
+      this.missions.idx = 0;
+      this.missions.scannerUnlocked = false;
+      this.missions.shelterCount = 0;
+      this.missions.launched = false;
+      this.missions.sodiumUsed = 0;
+      this.missions.oxygenUsed = 0;
+    }
+    if (this.milestones) {
+      this.milestones.stats = { walk: 0, mined: 0, scans: 0, placed: 0, warps: 0, crafted: 0, survive: 0 };
+      this.milestones.awarded = {};
+    }
+    if (this.player) {
+      this.player.dead = false;
+      this.player.inShip = false;
+      this.player.hp = 100;
+      this.player.hazard = 50;
+      this.player.ls = 85;
+      this.player.jetFuel = 100;
+      this.player.vel.set(0, 0, 0);
+      this.player.heat = 0;
+      this.player.overheated = 0;
+      this.player.mining = null;
+      this.player.mineProgress = 0;
+      this.player.visor = false;
+      this.player.flashOn = false;
+      if (this.player.flashlight) this.player.flashlight.intensity = 0;
+    }
+    if (this.ship) {
+      this.ship.flying = false;
+      this.ship.landing = false;
+      this.ship.flyTime = 0;
+      this.ship.speed = 0;
+      this.ship.throttle = 0.4;
+      this.ship.fuel = 0;
+      this.ship.comps.thruster.broken = true;
+      this.ship.comps.pulse.broken = true;
+      this.ship.open = false;
+      this.ship.updateCrashPose();
+      this.ship.syncStore();
+    }
+    s.player.dead = false;
+    s.inventory.open = false;
+    s.ship.open = false;
   }
 
   async initRenderer(): Promise<void> {
@@ -305,6 +383,8 @@ export class Game {
     }
     this.world.setPlanet(seed, this.palette);
     this.sky.setPalette(this.palette);
+    // Always clear prior run before applying a save or starting fresh.
+    this.resetRunState();
     if (saveData) {
       for (const k in saveData.edits) {
         const arr = saveData.edits[k];
@@ -315,11 +395,20 @@ export class Game {
       this.inv.deserialize(saveData.inv);
       this.missions.deserialize(saveData.missions);
       this.milestones.deserialize(saveData.milestones);
-      this.discoveries = saveData.discoveries || this.discoveries;
+      this.discoveries = saveData.discoveries
+        ? {
+            planets: saveData.discoveries.planets.map(p => ({ ...p })),
+            entries: saveData.discoveries.entries.map(e => ({ ...e })),
+          }
+        : { planets: [], entries: [] };
       s.game.discoveries = this.discoveries;
       this.sky.t = saveData.time || 0.3;
       this.playTime = saveData.playTime || 0;
       s.game.playTime = this.playTime;
+    } else {
+      this.sky.t = 0.28;
+      this.playTime = 0;
+      s.game.playTime = 0;
     }
     const land = this.world.findLand(8, 8);
     const spawnX = land.x, spawnZ = land.z;
@@ -350,16 +439,27 @@ export class Game {
       const gy = this.world.topSolidY(sx, sz);
       this.player.pos.set(sx + 0.5, gy + 1.2, sz + 0.5);
       this.player.yaw = Math.PI * 0.25;
-      this.ship.placeAt(sx + 14, sz + 9);
+      this.player.pitch = 0;
+      this.player.hp = 100;
       this.player.hazard = 50;
       this.player.ls = 85;
+      this.player.dead = false;
+      this.player.inShip = false;
+      this.ship.placeAt(sx + 14, sz + 9);
       this.inv.add('carbon', 10);
-      this.discoveries.planets.push({ name: this.planetName, climate: this.palette.climate, visited: 1 });
+      this.discoveries = {
+        planets: [{ name: this.planetName, climate: this.palette.climate, visited: 1 }],
+        entries: [],
+      };
       s.game.discoveries = this.discoveries;
     }
     this.fauna.spawnPlanet(this.seed, this.palette);
     this.syncPlayerStore();
+    this.inv.syncStore();
+    this.ship.syncStore();
+    this.missions.updateCard();
     s.game.planetName = this.planetName;
+    this.autoSaveT = 0;
 
     if (!saveData) this.playIntro();
     else this.startPlay();

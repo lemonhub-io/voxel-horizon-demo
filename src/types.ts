@@ -721,6 +721,7 @@ export interface Ship {
   yaw: number;
   pitch: number;
   landing: boolean;
+  flyTime: number;
   smokeT: number;
   open: boolean;
   engineGlows: THREE.Sprite[];
@@ -891,14 +892,16 @@ export interface U {
 }
 
 export interface Save {
+  MAX_SLOTS?: number;
   save(g: Game, slot?: number): Promise<boolean>;
   load(slot?: number): Promise<SaveData | null>;
   hasSave(): Promise<boolean>;
-  listSlots(): Promise<SaveSlotMeta[]>;
+  listSlots(): Promise<(SaveSlotMeta | null)[]>;
   deleteSlot(slot: number): Promise<void>;
   clear(): Promise<void>;
   getCurrentSlot(): number;
   setCurrentSlot(slot: number): void;
+  pickSlotForNewGame?(): Promise<number>;
   loadSettings(): Settings;
   saveSettings(s: Settings): void;
 }

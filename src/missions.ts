@@ -188,7 +188,10 @@ export class Milestones {
   serialize(): MilestonesSaveData { return { stats: this.stats, awarded: this.awarded }; }
   deserialize(d: MilestonesSaveData | undefined): void {
     if (!d) return;
-    this.stats = Object.assign(this.stats, d.stats);
-    this.awarded = d.awarded || {};
+    this.stats = {
+      walk: 0, mined: 0, scans: 0, placed: 0, warps: 0, crafted: 0, survive: 0,
+      ...(d.stats || {}),
+    };
+    this.awarded = { ...(d.awarded || {}) };
   }
 }
