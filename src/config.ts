@@ -79,6 +79,23 @@ export const CFG = Object.freeze({
     threshold: 0.93,
   }),
   /**
+   * Night readability (moon-fill). Day stays sun-driven; night leans on
+   * hemi + ambient so terrain/UI stay legible without a pure black crush.
+   */
+  NIGHT: Object.freeze({
+    /** Hemisphere fill when dayMix → 0 (moon/sky bounce). */
+    hemiBase: 0.72,
+    hemiNightBoost: 0.38,
+    /** Ambient fill color (cool moonlight) and intensity curve. */
+    ambientColor: '#3d5a82',
+    ambientDay: 0.22,
+    ambientNight: 0.78,
+    /** Soft TSL sky night floor multiplier (was ~0.35, too crushed). */
+    skyFloor: 0.58,
+    /** Blend night fog toward horizon so mid-distance blocks stay readable. */
+    fogHorizonMix: 0.62,
+  }),
+  /**
    * Cinematic grade balanced for:
    * - soft TSL sky (no HDR Preetham)
    * - ACES exposure ≈ 0.9
@@ -94,7 +111,7 @@ export const CFG = Object.freeze({
     /** Slight mid lift (film toe); 0.97–1.0 is the safe band. */
     gamma: 0.98,
     /** Overall brightness after grade; 1.0 keeps ACES exposure honest. */
-    gain: 1.0,
+    gain: 1.02,
     /** Soft highlight ceiling so sky stays out of hard white. */
     clip: 1.1,
     /** Cool shadow lift (teal) — subtle, FPS-safe. */
@@ -224,8 +241,8 @@ export const PALETTES: Palette[] = [
     id: 'temperate', climate: '温带',
     grass: '#5abf74', grassAlt: '#4fae8e', dirt: '#8a6a4d', sand: '#d8c9a0',
     leaves: ['#3da566', '#69c98a', '#3f9e8e'], wood: '#7a5a40',
-    skyDayTop: '#3a8fd4', skyDayHor: '#bfe4ee', skyNightTop: '#060a18', skyNightHor: '#1c2c48',
-    fogDay: '#c4e2e8', fogNight: '#0c1526', sun: '#fff2d0',
+    skyDayTop: '#3a8fd4', skyDayHor: '#bfe4ee', skyNightTop: '#121c38', skyNightHor: '#2a4068',
+    fogDay: '#c4e2e8', fogNight: '#1a2840', sun: '#fff2d0',
     water: '#2e7fa8', sea: true,
     hazard: { type: 'cold', label: '严寒', day: 0.05, night: 0.22, nightType: 'cold', nightLabel: '严寒' },
     storm: { chance: 0.35, label: '热浪风暴' },
@@ -236,8 +253,8 @@ export const PALETTES: Palette[] = [
     id: 'scorched', climate: '灼热',
     grass: '#c08a4a', grassAlt: '#b07040', dirt: '#8f5f3a', sand: '#e0b076',
     leaves: ['#c07a3a', '#d09a50'], wood: '#6f4a34',
-    skyDayTop: '#c96a3f', skyDayHor: '#f2c58a', skyNightTop: '#0a0610', skyNightHor: '#301a20',
-    fogDay: '#e8bc8e', fogNight: '#180e14', sun: '#ffd9a0',
+    skyDayTop: '#c96a3f', skyDayHor: '#f2c58a', skyNightTop: '#1a0e1c', skyNightHor: '#4a2830',
+    fogDay: '#e8bc8e', fogNight: '#2a1820', sun: '#ffd9a0',
     water: null, sea: false,
     hazard: { type: 'heat', label: '极端高温', day: 0.30, night: 0.10, nightType: 'heat', nightLabel: '余热' },
     storm: { chance: 0.75, label: '烈焰风暴' },
@@ -248,8 +265,8 @@ export const PALETTES: Palette[] = [
     id: 'frozen', climate: '冰封',
     grass: '#cfe2ec', grassAlt: '#b8d4e2', dirt: '#7a8a96', sand: '#c2cdd6',
     leaves: ['#9fd3e8', '#c8ecf4', '#8fb8d8'], wood: '#5f6a78',
-    skyDayTop: '#7aa8cc', skyDayHor: '#e8f2f8', skyNightTop: '#04080f', skyNightHor: '#16283c',
-    fogDay: '#dcecf4', fogNight: '#0b1420', sun: '#eef6ff',
+    skyDayTop: '#7aa8cc', skyDayHor: '#e8f2f8', skyNightTop: '#0e1828', skyNightHor: '#243e58',
+    fogDay: '#dcecf4', fogNight: '#182838', sun: '#eef6ff',
     water: '#3a6f96', sea: true,
     hazard: { type: 'cold', label: '严寒', day: 0.22, night: 0.45, nightType: 'cold', nightLabel: '极寒' },
     storm: { chance: 0.6, label: '暴风雪' },
@@ -260,8 +277,8 @@ export const PALETTES: Palette[] = [
     id: 'exotic', climate: '异常',
     grass: '#a86ad0', grassAlt: '#8f5cc0', dirt: '#5f4470', sand: '#c8a0d8',
     leaves: ['#ff7ad9', '#8f5cff', '#e08aff'], wood: '#4a3860',
-    skyDayTop: '#5d3f9e', skyDayHor: '#e8a9f4', skyNightTop: '#0a0416', skyNightHor: '#2a1440',
-    fogDay: '#caa6e8', fogNight: '#140a24', sun: '#ffd9f4',
+    skyDayTop: '#5d3f9e', skyDayHor: '#e8a9f4', skyNightTop: '#160a28', skyNightHor: '#3a2060',
+    fogDay: '#caa6e8', fogNight: '#241438', sun: '#ffd9f4',
     water: '#6a4a9e', sea: true,
     hazard: { type: 'rad', label: '辐射', day: 0.18, night: 0.32, nightType: 'rad', nightLabel: '强辐射' },
     storm: { chance: 0.5, label: '辐射风暴' },

@@ -49,6 +49,7 @@ export class Sky {
   pal!: Palette;
 
   private _sunDir = new THREE.Vector3();
+  private _moonLift = new THREE.Vector3();
   private _shadowTargetX = 0;
   private _shadowTargetZ = 0;
   private _csmSoftnessApplied = false;
@@ -151,8 +152,8 @@ export class Sky {
     col = mix(col, stormGrey, uStorm.mul(0.45));
     col = col.mul(float(1).sub(uStorm.mul(0.2)));
 
-    // Night pull toward deep blue (when day low)
-    const nightCol = mix(uHor, uTop, float(0.4)).mul(0.35);
+    // Night pull toward deep blue (when day low). Floor kept readable (~CFG.NIGHT.skyFloor).
+    const nightCol = mix(uHor, uTop, float(0.4)).mul(0.58);
     col = mix(nightCol, col, max(uDay, uDusk.mul(0.5)));
 
     // Soft ceiling: allow sun to read brighter than sky, ACES will roll it off.
@@ -209,10 +210,11 @@ export class Sky {
     this.g.scene.add(this.sunLight);
     this.g.scene.add(this.sunLight.target);
 
-    this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.6);
+    this.hemi = new THREE.HemisphereLight(0xbfd8e8, 0x3a4a3a, 0.65);
     this.g.scene.add(this.hemi);
 
-    this.ambientFill = new THREE.AmbientLight(0x1a2030, 0.25);
+    // Cool moonlight baseline — intensity ramps up at night in update().
+    this.ambientFill = new THREE.AmbientLight(CFG.NIGHT.ambientColor, CFG.NIGHT.ambientDay);
     this.g.scene.add(this.ambientFill);
   }
 
@@ -380,11 +382,23 @@ export class Sky {
     this.sunLight.target.updateMatrixWorld();
     this.sunLight.updateMatrixWorld();
 
-    // Soft key light
-    this.sunLight.intensity = 0.35 + day * 0.95 + dusk * 0.06;
+    // Key light only while sun is up. Below-horizon directional light was
+    // still ~0.35 and lit the underside while leaving the top faces black.
+    const sunUp = U.clamp(sunY * 3.8 + 0.2, 0, 1);
+    this.sunLight.intensity = (0.42 + day * 0.95 + dusk * 0.08) * sunUp;
     this.sunLight.color.set(dusk > 0.1
       ? U.mixHex(pal.sun, '#ffc8a0', dusk * 0.3)
       : U.mixHex('#a8bdd4', pal.sun, Math.max(day, 0.25)));
+    // Soft residual moon key when fully night (upper hemisphere so tops stay lit).
+    if (sunUp < 0.08) {
+      this.sunLight.intensity = 0.14;
+      this.sunLight.color.set('#8aa8d0');
+      this._moonLift.set(-sunDir.x * 0.35, 0.85, -sunDir.z * 0.35).normalize();
+      this.sunLight.position
+        .copy(this.sunLight.target.position)
+        .addScaledVector(this._moonLift, CFG.CSM.lightDistance);
+      this.sunLight.updateMatrixWorld();
+    }
 
     this._applyCascadeQuality();
     const nextFar = this._computeCsmMaxFar();
@@ -394,10 +408,14 @@ export class Sky {
       this.csm.updateFrustums();
     }
 
-    this.hemi.intensity = 0.5 + day * 0.45 + dusk * 0.06;
-    this.hemi.color.set(top);
-    this.hemi.groundColor.set(U.shade(pal.grass, 0.55 + day * 0.2));
-    this.ambientFill.intensity = 0.3 + (1 - day) * 0.25;
+    const night = 1 - day;
+    const nCfg = CFG.NIGHT;
+    // Moon / sky bounce: stronger hemi + ambient so voxels stay readable at night.
+    this.hemi.intensity = nCfg.hemiBase + day * 0.35 + dusk * 0.06 + night * nCfg.hemiNightBoost;
+    this.hemi.color.set(day > 0.15 ? top : U.mixHex(top, '#6a90c8', 0.45));
+    this.hemi.groundColor.set(U.shade(pal.grass, 0.5 + day * 0.25 + night * 0.12));
+    this.ambientFill.color.set(day > 0.35 ? '#1a2030' : nCfg.ambientColor);
+    this.ambientFill.intensity = U.lerp(nCfg.ambientDay, nCfg.ambientNight, night);
 
     // Sun sprite sits inside the sky sphere (r=720) so it draws in front of the dome.
     this.sunSprite.position.copy(sunDir).multiplyScalar(580);
@@ -419,13 +437,14 @@ export class Sky {
     }
     this.clouds.rotation.y += dt * 0.001;
 
-    // Distance fog
+    // Distance fog — night fog leans toward horizon so mid-range terrain is not crushed.
     const skyHorizon = U.mixHex(pal.skyNightHor, pal.skyDayHor, day);
-    let fogCol = U.mixHex(U.mixHex(pal.fogNight, pal.fogDay, day), skyHorizon, 0.55);
+    const fogMix = U.lerp(CFG.NIGHT.fogHorizonMix, 0.55, day);
+    let fogCol = U.mixHex(U.mixHex(pal.fogNight, pal.fogDay, day), skyHorizon, fogMix);
     if (storm > 0) fogCol = U.mixHex(fogCol, U.shade(pal.fogDay, 0.75), storm * 0.7);
     const dist = g.settings.dist * 16;
-    let fogNear = dist * 0.85;
-    let fogFar = dist * 2.15;
+    let fogNear = dist * (day > 0.2 ? 0.85 : 0.95);
+    let fogFar = dist * (day > 0.2 ? 2.15 : 2.45);
     if (storm > 0) {
       fogNear = U.lerp(fogNear, 12, storm);
       fogFar = U.lerp(fogFar, dist * 0.7, storm);
