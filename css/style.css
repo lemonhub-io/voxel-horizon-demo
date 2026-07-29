@@ -491,3 +491,10 @@ body.touch-device .hb-slot:active{border-color:#fff;transform:translateY(-2px)}
 .model-load-error__list{max-height:180px;overflow:auto;margin:18px 0;padding:12px 16px 12px 30px;border:1px solid rgba(255,92,92,.35);background:rgba(255,92,92,.07);line-height:1.6;word-break:break-word}
 .model-load-error__actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
 @media (max-width:600px){.model-load-error__panel{padding:22px 20px}.model-load-error__panel h2{font-size:22px}.model-load-error__actions{flex-direction:column}.model-load-error__actions .btn{width:100%}}
+/* Mobile flight mode: keep boost, landing and warp inside the right-thumb arc. */
+#touch-actions.flight{gap:10px;align-items:center}
+#touch-actions.flight .touch-btn{width:56px;height:56px}
+.touch-btn-boost{color:#bfeeff;border-color:rgba(142,225,255,.72);box-shadow:0 0 24px rgba(83,202,255,.26)}
+.touch-btn-land{color:#ffe1ad;border-color:rgba(255,198,118,.64)}
+.touch-btn-warp{color:#d7c5ff;border-color:rgba(191,159,255,.64)}
+@media (max-width:600px){#touch-actions.flight{gap:7px}#touch-actions.flight .touch-btn{width:50px;height:50px}#touch-actions.flight .touch-btn svg{width:24px;height:24px}}
