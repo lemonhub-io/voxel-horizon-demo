@@ -13,7 +13,7 @@ import {
 export type NetHandler = (msg: ServerMsg) => void;
 
 /** Production Worker URL (overridden by VITE_MP_HTTP_URL). */
-const DEFAULT_PROD_MP = 'https://voxel-horizon-mp.mzhub.workers.dev';
+const DEFAULT_PROD_MP = 'https://voxel-api.mzhub.space';
 
 function defaultHttpBase(): string {
   const env = import.meta.env.VITE_MP_HTTP_URL as string | undefined;

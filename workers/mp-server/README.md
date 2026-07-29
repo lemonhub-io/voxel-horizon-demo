@@ -26,7 +26,7 @@ npm run dev
 npm run mp:deploy
 ```
 
-**Live (current):** `https://voxel-horizon-mp.mzhub.workers.dev`
+**Live (current):** `https://voxel-api.mzhub.space`
 
 Production frontend uses `VITE_MP_HTTP_URL` / `.env.production` pointing at this URL.
 Local `npm run dev` still proxies `/mp` → `wrangler dev` on port 8787.
