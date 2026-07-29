@@ -4,6 +4,7 @@ import {
   type AnimCode,
   type ClientMsg,
   type PublicJoinResponse,
+  type PublicRoomInfo,
   type ServerMsg,
   decodeMsg,
   encodeMsg,
@@ -62,6 +63,13 @@ export class NetClient {
     for (const h of this.handlers) h(msg);
   }
 
+  async listPublicRooms(): Promise<PublicRoomInfo[]> {
+    const res = await fetch(`${this.httpBase}/api/public/rooms`);
+    if (!res.ok) throw new Error(`联机服务不可用 (${res.status})`);
+    const data = (await res.json()) as { rooms?: PublicRoomInfo[] };
+    return Array.isArray(data.rooms) ? data.rooms : [];
+  }
+
   async joinPublic(name: string): Promise<PublicJoinResponse> {
     const res = await fetch(`${this.httpBase}/api/public/join`, { method: 'POST' });
     const data = (await res.json()) as PublicJoinResponse | { ok: false; reason: string };
@@ -71,6 +79,13 @@ export class NetClient {
     await this.connect(data.wsPath, name);
     this.roomId = data.roomId;
     return data;
+  }
+
+  /** Join a specific public shard by id (e.g. public-0). */
+  async joinRoom(roomId: string, name: string): Promise<void> {
+    if (!/^public-\d+$/.test(roomId)) throw new Error('无效的公开分片');
+    await this.connect(`/ws?room=${encodeURIComponent(roomId)}`, name);
+    this.roomId = roomId;
   }
 
   async connect(wsPath: string, name: string): Promise<void> {

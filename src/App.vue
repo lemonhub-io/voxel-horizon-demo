@@ -1,12 +1,11 @@
 <template>
   <TitleScreen
-    v-if="game.state === 'title' && !showSaves"
+    v-if="game.state === 'title' && !showSaves && !showMpLobby"
     ref="titleRef"
     :has-save="hasSave"
-    :mp-busy="mpBusy"
     @new-game="onNewGame"
     @continue="onContinue"
-    @public-mp="onPublicMp"
+    @public-mp="openMpLobby"
     @saves="showSaves = true"
     @help="showHelp = true"
     @settings="showSettings = true"
@@ -14,8 +13,8 @@
 
   <div v-if="engineLoading" id="engine-loading" role="status" aria-live="polite">
     <div class="engine-loading__spinner"></div>
-    <div>正在准备星球渲染器</div>
-    <small>INITIALIZING RENDERER</small>
+    <div>{{ engineLoadingText }}</div>
+    <small>{{ engineLoadingSub }}</small>
   </div>
 
   <SaveSlotScreen
@@ -25,6 +24,14 @@
     @load="onLoadSlot"
     @delete="onDeleteSlot"
     @back="showSaves = false"
+  />
+
+  <MultiplayerLobbyScreen
+    v-if="showMpLobby && game.state === 'title'"
+    :display-name="mpName"
+    :joining="mpBusy"
+    @back="showMpLobby = false"
+    @join="onMpJoin"
   />
 
   <LoadingScreen
@@ -41,11 +48,19 @@
     @skip="onIntroSkip"
   />
 
-  <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" />
+  <HudOverlay v-if="game.state === 'play' || game.state === 'warp'" :multiplayer="isMultiplayer" :mp-room="mpRoomLabel" />
   <TouchControls v-if="(game.state === 'play' || game.state === 'warp') && !inv.open && !ship.open" />
   <InventoryScreen v-if="inv.open" @close="onCloseInv" @use-item="onUseItem" @craft="onCraft" />
   <ShipPanel v-if="ship.open" @close="onCloseShip" @repair="onRepair" @refuel="onRefuel" @launch="onLaunch" />
-  <PauseScreen v-if="game.state === 'pause'" @resume="onResume" @save="onSave" @help="showHelp = true" @settings="showSettings = true" @quit="onQuit" />
+  <PauseScreen
+    v-if="game.state === 'pause'"
+    :multiplayer="isMultiplayer"
+    @resume="onResume"
+    @save="onSave"
+    @help="showHelp = true"
+    @settings="showSettings = true"
+    @quit="onQuit"
+  />
   <DeathScreen v-if="game.state === 'dead'" @respawn="onRespawn" />
 
   <SettingsScreen v-if="showSettings" @back="showSettings = false" @wipe="onWipe" />
@@ -64,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useGameStore } from './stores/gameStore';
 import { usePlayerStore } from './stores/playerStore';
 import { useInventoryStore } from './stores/inventoryStore';
@@ -89,6 +104,7 @@ import HelpScreen from './components/HelpScreen.vue';
 import PlanetCard from './components/PlanetCard.vue';
 import MilestonePopup from './components/MilestonePopup.vue';
 import SaveSlotScreen from './components/SaveSlotScreen.vue';
+import MultiplayerLobbyScreen from './components/MultiplayerLobbyScreen.vue';
 
 const game = useGameStore();
 const player = usePlayerStore();
@@ -100,12 +116,19 @@ const hasSave = ref(false);
 const showSettings = ref(false);
 const showHelp = ref(false);
 const showSaves = ref(false);
+const showMpLobby = ref(false);
 const engineLoading = ref(false);
+const engineLoadingText = ref('正在准备星球渲染器');
+const engineLoadingSub = ref('INITIALIZING RENDERER');
 const mpBusy = ref(false);
+const mpName = ref('远行者');
+const mpRoomLabel = ref('');
 const damageFlash = ref(false);
 const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
 const currentSlot = ref(0);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
+
+const isMultiplayer = computed(() => !!getEngine()?.multiplayer);
 
 onMounted(async () => {
   hasSave.value = await Save.hasSave();
@@ -122,9 +145,16 @@ function getEngine(): Game | undefined {
   return window.game;
 }
 
+function openMpLobby(): void {
+  showSaves.value = false;
+  showMpLobby.value = true;
+}
+
 async function onNewGame() {
   if (engineLoading.value) return;
   engineLoading.value = true;
+  engineLoadingText.value = '正在准备星球渲染器';
+  engineLoadingSub.value = 'INITIALIZING RENDERER';
   try {
     // Prefer an empty slot so "新游戏" does not silently overwrite an existing one.
     const slot = await Save.pickSlotForNewGame();
@@ -138,13 +168,23 @@ async function onNewGame() {
   }
 }
 
-async function onPublicMp() {
+async function onMpJoin(payload: { roomId?: string; name: string }): Promise<void> {
   if (engineLoading.value || mpBusy.value) return;
   mpBusy.value = true;
+  mpName.value = payload.name;
   engineLoading.value = true;
+  engineLoadingText.value = '正在接入公开联机';
+  engineLoadingSub.value = 'CONNECTING PUBLIC SESSION';
   try {
     const engine = await loadGame();
-    await engine.joinPublicMultiplayer?.('远行者');
+    await engine.joinPublicMultiplayer?.(payload.name, payload.roomId);
+    mpRoomLabel.value = engine.mp && 'roomId' in engine.mp
+      ? String((engine.mp as { roomId?: string }).roomId || payload.roomId || '')
+      : (payload.roomId || '');
+    // Prefer live session id after hello
+    const session = engine.mp as { roomId?: string } | null;
+    if (session?.roomId) mpRoomLabel.value = session.roomId;
+    showMpLobby.value = false;
   } catch (e) {
     const msg = e instanceof Error ? e.message : '公开联机失败';
     hud.addNotification(msg, 'danger');
@@ -152,6 +192,8 @@ async function onPublicMp() {
   } finally {
     mpBusy.value = false;
     engineLoading.value = false;
+    engineLoadingText.value = '正在准备星球渲染器';
+    engineLoadingSub.value = 'INITIALIZING RENDERER';
   }
 }
 async function onContinue() {

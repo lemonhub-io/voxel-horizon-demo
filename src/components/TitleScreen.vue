@@ -10,15 +10,13 @@
       <div class="t-menu">
         <button class="btn t-btn" @click="$emit('new-game')">新的旅程</button>
         <button v-if="hasSave" class="btn t-btn" @click="$emit('continue')">继续旅程</button>
-        <button class="btn t-btn primary" @click="$emit('public-mp')" :disabled="mpBusy">
-          {{ mpBusy ? '正在连接…' : '公开联机' }}
-        </button>
+        <button class="btn t-btn" @click="$emit('public-mp')">公开联机</button>
         <button class="btn t-btn" @click="$emit('saves')">存档管理</button>
         <button class="btn t-btn" @click="$emit('help')">操作手册</button>
         <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       </div>
       <div class="t-seed"><label>星球种子(可选)</label><input v-model="seed" maxlength="16" placeholder="随机"></div>
-      <div class="t-mp-hint">公开联机为临时会话，服务端不保存进度</div>
+      <div class="t-mp-hint">公开联机 · 临时会话 · 服务端不托管存档</div>
     </div>
   </div>
 </template>
@@ -26,7 +24,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 
-defineProps<{ hasSave: boolean; mpBusy?: boolean }>();
+defineProps<{ hasSave: boolean }>();
 defineEmits(['new-game', 'continue', 'public-mp', 'saves', 'help', 'settings']);
 const seed = ref('');
 defineExpose({ seed });

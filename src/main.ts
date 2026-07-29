@@ -176,9 +176,10 @@ export class Game {
 
   /**
    * Join a public multiplayer shard (ephemeral session, no server save).
-   * Resolves after world load has started.
+   * @param name display name
+   * @param roomId optional specific shard (e.g. public-1); omit for auto-pick
    */
-  async joinPublicMultiplayer(name?: string): Promise<void> {
+  async joinPublicMultiplayer(name?: string, roomId?: string): Promise<void> {
     this.audio.ensure();
     this.audio.initLoops();
     this.multiplayer = true;
@@ -186,12 +187,11 @@ export class Game {
     multiplayer.bind(this);
     try {
       const helloPromise = multiplayer.waitHello(15000);
-      await multiplayer.joinPublic(this, name);
+      await multiplayer.joinPublic(this, name, roomId);
       const hello = await helloPromise;
       this.pendingMpEdits = hello.edits;
       this.planetName = hello.planetName;
       this.beginLoad(hello.seed, hello.palIdx, null);
-      // Skip crash intro in multiplayer — drop into play after pregen.
       this.stores.hud.addNotification(`公开联机 · ${hello.roomId} · ${hello.planetName}`, 'success');
     } catch (e) {
       this.multiplayer = false;

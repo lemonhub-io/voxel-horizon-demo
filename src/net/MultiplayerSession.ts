@@ -23,15 +23,20 @@ export class MultiplayerSession {
     this.game = game;
   }
 
-  async joinPublic(game: Game, name?: string): Promise<void> {
+  async joinPublic(game: Game, name?: string, roomId?: string): Promise<void> {
     this.bind(game);
     this.displayName = (name || '远行者').slice(0, 16);
     this.clearRemotes();
     this.unsub?.();
     this.unsub = this.net.onMessage((msg) => this.onServerMsg(msg));
 
-    const join = await this.net.joinPublic(this.displayName);
-    this.roomId = join.roomId;
+    if (roomId) {
+      await this.net.joinRoom(roomId, this.displayName);
+      this.roomId = roomId;
+    } else {
+      const join = await this.net.joinPublic(this.displayName);
+      this.roomId = join.roomId;
+    }
     this.active = true;
     // hello arrives async via handler; beginLoad waits for seed from hello
   }

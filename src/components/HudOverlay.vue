@@ -3,6 +3,10 @@
     <div id="hud-top">
       <div id="compass-wrap"><canvas id="compass" ref="compassCanvas" width="640" height="52"></canvas></div>
       <div id="hud-corner">
+        <div v-if="multiplayer" id="hud-mp" title="公开联机会话">
+          <svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm-7 14c0-2.8 3.1-5 7-5s7 2.2 7 5v2H5v-2Z"/><path d="M18 8a3 3 0 1 1 0 6"/></svg>
+          <span>{{ mpRoom || 'PUBLIC' }}</span>
+        </div>
         <div id="hud-units"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 8 10-8 10L4 12z"/><path d="m12 7 4 5-4 5-4-5z"/></svg><span>{{ inventory.units }}</span></div>
         <div id="hud-planet">{{ game.planetName }}</div>
         <div id="hud-env"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg><span>{{ envLabel }}</span></div>
@@ -92,6 +96,11 @@ import { useHudStore } from '../stores/hudStore';
 import Hotbar from './Hotbar.vue';
 import Toasts from './Toasts.vue';
 import Notifications from './Notifications.vue';
+
+defineProps<{
+  multiplayer?: boolean;
+  mpRoom?: string;
+}>();
 
 const game = useGameStore();
 const player = usePlayerStore();

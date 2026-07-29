@@ -478,11 +478,12 @@ export interface Game {
   multiplayer: boolean;
   mp: {
     active: boolean;
+    roomId: string;
     submitBlock(x: number, y: number, z: number, id: number, prevId: number): void;
     bind(game: Game): void;
     update(dt: number): void;
   } | null;
-  joinPublicMultiplayer?(name?: string): Promise<void>;
+  joinPublicMultiplayer?(name?: string, roomId?: string): Promise<void>;
   leaveMultiplayer?(): void;
   planetInfo(): PlanetInfo;
   startPlay(): void;

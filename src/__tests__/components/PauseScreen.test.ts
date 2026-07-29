@@ -18,6 +18,14 @@ describe('PauseScreen', () => {
     expect(wrapper.text()).toContain('返回标题');
   });
 
+  it('hides save and shows leave label in multiplayer', () => {
+    const wrapper = mount(PauseScreen, { props: { multiplayer: true } });
+    expect(wrapper.text()).toContain('联机暂停');
+    expect(wrapper.text()).not.toContain('保存进度');
+    expect(wrapper.text()).toContain('离开联机');
+    expect(wrapper.text()).toContain('不托管存档');
+  });
+
   it('emits resume', async () => {
     const wrapper = mount(PauseScreen);
     const buttons = wrapper.findAll('.btn');
