@@ -5,7 +5,7 @@
 | 模式 | 房间 | 世界权威 | 持久化 |
 | --- | --- | --- | --- |
 | 玩家主机 | `room-<uuid>` | 房主浏览器 | 仅当前会话 |
-| 官方星域 | `official-main` | `OfficialRoom` Durable Object | DO SQLite 镜像 + R2 JSON 归档 |
+| 官方星域 | `official-main` | `OfficialRoom` Durable Object | DO SQLite 镜像 + R2 世界及匿名玩家档案 |
 
 公开列表总会包含官方星域；官方对象冷启动或短暂失败时，路由会返回可加入的默认条目，而不是把它从列表中移除。
 
@@ -35,7 +35,7 @@ npm run dev             # 默认 :8787
 
 ## 官方世界归档
 
-官方房间验证 `block_set`，广播 `block_apply`，并把编辑存为 `worlds/official-main/world.json`。编辑在约 15 秒后、或最后一名玩家离开时刷新至 R2；Durable Object SQLite 作为在线镜像。R2 不可用时，官方实时房间仍可运行，但归档接口会报告后端问题。
+官方房间验证 `block_set`，广播 `block_apply`，并把编辑存为 `worlds/official-main/world.json`。同一归档还保存每个匿名浏览器档案的昵称、角色位置、背包、飞船、任务、里程碑和发现；档案不向其他玩家广播。客户端约每 10 秒及离开前同步，Worker 约每 15 秒后、或最后一名玩家离开时刷新至 R2；Durable Object SQLite 作为在线镜像。清除浏览器站点数据会生成新的匿名档案，如需跨设备恢复仍应引入账户认证。R2 不可用时，官方实时房间仍可运行，但归档接口会报告后端问题。
 
 ## 部署
 

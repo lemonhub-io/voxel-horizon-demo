@@ -1,3 +1,12 @@
+import type {
+  Discoveries,
+  InventorySaveData,
+  MilestonesSaveData,
+  MissionsSaveData,
+  PlayerSaveData,
+  ShipSaveData,
+} from '../types';
+
 /** Multiplayer protocol — host-local relay + official DO authority. */
 
 export const MP_PROTOCOL_VERSION = 2;
@@ -31,6 +40,21 @@ export interface EditEntry {
   id: number;
 }
 
+/** Private progress associated with one anonymous official-server profile. */
+export interface OfficialPlayerSave {
+  v: 1;
+  nickname: string;
+  player: PlayerSaveData;
+  inv: InventorySaveData;
+  ship: ShipSaveData;
+  missions: MissionsSaveData;
+  milestones: MilestonesSaveData;
+  discoveries: Discoveries;
+  playTime: number;
+  /** Assigned by the server; clients must not rely on it for ordering. */
+  updatedAt?: number;
+}
+
 /** Messages from browser → DO (relay / host control / official). */
 export type ClientMsg =
   | {
@@ -43,6 +67,8 @@ export type ClientMsg =
       palIdx?: number;
       planetName?: string;
       time?: number;
+      /** Stable, opaque ID stored only in the player's browser. Official mode only. */
+      profileId?: string;
     }
   | { t: 'host_heartbeat'; playerCount: number; planetName: string; seed: number; palIdx: number }
   | { t: 'pose'; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
@@ -62,7 +88,8 @@ export type ClientMsg =
       edits: EditEntry[];
       players: PlayerSnap[];
     }
-  | { t: 'ping'; n: number };
+  | { t: 'ping'; n: number }
+  | { t: 'player_save'; save: OfficialPlayerSave };
 
 /** Messages DO → browser. */
 export type ServerMsg =
@@ -93,6 +120,8 @@ export type ServerMsg =
       players: PlayerSnap[];
       hostId: string;
       mode?: SessionMode;
+      /** Present only in the joining official player's private snapshot. */
+      playerSave?: OfficialPlayerSave;
     }
   | { t: 'pong'; n: number }
   | { t: 'error'; reason: string };

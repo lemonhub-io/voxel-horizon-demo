@@ -61,6 +61,7 @@ async function officialWorld(env: Env): Promise<Response> {
         time: data.time,
         updatedAt: data.updatedAt,
         editChunks: Object.keys(data.edits || {}).length,
+        playerProfiles: Object.keys(data.players || {}).length,
       },
     });
   } catch (error) {

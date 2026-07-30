@@ -351,6 +351,16 @@ body.touch-device .touch-show{display:grid}
 .inv-modal-card .ic-head img{width:64px;height:64px}
 .inv-modal-card .ic-actions{margin-top:18px;display:flex;gap:12px}
 .inv-modal-card .btn{min-width:96px}
+.nickname-prompt{position:fixed;inset:0;z-index:260;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(4,7,12,.84);backdrop-filter:blur(7px)}
+.nickname-card{width:min(420px,92vw);padding:26px;display:flex;flex-direction:column;gap:12px}
+.nickname-card h2{margin:0;font-family:var(--fd);letter-spacing:1px;color:var(--ink)}
+.nickname-card p{margin:0;color:var(--muted);line-height:1.6}
+.nickname-kicker{font:600 11px var(--fh);letter-spacing:2px;color:var(--acc2)}
+.nickname-card label{font:600 12px var(--fh);letter-spacing:1px;color:var(--muted)}
+.nickname-card input{background:rgba(255,255,255,.06);border:1px solid var(--line2);color:var(--ink);padding:10px 12px;font:600 16px var(--fh);letter-spacing:1px;outline:none}
+.nickname-card input:focus{border-color:var(--acc2)}
+.nickname-error{color:var(--danger)!important;font-size:12px}
+.nickname-confirm{align-self:flex-end;min-width:130px}
 #vignette{position:absolute;inset:0;pointer-events:none;z-index:15;background:radial-gradient(ellipse at center,transparent 55%,rgba(2,5,9,.5) 100%)}
 #damage-flash{position:absolute;inset:0;pointer-events:none;z-index:16;box-shadow:inset 0 0 120px rgba(255,40,30,0);transition:box-shadow .12s}
 #damage-flash.hit{box-shadow:inset 0 0 140px rgba(255,40,30,.75)}

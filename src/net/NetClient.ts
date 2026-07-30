@@ -1,6 +1,7 @@
 import {
   MP_POSE_HZ,
   MP_PROTOCOL_VERSION,
+  type OfficialPlayerSave,
   type AnimCode,
   type ClientMsg,
   type ServerMsg,
@@ -110,6 +111,7 @@ export class NetClient {
   sendHello(
     role: 'host' | 'guest' | 'player',
     world?: { seed: number; palIdx: number; planetName: string; time: number },
+    profileId?: string,
   ): void {
     const msg: ClientMsg = {
       t: 'hello',
@@ -123,6 +125,7 @@ export class NetClient {
             time: world.time,
           }
         : {}),
+      ...(profileId ? { profileId } : {}),
     };
     this.send(msg);
   }
@@ -179,6 +182,11 @@ export class NetClient {
 
   sendBlockSet(x: number, y: number, z: number, id: number, seq: number): void {
     this.send({ t: 'block_set', x, y, z, id, seq });
+  }
+
+  /** Private official-server profile sync; never broadcast to peers. */
+  sendPlayerSave(save: OfficialPlayerSave): void {
+    this.send({ t: 'player_save', save });
   }
 
   sendBlockApply(x: number, y: number, z: number, id: number, by: string): void {

@@ -2,6 +2,7 @@ import type { Game } from '../types';
 import { CFG } from '../config';
 import { NetClient, type HostInboxMsg } from './NetClient';
 import { MultiplayerApi } from './MultiplayerApi';
+import { getOfficialProfileId, getPlayerNickname } from './official-profile';
 import { RemotePlayer } from './RemotePlayer';
 import {
   MP_HOST_HEARTBEAT_S,
@@ -9,6 +10,7 @@ import {
   animFromKey,
   type AnimCode,
   type EditEntry,
+  type OfficialPlayerSave,
   type PlayerSnap,
   type ServerMsg,
   type SessionMode,
@@ -28,6 +30,7 @@ export class MultiplayerSession {
   private blockSeq = 0;
   private pendingBlocks = new Map<number, { x: number; y: number; z: number; prev: number }>();
   private heartbeatT = 0;
+  private profileSaveT = 0;
   active = false;
   isHost = false;
   /** 'official' when on the DO-backed public server */
@@ -100,7 +103,7 @@ export class MultiplayerSession {
     this.roomId = status.roomId || OFFICIAL_ROOM_ID;
     this.mode = 'official';
     await this.net.connect(status.wsPath);
-    this.net.sendHello('player');
+    this.net.sendHello('player', undefined, getOfficialProfileId());
     this.active = true;
     this.isHost = false;
     return snapPromise;
@@ -149,6 +152,7 @@ export class MultiplayerSession {
   }
 
   leave(): void {
+    this.saveOfficialPlayer(true);
     this.active = false;
     this.isHost = false;
     this.mode = 'host-local';
@@ -160,6 +164,7 @@ export class MultiplayerSession {
     this.myId = '';
     this.roomId = '';
     this.hostId = null;
+    this.profileSaveT = 0;
   }
 
   private clearRemotes(): void {
@@ -210,6 +215,35 @@ export class MultiplayerSession {
       });
     }
     return list;
+  }
+
+  private buildOfficialPlayerSave(): OfficialPlayerSave | null {
+    const g = this.game;
+    if (!g?.player || !g.inv || !g.ship || !g.missions || !g.milestones) return null;
+    return {
+      v: 1,
+      nickname: getPlayerNickname() || '远行者',
+      player: g.player.serialize(),
+      inv: g.inv.serialize(),
+      ship: g.ship.serialize(),
+      missions: g.missions.serialize(),
+      milestones: g.milestones.serialize(),
+      discoveries: {
+        planets: g.discoveries.planets.map((planet) => ({ ...planet })),
+        entries: g.discoveries.entries.map((entry) => ({ ...entry })),
+      },
+      playTime: g.playTime,
+    };
+  }
+
+  /** Queue this official player's private progress for DO/R2 persistence. */
+  saveOfficialPlayer(force = false): void {
+    if (!this.active || !this.isOfficial || !this.net.connected) return;
+    if (!force && this.profileSaveT < 10) return;
+    const save = this.buildOfficialPlayerSave();
+    if (!save) return;
+    this.profileSaveT = 0;
+    this.net.sendPlayerSave(save);
   }
 
   private sendSnapshotTo(guestId: string): void {
@@ -474,6 +508,10 @@ export class MultiplayerSession {
       anim,
       flags: p.inShip ? 1 : 0,
     });
+    if (this.isOfficial) {
+      this.profileSaveT += dt;
+      this.saveOfficialPlayer();
+    }
 
     for (const r of this.remotes.values()) r.update(dt);
   }

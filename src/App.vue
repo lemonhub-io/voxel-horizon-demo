@@ -12,6 +12,8 @@
     @settings="showSettings = true"
   />
 
+  <NicknamePrompt v-if="nicknameRequired" @confirm="onNicknameConfirm" />
+
   <div v-if="engineLoading" id="engine-loading" role="status" aria-live="polite">
     <div class="engine-loading__spinner"></div>
     <div>{{ engineLoadingText }}</div>
@@ -107,6 +109,8 @@ import PlanetCard from './components/PlanetCard.vue';
 import MilestonePopup from './components/MilestonePopup.vue';
 import SaveSlotScreen from './components/SaveSlotScreen.vue';
 import MultiplayerLobbyScreen from './components/MultiplayerLobbyScreen.vue';
+import NicknamePrompt from './components/NicknamePrompt.vue';
+import { getPlayerNickname, savePlayerNickname } from './net/official-profile';
 
 const game = useGameStore();
 const player = usePlayerStore();
@@ -114,6 +118,7 @@ const inv = useInventoryStore();
 const ship = useShipStore();
 const hud = useHudStore();
 const damageFlash = ref(false);
+const nicknameRequired = ref(!getPlayerNickname());
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 const {
   hasSave,
@@ -155,6 +160,10 @@ const {
   onRespawn,
   onWipe,
 } = useGameFlow(titleRef);
+
+function onNicknameConfirm(nickname: string): void {
+  if (savePlayerNickname(nickname)) nicknameRequired.value = false;
+}
 
 function triggerDamageFlash() {
   damageFlash.value = true;

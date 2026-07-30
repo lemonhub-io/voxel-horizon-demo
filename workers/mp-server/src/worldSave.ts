@@ -5,6 +5,7 @@ import {
   OFFICIAL_DEFAULT,
   R2_WORLD_KEY,
   type EditEntry,
+  type OfficialPlayerSaveV1,
   type WorldSaveV1,
 } from './protocol';
 import { r2ConfigFromEnv, s3GetJson, s3PutJson, type R2S3Config } from './r2S3';
@@ -17,6 +18,7 @@ export function defaultWorldSave(): WorldSaveV1 {
     planetName: OFFICIAL_DEFAULT.planetName,
     time: OFFICIAL_DEFAULT.time,
     edits: {},
+    players: {},
     updatedAt: Date.now(),
   };
 }
@@ -28,6 +30,7 @@ export function isWorldSaveV1(value: unknown): value is WorldSaveV1 {
   if (typeof v.seed !== 'number' || typeof v.palIdx !== 'number') return false;
   if (typeof v.planetName !== 'string' || typeof v.time !== 'number') return false;
   if (!v.edits || typeof v.edits !== 'object' || Array.isArray(v.edits)) return false;
+  if (v.players !== undefined && (typeof v.players !== 'object' || v.players === null || Array.isArray(v.players))) return false;
   return true;
 }
 
@@ -89,6 +92,7 @@ export function applyEditEntry(
 export function worldToSave(
   meta: { seed: number; palIdx: number; planetName: string; time: number },
   edits: Map<string, Map<number, number>>,
+  players: Record<string, OfficialPlayerSaveV1> = {},
 ): WorldSaveV1 {
   return {
     v: 1,
@@ -97,6 +101,7 @@ export function worldToSave(
     planetName: meta.planetName,
     time: meta.time,
     edits: editsMapToRecord(edits),
+    players,
     updatedAt: Date.now(),
   };
 }

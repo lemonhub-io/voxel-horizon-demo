@@ -5,6 +5,7 @@
 
 import * as THREE from 'three/webgpu';
 import type { InputState, Settings, SaveData, Palette, PlanetInfo, Discoveries } from './types';
+import type { OfficialPlayerSave } from './net/protocol';
 import { U } from './utils';
 import { PALETTES } from './config';
 import { TextureAtlas } from './atlas';
@@ -261,6 +262,7 @@ export class Game {
       planetName: string;
       seed: number;
       palIdx: number;
+      playerSave?: OfficialPlayerSave;
     },
     notify: string,
   ): void {
@@ -275,8 +277,44 @@ export class Game {
       ? { x: hostSnap.x, y: hostSnap.y, z: hostSnap.z, yaw: hostSnap.yaw }
       : null;
     this.planetName = snap.planetName;
-    this.beginLoad(snap.seed, snap.palIdx, null);
+    this.beginLoad(snap.seed, snap.palIdx, this.officialPlayerSaveToSaveData(snap));
     this.stores.hud.addNotification(notify, 'success');
+  }
+
+  /** Combine the shared official world snapshot with this player's private R2 profile. */
+  private officialPlayerSaveToSaveData(
+    snap: {
+      edits: import('./net/protocol').EditEntry[];
+      time: number;
+      seed: number;
+      palIdx: number;
+      planetName: string;
+      playerSave?: OfficialPlayerSave;
+    },
+  ): SaveData | null {
+    const profile = snap.playerSave;
+    if (!profile) return null;
+    const edits: Record<string, number[]> = {};
+    for (const edit of snap.edits) {
+      const key = `${edit.cx},${edit.cz}`;
+      const packed = edits[key] || (edits[key] = []);
+      packed.push(edit.idx, edit.id);
+    }
+    return {
+      v: 1,
+      seed: snap.seed,
+      palIdx: snap.palIdx,
+      planetName: snap.planetName,
+      time: snap.time,
+      playTime: profile.playTime,
+      player: profile.player,
+      inv: profile.inv,
+      ship: profile.ship,
+      missions: profile.missions,
+      milestones: profile.milestones,
+      discoveries: profile.discoveries,
+      edits,
+    };
   }
 
   private clearPendingMp(): void {
@@ -635,6 +673,7 @@ export class Game {
       // Public co-op: skip typewriter intro and drop into play.
       if (this.mp) this.mp.bind(this);
       this.startPlay();
+      if (this.mp?.isOfficial) this.mp.saveOfficialPlayer(true);
       {
         const mpMode = multiplayer.mode;
         const tip =

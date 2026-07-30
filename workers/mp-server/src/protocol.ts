@@ -42,6 +42,33 @@ export interface EditEntry {
   id: number;
 }
 
+/** Private official-server progress stored per opaque browser profile ID. */
+export interface OfficialPlayerSaveV1 {
+  v: 1;
+  nickname: string;
+  player: {
+    pos: number[];
+    yaw: number;
+    pitch: number;
+    hp: number;
+    hazard: number;
+    ls: number;
+    flash?: boolean;
+  };
+  inv: {
+    slots: ({ id: string; n: number } | null)[];
+    hotbar: ({ id: string; n: number } | null)[];
+    sel: number;
+    units: number;
+  };
+  ship: { pos: number[]; rotY: number; fuel: number; thruster: boolean; pulse: boolean };
+  missions: { idx: number; scanner: boolean; shelter?: number; launched?: boolean };
+  milestones: { stats: Record<string, number>; awarded: Record<string, number> };
+  discoveries: { planets: unknown[]; entries: unknown[] };
+  playTime: number;
+  updatedAt?: number;
+}
+
 /** Persistent world blob in R2 (+ DO SQLite mirror). */
 export interface WorldSaveV1 {
   v: 1;
@@ -51,6 +78,8 @@ export interface WorldSaveV1 {
   time: number;
   /** chunkKey "cx,cz" → flat [idx, id, idx, id, ...] */
   edits: Record<string, number[]>;
+  /** Optional for backward compatibility with world-only v1 archives. */
+  players?: Record<string, OfficialPlayerSaveV1>;
   updatedAt: number;
 }
 
@@ -64,6 +93,7 @@ export type ClientMsg =
       palIdx?: number;
       planetName?: string;
       time?: number;
+      profileId?: string;
     }
   | { t: 'host_heartbeat'; playerCount: number; planetName: string; seed: number; palIdx: number }
   | { t: 'pose'; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
@@ -81,7 +111,8 @@ export type ClientMsg =
       edits: EditEntry[];
       players: PlayerSnap[];
     }
-  | { t: 'ping'; n: number };
+  | { t: 'ping'; n: number }
+  | { t: 'player_save'; save: OfficialPlayerSaveV1 };
 
 export type ServerMsg =
   | {
@@ -111,6 +142,8 @@ export type ServerMsg =
       players: PlayerSnap[];
       hostId: string;
       mode?: SessionMode;
+      /** Sent only to the matching official-profile connection. */
+      playerSave?: OfficialPlayerSaveV1;
     }
   | { t: 'pong'; n: number }
   | { t: 'error'; reason: string };
