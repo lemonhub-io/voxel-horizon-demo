@@ -5,8 +5,8 @@ For game-design / systems detail, see `CLAUDE.md` and `README.md`.
 
 ## Project shape
 
-- Single package (not a monorepo). TS + Vite + Vue 3 + Pinia + Three.js r185 (WebGPU build).
-- Engine (`src/main.ts`) and Vue UI (`src/App.vue`, `src/components/`) are split; `src/stores/` Pinia stores are the bridge.
+- Frontend package plus two self-contained Worker packages under `workers/` (not an npm workspace). Frontend: TS + Vite + Vue 3 + Pinia + Three.js r185 (WebGPU build).
+- Engine (`src/main.ts`) and Vue UI (`src/App.vue`, `src/components/`) are split; `src/stores/` Pinia stores are the bridge, while `src/composables/` owns cross-screen flows.
 - No CI workflows directory (`.github/` absent) — the `typecheck → lint → test → build` checklist from `CONTRIBUTING.md` is enforced at PR-review time only.
 
 ## Commands (require `npm install` first)
@@ -34,19 +34,19 @@ Non-obvious:
 
 - Engine modules import directly from **`three/webgpu`** (not `three`) and use that namespace as the bare `THREE` global via `src/types.ts` (`import type * as THREE from 'three/webgpu'` + `declare global { namespace THREE {...} }`). `src/vue-main.ts` ties engine init to Vue via `src/engine-loader.ts`, which lazily `await import('./main')` only when the player starts/continues a game — **do not** statically `import from './main'` in App/UI code or you'll pull the whole Three.js + WebGPU graph into the initial chunk and break lazy load.
 - `@types/three` is pinned at `^0.185.1` (matched to the installed `three@0.185.x`). Type declarations for `three/addons/...` (CSM, GTAO, SkyMesh, GLTFLoader, etc.) live as ambient `declare module` blocks in **`src/env.d.ts`** — this is the source of truth, do not install separate `@types/three/*` packages.
-- `window.game` is the runtime `Game` singleton, set in `vue-main.ts`.
+- `window.game` is the runtime `Game` singleton, set only after lazy engine creation in `engine-loader.ts`. UI code reaches it through `src/runtime/game-runtime.ts` rather than reading the window global directly.
 
 ## Engine ↔ UI data flow
 
 - `main.ts` is the engine only — **no DOM UI**. All screens are Vue components.
 - Engine writes to Pinia via `this.stores.*`. `Game._stores` is lazily initialized inside `_getStores()`. Accessing `this.stores` before Pinia is installed throws — keep Pinia init order in `vue-main.ts`.
 - `Inventory` (`src/inventory.ts`) and `Ship` (`src/ship.ts`) expose explicit `syncStore()` methods. Call these after mutating engine-side state so the Vue UI reflects it; existing call sites in `player.ts`/`missions.ts` show the pattern.
-- Vue components read stores and route user actions back to the engine via `(window as unknown as { game }).game`.
-- `App.vue` is the screen router keyed on `game.state`. Adding a screen = new component + `v-if` block in `App.vue`.
+- Vue components read stores and route user actions through `runtime/game-runtime.ts` or a focused composable.
+- `App.vue` is the screen router keyed on `game.state`; `useGameFlow`, `useSaveSlots`, and `useMultiplayerLobby` own startup, saves, and lobby state. Add a screen as a component plus its `v-if` block, keeping orchestration out of the view.
 
 ## Tests
 
-- Test counts drift as the project grows — run `npm run test` for the current number instead of trusting a pinned figure. Files live in `src/__tests__/`, plus `src/__tests__/components/` and `src/__tests__/stores/`.
+- Test counts drift as the project grows — run `npm run test` for the current number instead of trusting a pinned figure. Files live in `src/__tests__/`, plus `components/`, `stores/`, `composables/`, `net/`, and `runtime/` subdirectories.
 - Engine classes read the **global `THREE`** and WebGL/canvas APIs, which `happy-dom` does not provide. Tests must install a THREE mock before importing the class under test:
   - Helper: `import { createThreeMock } from './helpers/three-mock'` (adjust path), then call `createThreeMock()` at the top of the file. See `ship.test.ts`, `hud.test.ts`, `missions.test.ts`.
   - For narrow cases you can inline a smaller `(globalThis as Record<string, unknown>).THREE = { ... }` (see `world.test.ts`).

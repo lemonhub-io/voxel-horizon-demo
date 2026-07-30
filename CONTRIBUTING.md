@@ -1,137 +1,54 @@
 # 贡献指南
 
-感谢你对方界深空的关注！以下是参与项目开发的指南。
+感谢你改进方界深空。提交前请以仓库中的脚本和本文档为准；游戏与界面的面向用户文案使用简体中文。
 
-## 开发环境
+## 环境与启动
 
-### 前置条件
-
-- Node.js ≥ 18
-- npm ≥ 9
-- Git
-- 推荐 VS Code + Vue - Official 扩展
-
-### 快速开始
+使用 Node.js `^20.19.0` 或 `>=22.12.0`，然后执行：
 
 ```bash
-# Fork 并克隆仓库
-git clone https://github.com/YOUR_USERNAME/voxel-horizon-demo.git
-cd voxel-horizon-demo
-
-# 安装依赖
 npm install
-
-# 启动开发服务器（自动打开浏览器）
 npm run dev
 ```
 
-## 开发流程
+联机 Worker 与 R2 CDN Worker 各自是独立的 npm 包。首次进入相应目录时需分别执行 `npm install`。
 
-### 分支策略
+## 开发检查
 
-- `main` — 稳定版本
-- `feat/*` — 新功能
-- `fix/*` — Bug 修复
-- `docs/*` — 文档更新
-- `test/*` — 测试补充
+前端改动提交前依次运行：
 
-### 提交规范
-
-使用 [Conventional Commits](https://www.conventionalcommits.org/) 格式：
-
-```
-<type>(<scope>): <description>
-
-[optional body]
-[optional footer]
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
 ```
 
-类型：
-- `feat` — 新功能
-- `fix` — Bug 修复
-- `docs` — 文档
-- `style` — 格式调整（不影响逻辑）
-- `refactor` — 重构
-- `test` — 测试
-- `chore` — 构建/工具链
+修改 Worker 时还应运行：
 
-示例：
-```
-feat(inventory): 添加物品堆叠合并功能
-fix(audio): 修复 Web Audio API 的 NaN 崩溃
-test(ship): 添加飞船组件修复测试
+```bash
+npm run typecheck --prefix workers/mp-server
+npm run typecheck --prefix workers/r2-cdn-proxy
 ```
 
-## 代码规范
+`npm run lint` 与格式化脚本只作用于 `src/`；根目录配置、Worker 和文档需要自行复核。不要将 `dist/`、`coverage/`、`node_modules/` 或 `workers/*/.wrangler-out/` 提交进仓库。
 
-### TypeScript
+## 代码与测试
 
-- **严格模式**，禁止 `any` 类型
-- 所有变量、参数、返回值必须有明确类型
-- 使用 `import type` 导入纯类型
+- TypeScript 开启 strict；避免 `any`，类型专用导入使用 `import type`。
+- Vue 组件使用 `<script setup>` 与 Composition API；组件名用 PascalCase。
+- 引擎模块从 `three/webgpu` 导入。UI 不应静态导入 `src/main.ts`，请经 `engine-loader.ts` 懒加载。
+- 引擎状态通过 Pinia 同步到界面；读取浏览器运行时引擎请使用 `src/runtime/game-runtime.ts`，不要在视图中直接访问 `window.game`。
+- 新功能添加对应测试；修复缺陷添加回归测试。Three.js 相关测试先安装 `createThreeMock()`；存档测试复用 OPFS mock。详见[测试指南](docs/testing.md)。
 
-### Vue
+## 提交与 Pull Request
 
-- 使用 Composition API + `<script setup>`
-- 组件名使用 PascalCase
-- Props 使用 TypeScript 类型声明
+分支使用 `feat/*`、`fix/*`、`docs/*` 或 `test/*`。提交遵循 Conventional Commits，例如：
 
-### 测试
-
-- 新功能必须附带测试
-- Bug 修复必须附带回归测试
-- 运行 `npm run test` 确保所有测试通过
-- 运行 `npm run lint` 确保无 ESLint 错误
-
-## 提交 PR
-
-1. Fork 仓库
-2. 创建功能分支：`git checkout -b feat/my-feature`
-3. 提交更改：`git commit -m "feat: add my feature"`
-4. 推送分支：`git push origin feat/my-feature`
-5. 创建 Pull Request
-
-### PR 检查清单
-
-- [ ] `npm run typecheck` — 零类型错误
-- [ ] `npm run lint` — 零 ESLint 错误
-- [ ] `npm run test` — 所有测试通过
-- [ ] `npm run build` — 构建成功
-- [ ] 新功能附带测试
-- [ ] 中文 UI 字符串风格一致
-
-## 架构概述
-
-### 核心模式
-
-- **游戏引擎** (`main.ts`) — Three.js 渲染 + 游戏循环，写入 Pinia stores
-- **Vue UI** (`components/`) — 从 Pinia stores 读取状态，响应式渲染
-- **Pinia Stores** (`stores/`) — 桥接引擎和 UI 的状态层
-
-### 数据流
-
-```
-游戏引擎 (main.ts)
-    ↓ 写入
-Pinia Stores (stores/)
-    ↓ 读取
-Vue 组件 (components/)
-    ↓ 事件
-游戏引擎
+```text
+feat(multiplayer): show official server status
+fix(save): recover stale slot metadata
+docs(deploy): document Worker secrets
 ```
 
-### 关键约定
-
-- `this.g` — 游戏引擎中引用 Game 实例
-- `this.stores` — Game 实例中访问 Pinia stores
-- `syncStore()` — 引擎方法，同步状态到 Pinia
-- 所有 UI 字符使用简体中文
-
-## 问题反馈
-
-- [GitHub Issues](https://github.com/lemonhub-io/voxel-horizon-demo/issues)
-- 使用中文或英文提交均可
-
-## 许可证
-
-提交即表示你同意将代码以 [MIT License](LICENSE) 发布。
+PR 请说明目的、影响范围和验证命令；关联 Issue。涉及界面或触摸操作时附截图或录屏；涉及 Worker 时说明部署目标、配置变量与是否迁移 Durable Object。不要在 Issue、PR 或提交中包含 API 密钥、R2 凭据或存档数据。

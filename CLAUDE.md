@@ -1,109 +1,36 @@
-# CLAUDE.md
+# Claude Code 项目说明
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为在此仓库工作的 Claude Code 提供简明、与当前实现一致的上下文。通用协作规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，详细设计见 [docs/architecture.md](docs/architecture.md)。
 
-## Project Overview
-
-Voxel Horizon (方界深空) is a browser-based 3D voxel exploration/survival game inspired by No Man's Sky. The player explores procedurally generated voxel planets, mines resources, crafts items, repairs a crashed starship, and warps to new planets. All UI text is in Simplified Chinese.
-
-## Development
+## 快速命令
 
 ```bash
-npm install         # install dependencies
-npm run dev         # start Vite dev server with HMR
-npm run build       # production build → dist/
-npm run preview     # preview production build
-npm run typecheck   # type-check only (no output)
-npm run lint        # ESLint check
-npm run lint:fix    # ESLint auto-fix
-npm run format      # Prettier format
-npm run test        # run tests (~199 tests)
-npm run test:coverage # coverage report
-node scripts/generate-icons.mjs  # regenerate PWA/favicon square icons
+npm install
+npm run dev
+npm run typecheck && npm run lint && npm run test && npm run build
+npm run mp:dev                 # 联机 Worker，:8787
+npm run cdn:dev                # R2 CDN Worker，:8790
 ```
 
-Three.js r185 is installed via npm, bundled by Vite. WebGPU renderer with WebGL2 fallback. Production builds register a service worker (`src/pwa.ts` + `public/sw.js`).
+Vite 8 要求 Node.js `^20.19.0` 或 `>=22.12.0`。Worker 是独立 npm 包；首次运行其命令前在对应目录执行 `npm install`。
 
-## Architecture
+## 关键边界
 
-TypeScript (strict mode, no `any`) with Vite. Vue 3 + Pinia for UI. Three.js r185 with WebGPU/TSL. Entry point is `src/vue-main.ts`.
+- `src/vue-main.ts` 先安装 Pinia，再挂载 Vue。游戏引擎由 `src/engine-loader.ts` 动态导入，避免把 Three.js/WebGPU 拉入标题页初始包。
+- `src/main.ts` 是引擎；Vue 屏幕位于 `src/App.vue` 和 `src/components/`。Pinia store 是引擎写入、UI 读取的状态桥。
+- UI 通过 `src/runtime/game-runtime.ts` 获取惰性创建的 `Game` 实例。不要在组件中直接读取 `window.game`，也不要静态导入 `main.ts`。
+- `src/composables/` 承担屏幕流程、存档、联机大厅和触摸/HUD 逻辑；新增交互优先放入恰当的 composable，而非继续扩大 `App.vue`。
+- 引擎代码使用 `three/webgpu` 与全局 `THREE` 类型声明。对 `three/addons` 的环境声明在 `src/env.d.ts`，不要安装额外的 `@types/three/*` 包。
 
-### Core Classes and Objects
+## 状态、存档与联机
 
-| Class/Object | File | Role |
-|---|---|---|
-| `Game` | main.ts | Central state machine, main loop, input routing |
-| `Input` | main.ts | Keyboard/mouse state |
-| `World` | world.ts | Chunk-based voxel terrain (16×64×16 chunks) |
-| `Player` | player.ts | First-person controller, survival mechanics |
-| `Ship` | ship.ts | Starship, flight physics, launch/land/warp |
-| `Inventory` | inventory.ts | Item storage, crafting, hotbar |
-| `HUD` | hud.ts | Compass canvas, marker management |
-| `Sky` | sky.ts | Soft TSL skydome + sun disc, directional light, CSM |
-| `Starfield` | starfield.ts | 2D canvas star overlay |
-| `FX` | effects.ts | InstancedMesh debris, laser beam, shake, warp |
-| `Fauna` | entities.ts | Creature AI (generation gated by `Fauna.SPAWN_DISABLED`) |
-| `AudioEngine` | audio.ts | Web Audio API procedural sound |
-| `TextureAtlas` | atlas.ts | 32×32 procedural texture atlas |
-| `PostFX` | postfx.ts | CSS health vignette / letterbox |
-| `PostProcessing` | post-processing.ts | WebGPU cinematic pipeline (GTAO/Bloom/grade/FXAA) |
-| `Missions` | missions.ts | Quest progression + milestones |
-| `Save` | save.ts | OPFS multi-slot save system |
+- 引擎修改库存、飞船等状态后调用其 `syncStore()`，保证 Pinia 反映最新值。
+- 本地存档使用 OPFS，最多十个槽；设置保存在 `localStorage`。联机不写入本地游戏存档。
+- `MultiplayerApi` 负责 HTTP 房间发现，`NetClient` 负责 WebSocket，`MultiplayerSession` 组合两者。
+- 玩家主机房间的世界权威在房主浏览器；官方房间 `official-main` 的权威在 Durable Object，并异步归档至 R2。参见 `workers/mp-server/README.md`。
 
-### Key Patterns
+## 测试与风格
 
-- **All state lives on `Game` or its sub-instances.** `window.game` is the singleton.
-- **Mostly procedural.** Textures, terrain, audio, names from seeds; optional CC0 glTF models under `public/models/cc0/` (skinned fauna must use `SkeletonUtils.clone` via `cc0-models.ts`).
-- **Palettes drive the planet.** `PALETTES` in config.ts defines 4 biome types. Each specifies colors, hazard type, tree types, flora/fauna density, and storm behavior.
-- **Block/item definitions are data-driven.** `B` enum → `BLOCK_DEF` array. `ITEMS` object. `RECIPES` array. All in config.ts. Graphics knobs: `CFG.CSM`, `CFG.SSAO`, `CFG.BLOOM`, `CFG.CINEMATIC`, `CFG.POST`.
-- **ES modules with Vue.** Entry point `src/vue-main.ts` bootstraps Vue + Pinia + Game engine + PWA registration.
-- **Pinia stores bridge engine and UI.** Game engine writes to stores, Vue components read reactively.
-- **Chinese UI.** All user-facing strings are in Simplified Chinese.
-- **TSL shaders.** Soft sky dome and cinematic post stack use Three.js Shading Language for WebGPU.
-
-### Game State Machine
-
-`Game.state` controls what runs in the main loop:
-- `title` — title screen with star canvas animation
-- `loading` — chunk pregeneration with progress bar
-- `intro` — typewriter intro sequence (click to skip)
-- `play` — active gameplay (player, world, fauna, storms, auto-save every 60s)
-- `pause` — paused, pointer lock released
-- `dead` — death screen, respawn available
-- `warp` — interplanetary warp sequence (timed, ~5s total)
-
-### World/Chunk System
-
-- Chunks: 16×64×16 voxels. Terrain height generated via `SimplexNoise` with palette-specific parameters.
-- **Ores:** ferrite forms shallow dual-noise veins / surface outcrops (depth 0–9); copper remains deeper stone veins. Do not place ferrite as isolated props on grass.
-- `World.edits` is a `Map<string, Map<number, number>>` tracking player block modifications.
-- `World.update(px, pz, radius)` loads/unloads chunks around the player. Render distance is configurable (3-6 chunks).
-- Block meshing uses face culling with ambient occlusion and palette-colored UVs from the texture atlas.
-
-### Save System
-
-- Uses **OPFS (Origin Private File System)** for multi-slot saves
-- `Save.save(game, slot?)` — async write to `saves/slot-N.json`
-- `Save.load(slot?)` — async read
-- `Save.listSlots()` — list all save metadata
-- Settings stored in localStorage (sync)
-- Auto-save every 60 seconds during play
-
-### Rendering Pipeline
-
-- **Three.js r185** with `WebGPURenderer` (auto WebGL2 fallback)
-- **Soft TSL sky** — palette gradient dome + sun disc/halo (`sky.ts`); 2D starfield at night
-- **CSM** — `CSMShadowNode` on directional sun light (`CFG.CSM`, near/mid/far)
-- **Cinematic post** — GTAO → Bloom → grade → vignette → grain → ACES → FXAA (`post-processing.ts`)
-- **PBR materials** — `MeshStandardMaterial` with roughness/metalness + atlas normals
-- **Tone mapping** — ACES Filmic, exposure ≈ 0.9
-- **32×32 pixel textures** — NearestFilter mag + LinearMipmapLinearFilter min
-- **CSS overlays** — health vignette, light letterbox (`postfx.ts`)
-
-## Important Conventions
-
-- **TypeScript strict mode.** No `any` types. All variables, parameters, and return types must be explicitly annotated or inferrable.
-- **Three.js r185 API.** Uses `WebGPURenderer`, `TSL` node materials, `outputColorSpace = SRGBColorSpace`. THREE is loaded via `three-setup.ts` and set as a global.
-- **Module references.** Classes reference each other through `this.g` (game reference passed in constructor) and explicit imports.
-- **Seed-based generation.** Use `U.mulberry32(seed)` for seeded RNG, `U.rand(min, max)` / `U.randi(min, max)` for unseeded.
-- **Type declarations.** Shared interfaces are in `src/types.ts` with `export`. THREE.js types are declared via `declare global { namespace THREE { ... } }`.
+- 测试在 `src/__tests__/`；不要写死测试数量。`happy-dom` 不提供 Three.js/WebGL，相关测试需在导入被测模块前调用 `createThreeMock()`。
+- TypeScript strict；不用 `any`；类型导入用 `import type`。Vue 使用 `<script setup>` 与 Composition API。
+- 用户可见文案使用简体中文。除 `public/models/cc0/` 的已许可模型外，不要添加预制图像或音频资产。
