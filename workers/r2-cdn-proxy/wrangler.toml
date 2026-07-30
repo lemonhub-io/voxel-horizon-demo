@@ -1,0 +1,19 @@
+# Deploy to FIRST account (Lemonhub / e28c0202…) via default OAuth login.
+# R2 lives on a separate account — accessed via S3-compatible API + secrets.
+name = "r2-cdn-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-04-07"
+account_id = "e28c02029d0b99ca5d7f0baf95de7519"
+workers_dev = true
+
+[dev]
+port = 8790
+
+# Optional: bind custom domain in dashboard / wrangler later
+# routes = [{ pattern = "cdn.mzhub.space/*", zone_name = "mzhub.space" }]
+
+[vars]
+# Default bucket on the R2 account (override per-request with ?bucket= or /b/{bucket}/)
+R2_BUCKET = "lemonhub-cdn"
+# Public cache default for immutable-ish assets
+CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"

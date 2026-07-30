@@ -17,7 +17,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "mp:dev": "npm run dev --prefix workers/mp-server",
-    "mp:deploy": "npm run deploy --prefix workers/mp-server"
+    "mp:deploy": "npm run deploy --prefix workers/mp-server",
+    "cdn:deploy": "npm run deploy --prefix workers/r2-cdn-proxy",
+    "cdn:dev": "npm run dev --prefix workers/r2-cdn-proxy"
   },
   "repository": {
     "type": "git",
