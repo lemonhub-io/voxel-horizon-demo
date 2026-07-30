@@ -26,6 +26,8 @@ App.vue / components → composables → engine-loader.ts → Game (main.ts)
 
 引擎从 `three/webgpu` 导入 Three.js r185；WebGPU 不可用时降级 WebGL2。世界、纹理、音频和名称由种子生成。仅 `public/models/cc0/` 保存可选的 CC0 glTF/GLB 模型，许可见该目录的 `ASSETS.md`。PWA 入口在 `src/pwa.ts`；`public/sw.js` 负责版本化的离线壳和运行时缓存。
 
+在原生 WebGPU 后端，`world.ts` 把每个区块的 CPU 体素数据连同一格边界上传给 `gpu-mesh.ts`。计算着色器仅提取不透明方块的可见面，并把紧凑面记录直接交给间接实例绘制；因此挖掘或批量生成不会在 CPU 上扩张顶点和索引缓冲。镂空方块与水面仍使用 CPU 网格，以保留现有的 alpha 裁切和透明排序。WebGL2、后端检测失败或 GPU 调度错误均会恢复 CPU 不透明网格，不影响碰撞、射线检测、存档和联机——这些状态始终以 CPU 区块数据为准。可在 `CFG.GPU_MESH.mode` 中设为 `off` 停用，或设为 `force` 输出回退警告以便排查设备问题。
+
 ## 联机架构
 
 ```text
@@ -37,7 +39,7 @@ App.vue / components → composables → engine-loader.ts → Game (main.ts)
                                             DO SQLite + R2 归档
 ```
 
-`MultiplayerApi` 与 `NetClient` 分别处理发现/创建 API 与 WebSocket 传输，`MultiplayerSession` 负责会话组合。玩家主机房间的世界快照由房主提供；官方 `official-main` 验证并广播方块编辑，约每 15 秒或最后一名玩家离开时归档到 R2。
+`MultiplayerApi` 与 `NetClient` 分别处理发现/创建 API 与 WebSocket 传输，`MultiplayerSession` 负责会话组合。玩家主机房间的世界快照由房主提供；官方 `official-main` 验证并广播方块编辑，约每 15 秒或最后一名玩家离开时归档到 R2。官方模式还会用保存在浏览器 localStorage 的随机匿名 ID 查找私有玩家档案；档案随世界归档，但只回传给对应连接。
 
 ## 保存与配置
 

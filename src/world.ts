@@ -7,6 +7,7 @@ import { Fn, If, Loop, float, int, normalMap, positionViewDirection, texture, uv
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import { U, SimplexNoise } from './utils';
 import { CFG, B, BLOCK_DEF } from './config';
+import { buildGpuMeshChunkPayload, detectGpuMeshCapability, GpuMeshChunkCompute } from './gpu-mesh';
 import type { Game, Palette, RaycastResult, ScanTarget, MeshBuffers } from './types';
 
 export class Chunk {
@@ -39,6 +40,10 @@ export class World {
   genQueue: Chunk[];
   meshQueue: Chunk[];
   meshQueueSet: Set<Chunk>;
+  private _gpuMeshQueue: Chunk[];
+  private _gpuMeshQueueSet: Set<Chunk>;
+  private _gpuMeshes: Map<Chunk, GpuMeshChunkCompute>;
+  private _gpuMeshDisabled: boolean;
   lampLights: THREE.PointLight[];
   lampPool: THREE.PointLight[];
   heightCache: Map<string, number>;
@@ -67,6 +72,10 @@ export class World {
     this.genQueue = [];
     this.meshQueue = [];
     this.meshQueueSet = new Set();
+    this._gpuMeshQueue = [];
+    this._gpuMeshQueueSet = new Set();
+    this._gpuMeshes = new Map();
+    this._gpuMeshDisabled = false;
     this.lampLights = [];
     this.lampPool = [];
     this.heightCache = new Map();
@@ -379,6 +388,66 @@ export class World {
     return 1;
   }
 
+  /**
+   * A renderer can expose WebGPURenderer while still selecting WebGL2, so the
+   * feature gate checks the active backend before CPU opaque meshes are hidden.
+   */
+  private _gpuMeshEnabled(): boolean {
+    if (CFG.GPU_MESH.mode === 'off' || this._gpuMeshDisabled) return false;
+    const capability = detectGpuMeshCapability(this.g.renderer);
+    if (capability.supported) return true;
+    this._gpuMeshDisabled = true;
+    if (CFG.GPU_MESH.mode === 'force') console.warn(`GPU 网格生成已回退：${capability.reason}`);
+    return false;
+  }
+
+  /**
+   * Coalescing rebuilds avoids uploading an obsolete halo for every edit in a
+   * burst, which matters most when the player mines along chunk boundaries.
+   */
+  private _queueGpuMesh(chunk: Chunk): void {
+    if (this._gpuMeshQueueSet.has(chunk)) return;
+    this._gpuMeshQueueSet.add(chunk);
+    this._gpuMeshQueue.push(chunk);
+  }
+
+  /**
+   * Releasing both the mesh and storage buffers together prevents culled
+   * chunks from retaining GPU allocations after their CPU data is evicted.
+   */
+  private _releaseGpuMesh(chunk: Chunk): void {
+    const resource = this._gpuMeshes.get(chunk);
+    if (!resource) return;
+    if (resource.renderMesh) this.group.remove(resource.renderMesh);
+    resource.dispose();
+    this._gpuMeshes.delete(chunk);
+    this._gpuMeshQueueSet.delete(chunk);
+  }
+
+  private _dispatchGpuMeshes(): void {
+    if (!this._gpuMeshEnabled()) return;
+    let jobs = 0;
+    while (this._gpuMeshQueue.length && jobs < CFG.GPU_MESH.maxJobsPerFrame) {
+      const chunk = this._gpuMeshQueue.shift()!;
+      this._gpuMeshQueueSet.delete(chunk);
+      const resource = this._gpuMeshes.get(chunk);
+      if (!resource) continue;
+      try {
+        resource.dispatch(this.g.renderer);
+        jobs++;
+      } catch (error) {
+        this._releaseGpuMesh(chunk);
+        this._gpuMeshDisabled = true;
+        // A failed experimental dispatch must restore the trusted mesh on the
+        // next queue pass instead of leaving a hole in the terrain.
+        chunk.dirty = true;
+        this.meshQueueSet.add(chunk);
+        this.meshQueue.push(chunk);
+        console.warn('GPU 网格生成已回退到 CPU 网格', error);
+      }
+    }
+  }
+
   buildMesh(chunk: Chunk): void {
     for (const m of chunk.meshes) { this.group.remove(m); m.geometry.dispose(); }
     chunk.meshes = [];
@@ -386,6 +455,7 @@ export class World {
     const cutout: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [], sway: [] };
     const water: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [] };
     const ox = chunk.cx * 16, oz = chunk.cz * 16;
+    const useGpuOpaque = this._gpuMeshEnabled() && this.g.atlas.texture !== null;
     const gb = (x: number, y: number, z: number): number => {
       if (x >= 0 && x < 16 && z >= 0 && z < 16 && y >= 0 && y < CFG.WORLD_H) return chunk.get(x, y, z);
       return this.getBlock(ox + x, y, oz + z);
@@ -513,7 +583,22 @@ export class World {
       this.group.add(mesh);
       chunk.meshes.push(mesh);
     };
-    mk(opaque, this.matOpaque, m => { m.castShadow = true; });
+    if (useGpuOpaque) {
+      let resource = this._gpuMeshes.get(chunk);
+      if (!resource) {
+        resource = new GpuMeshChunkCompute();
+        this._gpuMeshes.set(chunk, resource);
+      }
+      const mesh = resource.createRenderMesh(this.g.atlas.texture!);
+      mesh.position.set(ox, 0, oz);
+      mesh.updateMatrix();
+      if (mesh.parent !== this.group) this.group.add(mesh);
+      resource.upload(buildGpuMeshChunkPayload(chunk, (x, y, z) => this.getBlock(x, y, z)));
+      this._queueGpuMesh(chunk);
+    } else {
+      this._releaseGpuMesh(chunk);
+      mk(opaque, this.matOpaque, m => { m.castShadow = true; });
+    }
     mk(cutout, this.matCutout, m => { m.castShadow = true; });
     // Preserve a standard-material fallback so an optional shader path cannot
     // make water disappear on a backend that rejects it.
@@ -533,7 +618,7 @@ export class World {
       let ch = this.chunks.get(k);
       if (!ch) { ch = new Chunk(cx, cz); this.chunks.set(k, ch); }
       if (!ch.built) need.push(ch);
-      else if (Math.abs(dx) <= R && Math.abs(dz) <= R && ch.meshes.length === 0 && !ch.dirty) {
+      else if (Math.abs(dx) <= R && Math.abs(dz) <= R && ch.meshes.length === 0 && !this._gpuMeshes.has(ch) && !ch.dirty) {
         ch.dirty = true;
         if (!this.meshQueueSet.has(ch)) { this.meshQueueSet.add(ch); this.meshQueue.push(ch); }
       }
@@ -557,6 +642,7 @@ export class World {
       this.meshQueueSet.delete(ch);
       if (ch.built && ch.dirty) this.buildMesh(ch);
     }
+    this._dispatchGpuMeshes();
     // Amortize this full chunk scan; running it each frame competes with nearby
     // generation exactly when movement makes the queue busiest.
     this.cullFrame++;
@@ -566,6 +652,7 @@ export class World {
         if (Math.abs(ch.cx - pcx) > R + 2 || Math.abs(ch.cz - pcz) > R + 2) {
           for (const m of ch.meshes) { this.group.remove(m); m.geometry.dispose(); }
           ch.meshes = [];
+          this._releaseGpuMesh(ch);
           if (Math.abs(ch.cx - pcx) > R + 4 || Math.abs(ch.cz - pcz) > R + 4) this.chunks.delete(k);
         }
       }
@@ -580,7 +667,7 @@ export class World {
     for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
       total++;
       const ch = this.chunks.get(this.key(pcx + dx, pcz + dz));
-      if (ch && ch.built && ch.meshes.length > 0) done++;
+      if (ch && ch.built && (ch.meshes.length > 0 || this._gpuMeshes.has(ch))) done++;
     }
     return done / total;
   }
@@ -676,9 +763,12 @@ export class World {
 
   dispose(): void {
     for (const [, ch] of this.chunks) for (const m of ch.meshes) { this.group.remove(m); m.geometry.dispose(); }
+    for (const chunk of [...this._gpuMeshes.keys()]) this._releaseGpuMesh(chunk);
     this.chunks = new Map();
     this.meshQueue = [];
     this.meshQueueSet.clear();
+    this._gpuMeshQueue = [];
+    this._gpuMeshQueueSet.clear();
     this.heightCache = new Map();
     for (const pl of this.lampPool) pl.visible = false;
     this.lamps = [];

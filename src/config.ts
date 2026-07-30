@@ -108,6 +108,14 @@ export const CFG = Object.freeze({
     edgeInset: 0.006,
   }),
   /**
+   * Let native WebGPU remove CPU mesh churn where its command model is
+   * available, while every other backend retains the established CPU path.
+   */
+  GPU_MESH: Object.freeze({
+    mode: 'auto' as 'off' | 'auto' | 'force',
+    maxJobsPerFrame: 2,
+  }),
+  /**
    * Bloom — only hot emissives (lamps / crystals / laser tips).
    * Threshold high enough that the soft LDR sky never blooms.
    */
