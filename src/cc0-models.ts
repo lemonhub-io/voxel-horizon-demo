@@ -18,7 +18,7 @@ export interface LoadedCC0Model {
   animations: THREE.AnimationClip[];
 }
 
-/** Cached full glTF templates (never hand the scene out — always clone). */
+/** Cache parsing work, but never share a mutable scene graph between entities. */
 const templates = new Map<string, Promise<CC0GltfTemplate>>();
 
 export interface ModelLoadFailure {
@@ -54,10 +54,8 @@ function loadTemplate(url: string): Promise<CC0GltfTemplate> {
 }
 
 /**
- * Load a CC0 glTF and return a **fresh instance**.
- * Fauna models are skinned; `Object3D.clone()` breaks skeleton binding so the
- * mesh casts no visible body (only our ground blob shadow shows). Always use
- * SkeletonUtils.clone for correct bone → SkinnedMesh rebinding.
+ * SkeletonUtils is required here because a regular clone keeps invalid bone
+ * bindings for skinned fauna, which can leave only their shadow visible.
  */
 export function loadCC0Model(url: string): Promise<THREE.Group> {
   return loadTemplate(url).then((t) => cloneCC0Scene(t.scene));
@@ -71,7 +69,7 @@ export function loadCC0ModelWithAnimations(url: string): Promise<LoadedCC0Model>
   }));
 }
 
-/** Find a clip by exact name or suffix (Quaternius uses `Armature|Idle`). */
+/** Accommodate exporter-specific track prefixes without coupling gameplay to one tool. */
 export function findAnimationClip(
   clips: THREE.AnimationClip[],
   ...candidates: string[]
@@ -95,10 +93,8 @@ export function cloneCC0Scene(source: THREE.Object3D): THREE.Group {
 }
 
 /**
- * Make glTF content render reliably under WebGPURenderer:
- * - rebind / pose skeletons
- * - disable bad frustum culling on skinned meshes
- * - ensure base-color maps use sRGB
+ * Normalize imported scenes at one boundary because exporter defaults otherwise
+ * produce backend-dependent culling, color, or transparency artifacts.
  */
 function prepareCC0Scene(root: THREE.Object3D): void {
   root.traverse((child) => {
@@ -113,7 +109,8 @@ function prepareCC0Scene(root: THREE.Object3D): void {
 
     if (skinned.isSkinnedMesh && skinned.skeleton) {
       skinned.skeleton.pose();
-      // Bind-pose AABBs are often wrong after retarget/scale → mesh culled.
+      // Retargeted bounds can exclude animated limbs, so culling would make a
+      // character disappear at certain poses.
       skinned.frustumCulled = false;
     }
 
@@ -142,7 +139,8 @@ function prepareCC0Scene(root: THREE.Object3D): void {
         m.map.colorSpace = THREE.SRGBColorSpace;
         m.map.needsUpdate = true;
       }
-      // Unlit fauna textures must stay fully opaque and double-sided.
+      // Some exports mark foliage-like materials transparent; forcing the stable
+      // path avoids WebGPU depth-sorting holes on thin fauna surfaces.
       if (m.side !== undefined) m.side = THREE.DoubleSide;
       if (m.transparent) {
         m.transparent = false;
@@ -156,7 +154,7 @@ function prepareCC0Scene(root: THREE.Object3D): void {
   root.updateMatrixWorld(true);
 }
 
-/** True if this glTF is the banned Ultimate Space Kit frog astronaut. */
+/** Keep stale PWA/CDN responses from silently restoring the retired player asset. */
 export function isFinnTheFrogScene(root: THREE.Object3D): boolean {
   let found = false;
   root.traverse((child) => {
@@ -227,7 +225,8 @@ export async function preloadCC0Models(): Promise<ModelLoadFailure[]> {
 }
 
 export function fitCC0Model(model: THREE.Object3D, maxSpan: number, maxHeight: number): void {
-  // Pose skins before measuring bounds.
+  // Bounds must reflect the bind pose; otherwise scale varies with whichever
+  // animation frame happened to be evaluated first.
   model.traverse((child) => {
     const skinned = child as THREE.Object3D & {
       isSkinnedMesh?: boolean;
@@ -298,7 +297,8 @@ export function fitCC0ModelExactHeight(model: THREE.Object3D, height: number): v
   model.position.z -= center.z;
   model.updateMatrixWorld(true);
 
-  // Correct any residual float error so bounds are exactly `height`.
+  // A second pass keeps collision-sized avatars from drifting due to accumulated
+  // matrix precision error.
   const finalBox = new Box3().setFromObject(model);
   const finalH = finalBox.max.y - finalBox.min.y;
   if (finalH > 1e-6 && Math.abs(finalH - height) > 1e-4) {

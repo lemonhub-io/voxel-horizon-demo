@@ -17,7 +17,7 @@ import {
 import { CC0_MODEL_URLS } from './model-assets';
 import type { Game, RaycastResult, InteractPrompt, VisorSubject, Discovery, PlayerSaveData } from './types';
 
-/** Layer for world-space player body (hidden from FPS camera, still casts shadows). */
+/** Keep the first-person camera out of its own body without losing its world shadow. */
 const PLAYER_BODY_LAYER = 1;
 
 export class Player {
@@ -52,7 +52,7 @@ export class Player {
   vmTip!: THREE.Object3D;
   weaponMount!: THREE.Group;
   blockInHand!: THREE.Mesh;
-  /** World-space astronaut body (CC0). */
+  /** Needed separately from the viewmodel so other players and death scenes have a body to render. */
   bodyRoot!: THREE.Group;
   bodyModel: THREE.Group | null = null;
   highlight!: THREE.LineSegments;
@@ -70,7 +70,7 @@ export class Player {
   xWarned?: boolean;
   dfT?: ReturnType<typeof setTimeout>;
 
-  // Pre-allocated scratch vectors to avoid per-frame allocations
+  // Reuse these on the hot path so locomotion does not create GC pauses during play.
   private _eyePos = new THREE.Vector3();
   private _lookDir = new THREE.Vector3();
   private _jumpTime = 0;
@@ -127,7 +127,8 @@ export class Player {
     this.lowBeepT = 0;
     this.fallVy = 0;
     this.scanCd = 0;
-    // FPS camera only sees layer 0 (default); body uses layer 1.
+    // Isolate the body before adding it: seeing the avatar torso in a first-
+    // person camera is more distracting than omitting it from that view.
     game.camera.layers.enable(0);
     game.camera.layers.disable(PLAYER_BODY_LAYER);
     this.bodyRoot = new THREE.Group();
@@ -157,14 +158,15 @@ export class Player {
     this.blockInHand.visible = false;
     this.vm.add(this.blockInHand);
 
-    // A camera child inherits the player's position and look direction exactly.
+    // Parent to the camera so a turn cannot leave the weapon visually behind the aim ray.
     this.weaponMount = new THREE.Group();
     this.weaponMount.name = 'player-rifle-mount';
     this.weaponMount.position.set(0.2, -0.12, -0.34);
     this.vm.add(this.weaponMount);
     this.vmTip = new THREE.Object3D();
     this.vmTip.name = 'rifle-muzzle-anchor';
-    // Fallback until the GLB loads and alignVmTipToMuzzle() snaps to the real barrel tip.
+    // Keep effects believable during the asynchronous asset gap instead of
+    // starting beams at the camera origin.
     this.vmTip.position.set(0.195, 0.03, -0.97);
     this.weaponMount.add(this.vmTip);
     this.vm.position.set(0.32, -0.3, -0.55);
@@ -192,18 +194,20 @@ export class Player {
       this.weaponMount.add(model);
       this.alignVmTipToMuzzle(model);
     } catch {
-      // Never restore a legacy weapon mesh if the remote model cannot load.
+      // An empty mount is preferable to reintroducing an asset intentionally
+      // removed for visual consistency.
     }
   }
 
   /**
-   * World-space astronaut body: shadows + death pose + movement anims.
-   * Hidden from the FPS camera via layers (still participates in shadow maps).
+   * Keep this representation separate so first-person aiming stays uncluttered
+   * while the world can still show shadows, death, and networked movement.
    */
   private async loadPlayerBody(): Promise<void> {
     try {
       const { scene, animations } = await loadCC0ModelWithAnimations(CC0_MODEL_URLS.player);
-      // Hard reject the old Ultimate Space Kit frog if a stale cache serves it.
+      // Cached deployments can outlive an asset swap, so reject the retired
+      // model rather than making a release silently regress.
       if (isFinnTheFrogScene(scene)) {
         throw new Error('Rejected FinnTheFrog player mesh — use modular-men-astronaut.glb');
       }
@@ -223,7 +227,8 @@ export class Player {
         ) {
           child.visible = false;
         }
-        // Body on exclusive layer so the eye camera does not clip into the torso.
+        // The exclusive layer prevents near-plane clipping into the torso while
+        // shadow cameras explicitly opt into seeing it.
         child.layers.set(PLAYER_BODY_LAYER);
       });
       scene.layers.set(PLAYER_BODY_LAYER);
@@ -300,7 +305,8 @@ export class Player {
   private syncBodyTransform(): void {
     if (!this._bodyReady) return;
     this.bodyRoot.position.set(this.pos.x, this.pos.y, this.pos.z);
-    // Model faces +Z in Quaternius bind pose; game forward is -Z at yaw=0.
+    // The asset and controller use opposite forward axes; compensate here so
+    // movement, animation, and replicated yaw agree.
     this.bodyRoot.rotation.set(0, this.yaw + Math.PI, 0);
   }
 
@@ -379,7 +385,8 @@ export class Player {
     });
     if (!isFinite(minZ)) return;
 
-    // Average the forward-most vertices (within 1.5cm of the tip) for a stable center.
+    // Averaging a narrow tip band avoids a single asymmetric vertex making the
+    // beam jitter as an exporter changes mesh topology.
     const tipBand = minZ + 0.015;
     this._muzzleAccum.set(0, 0, 0);
     let n = 0;
@@ -393,7 +400,8 @@ export class Player {
     });
     if (n === 0) return;
     this._muzzleAccum.multiplyScalar(1 / n);
-    // Sit just outside the mesh so the beam doesn't start inside the barrel.
+    // Offset past the barrel to prevent depth testing from clipping the beam at
+    // its origin.
     this._muzzleAccum.z = minZ - 0.004;
     this.vmTip.position.copy(this._muzzleAccum);
   }
@@ -472,7 +480,7 @@ export class Player {
       this.vel.y = Math.max(this.vel.y, -3.2);
       if (input.keys['Space']) this.vel.y = Math.min(this.vel.y + 16 * dt, 3.4);
     } else {
-      // Variable gravity: lighter ascent, snappier descent
+      // Bias the arc toward responsive jumps without making ascent feel heavy.
       if (!this.onGround || this.vel.y > 0) {
         const gravMul = this.vel.y > 0 ? 0.85 : 1.3; // ascent: 85% gravity, descent: 130%
         this.vel.y -= CFG.GRAVITY * gravMul * dt;
@@ -585,7 +593,8 @@ export class Player {
       if (Math.abs(amt) < 1e-8) return;
       const dirS = Math.sign(amt);
       let rem = Math.abs(amt);
-      // Smaller step size for Y axis to prevent ground clipping
+      // Vertical movement needs finer probing because a missed floor collision
+      // is far more visible than a tiny horizontal correction.
       const maxStep = axis === 'y' ? 0.2 : 0.4;
       while (rem > 0) {
         const st = Math.min(rem, maxStep);
@@ -600,7 +609,8 @@ export class Player {
               p.y -= 0.05;
               if (collide()) { p.y += 0.05; break; }
             }
-            // Smooth step-up: interpolate over ~0.15s instead of instant
+            // Interpolate the valid step so voxel edges do not produce a harsh
+            // camera pop.
             const stepHeight = p.y - oy;
             if (stepHeight > 0.1) {
               this._stepUpFrom = oy;
@@ -665,8 +675,8 @@ export class Player {
     } else {
       aim.copy(this.eyePos()).addScaledVector(this.lookDir(), CFG.REACH);
     }
-    // The mount is parented to the camera. Updating the hierarchy first keeps
-    // lookAt in world space even immediately after a player turn or movement.
+    // Force the parent transform first; otherwise lookAt can use a previous
+    // camera pose for one frame immediately after a turn.
     this.g.camera.updateMatrixWorld(true);
     this.weaponMount.lookAt(aim);
   }

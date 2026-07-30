@@ -11,7 +11,7 @@ const META_FILE = '_meta.json';
 const CURRENT_SLOT_KEY = 'voxelhorizon_current_slot';
 export const MAX_SLOTS = 10;
 
-/** Serialize OPFS writes so auto-save / manual / unload cannot interleave. */
+/** Keep the save file and its slot index from describing different moments. */
 let writeChain: Promise<unknown> = Promise.resolve();
 
 function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
@@ -104,7 +104,10 @@ function isEdits(value: unknown): value is SaveData['edits'] {
   return Object.values(value).every(v => Array.isArray(v) && v.every(n => typeof n === 'number'));
 }
 
-/** Accept valid saves; tolerate minor missing optional fields by normalizing. */
+/**
+ * Retain saves made before optional fields existed, while rejecting malformed
+ * required state before it can reach runtime code that assumes it is complete.
+ */
 function normalizeSaveData(value: unknown): SaveData | null {
   if (!isRecord(value)) return null;
   if (typeof value.seed !== 'number' || typeof value.palIdx !== 'number') return null;
@@ -260,7 +263,10 @@ function extractMeta(slot: number, data: SaveData, timestamp = Date.now()): Save
   };
 }
 
-/** Build slot meta from `_meta.json` + actual slot files (files win when meta is stale). */
+/**
+ * Treat slot files as authoritative because an interrupted two-file write can
+ * leave the lightweight index missing or behind a successfully written save.
+ */
 async function loadMetaArray(dir: FileSystemDirectoryHandle): Promise<(SaveSlotMeta | null)[]> {
   const raw = await readJson(dir, META_FILE);
   const metas = emptyMetaList();
@@ -272,7 +278,7 @@ async function loadMetaArray(dir: FileSystemDirectoryHandle): Promise<(SaveSlotM
     }
   }
 
-  // Rebuild missing / inconsistent meta from slot files (meta can be lost while slots remain).
+  // Recover the index here so a stale summary never hides a recoverable save.
   for (let i = 0; i < MAX_SLOTS; i++) {
     const packed = await readJsonWithMeta(dir, slotFileName(i));
     if (!packed) {
@@ -317,10 +323,7 @@ export const Save = {
     }
   },
 
-  /**
-   * Pick a slot for a new game: prefer current if empty, else first empty,
-   * else keep current (overwrite on first save).
-   */
+  /** Prefer an empty slot so starting over does not silently discard a journey. */
   async pickSlotForNewGame(): Promise<number> {
     const slots = await this.listSlots();
     const cur = this.getCurrentSlot();
@@ -424,7 +427,8 @@ export const Save = {
     });
   },
 
-  // Settings stay on localStorage (sync, small data)
+  // Settings remain synchronous and separate from OPFS so the title UI can use
+  // them before the asynchronous save directory is available.
 
   loadSettings(): Settings {
     try {

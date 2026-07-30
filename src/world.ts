@@ -124,7 +124,7 @@ export class World {
     this.matWater.map = tex;
   }
 
-  /** Build bounded POM UVs for opaque terrain atlas sampling. */
+  /** Keep parallax rays inside one atlas cell so depth detail cannot borrow a neighbour's texture. */
   private _createPomUv(albedo: THREE.Texture) {
     const pom = CFG.POM;
     const sourceUv = uv();
@@ -498,8 +498,8 @@ export class World {
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(dat.col), 3));
       if (dat.sway) geo.setAttribute('sway', new THREE.BufferAttribute(new Float32Array(dat.sway), 1));
       geo.setIndex(dat.idx);
-      // WebGPU has no fixed-function tessellation. Subdivide opaque terrain once
-      // while building its chunk mesh, retaining a bounded triangle increase.
+      // Do this once at build time because WebGPU has no fixed-function
+      // tessellation, while the configured cap keeps terrain detail affordable.
       const renderGeo = mat === this.matOpaque && this._terrainTessellator
         ? this._terrainTessellator.modify(geo)
         : geo;
@@ -515,7 +515,8 @@ export class World {
     };
     mk(opaque, this.matOpaque, m => { m.castShadow = true; });
     mk(cutout, this.matCutout, m => { m.castShadow = true; });
-    // Use TSL water material if available, otherwise standard
+    // Preserve a standard-material fallback so an optional shader path cannot
+    // make water disappear on a backend that rejects it.
     mk(water, this._waterTSLMat || this.matWater, m => { m.renderOrder = 2; });
     chunk.dirty = false;
   }
@@ -556,7 +557,8 @@ export class World {
       this.meshQueueSet.delete(ch);
       if (ch.built && ch.dirty) this.buildMesh(ch);
     }
-    // Defer chunk culling to every 3rd frame
+    // Amortize this full chunk scan; running it each frame competes with nearby
+    // generation exactly when movement makes the queue busiest.
     this.cullFrame++;
     if (this.cullFrame >= 3) {
       this.cullFrame = 0;
@@ -583,7 +585,8 @@ export class World {
     return done / total;
   }
 
-  // Single-pass partial selection: keep top-6 nearest lamps without intermediate arrays
+  // Keep a fixed small selection to avoid both light-count spikes and per-frame
+  // allocation while the player crosses densely edited terrain.
   private _lampBuf: { l: number[]; d: number }[] = [];
 
   updateLampLights(px: number, pz: number): void {

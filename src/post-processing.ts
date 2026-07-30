@@ -192,7 +192,8 @@ export class PostProcessing {
       frame = film(frame, float(cine.grain)) as unknown as typeof frame;
     }
 
-    // Tone-map then FXAA (FXAA expects sRGB-ish input after tone mapping).
+    // FXAA needs display-space contrast; applying it before tone mapping makes
+    // its edge detection unstable around HDR highlights.
     const pipeline = new THREE.RenderPipeline(this._renderer);
     pipeline.outputColorTransform = false;
     let outNode: unknown = renderOutput(frame, this._renderer.toneMapping, this._renderer.outputColorSpace);
@@ -245,7 +246,8 @@ export class PostProcessing {
   }
 
   resize(_width: number, _height: number): void {
-    // Pass / bloom / FXAA track renderer drawing buffer size.
+    // The renderer owns drawing-buffer size, avoiding a second resize source
+    // that can desynchronize post-process targets on device-pixel-ratio changes.
   }
 
   render(): void {
