@@ -2,15 +2,15 @@
 /* global self, caches, clients, fetch, Request, Response, URL */
 
 /** Bump on asset path / model identity changes so clients drop stale frog astronaut caches. */
-const CACHE_VERSION = 'voxel-horizon-pwa-v5-line-icons';
+const CACHE_VERSION = 'voxel-horizon-pwa-v6-crisp-icons';
 const PRECACHE = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icons/voxel-horizon-line-32.png',
-  './icons/voxel-horizon-line-180.png',
-  './icons/voxel-horizon-line-192.png',
-  './icons/voxel-horizon-line-512.png',
+  './icons/voxel-horizon-crisp-32.png',
+  './icons/voxel-horizon-crisp-180.png',
+  './icons/voxel-horizon-crisp-192.png',
+  './icons/voxel-horizon-crisp-512.png',
   './css/style.css',
 ];
 
