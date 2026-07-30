@@ -10,13 +10,14 @@
       <div class="t-menu">
         <button class="btn t-btn" @click="$emit('new-game')">新的旅程</button>
         <button v-if="hasSave" class="btn t-btn" @click="$emit('continue')">继续旅程</button>
+        <button class="btn t-btn" @click="$emit('official-mp')">官方星域</button>
         <button class="btn t-btn" @click="$emit('public-mp')">公开联机</button>
         <button class="btn t-btn" @click="$emit('saves')">存档管理</button>
         <button class="btn t-btn" @click="$emit('help')">操作手册</button>
         <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       </div>
       <div class="t-seed"><label>星球种子(可选)</label><input v-model="seed" maxlength="16" placeholder="随机"></div>
-      <div class="t-mp-hint">公开联机 · 房主本机托管 · 云端仅列表与中继</div>
+      <div class="t-mp-hint">官方星域 · 云端权威存档 · 公开联机为房主本机托管</div>
     </div>
   </div>
 </template>
@@ -25,7 +26,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 
 defineProps<{ hasSave: boolean }>();
-defineEmits(['new-game', 'continue', 'public-mp', 'saves', 'help', 'settings']);
+defineEmits(['new-game', 'continue', 'official-mp', 'public-mp', 'saves', 'help', 'settings']);
 const seed = ref('');
 defineExpose({ seed });
 

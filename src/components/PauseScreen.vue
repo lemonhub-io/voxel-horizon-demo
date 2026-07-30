@@ -3,7 +3,13 @@
     <div class="pause-box panel">
       <div class="p-kicker">{{ multiplayer ? '联机暂停 // MULTIPLAYER' : '系统暂停 // STANDBY' }}</div>
       <div v-if="multiplayer" class="pause-mp-banner">
-        {{ isHost ? '房主本机托管 · 云端仅中继' : '访客模式 · 地图由房主同步' }}
+        {{
+          official
+            ? '官方星域 · DO 权威 · R2 存档'
+            : isHost
+              ? '房主本机托管 · 云端仅中继'
+              : '访客模式 · 地图由房主同步'
+        }}
       </div>
       <button class="btn t-btn" @click="$emit('resume')">继续探索</button>
       <button v-if="!multiplayer" class="btn t-btn" @click="$emit('save')">保存进度</button>
@@ -24,7 +30,7 @@ import { useMilestonesStore } from '../stores/milestonesStore';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { U } from '../utils';
 
-const props = defineProps<{ multiplayer?: boolean; isHost?: boolean }>();
+const props = defineProps<{ multiplayer?: boolean; isHost?: boolean; official?: boolean }>();
 defineEmits(['resume', 'save', 'host-mp', 'help', 'settings', 'quit']);
 const game = useGameStore();
 const milestones = useMilestonesStore();
@@ -33,7 +39,11 @@ const inventory = useInventoryStore();
 const statsHtml = computed(() => {
   const st = milestones.stats;
   const mode = props.multiplayer
-    ? (props.isHost ? '模式：房主联机（本机托管）<br>' : '模式：访客联机<br>')
+    ? props.official
+      ? '模式：官方星域（云端权威）<br>'
+      : props.isHost
+        ? '模式：房主联机（本机托管）<br>'
+        : '模式：访客联机<br>'
     : '';
   return mode +
     `星球：${game.planetName} · ${game.palette.climate}<br>` +

@@ -480,12 +480,15 @@ export interface Game {
     active: boolean;
     isHost: boolean;
     roomId: string;
+    mode?: 'host-local' | 'official';
+    isOfficial?: boolean;
     submitBlock(x: number, y: number, z: number, id: number, prevId: number): void;
     bind(game: Game): void;
     update(dt: number): void;
   } | null;
   hostPublicMultiplayer?(): Promise<void>;
   joinPublicMultiplayer?(roomId: string): Promise<void>;
+  joinOfficialMultiplayer?(): Promise<void>;
   leaveMultiplayer?(): void;
   planetInfo(): PlanetInfo;
   startPlay(): void;
@@ -939,10 +942,9 @@ export interface Save {
   saveSettings(s: Settings): void;
 }
 
-// --- THREE.js global declaration (loaded via script tag) ---
-
 declare global {
-// Historical declarations are isolated from the actual r185 THREE namespace.
+// Keep legacy compatibility shapes in their own namespace so they cannot shadow
+// the `three/webgpu` types imported by engine modules.
 namespace LegacyThreeCompat {
   class Vector2 { constructor(x?: number, y?: number); x: number; y: number; set(x: number, y: number): this; }
   class Vector3 {

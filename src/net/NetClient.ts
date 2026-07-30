@@ -1,8 +1,10 @@
 import {
   MP_POSE_HZ,
   MP_PROTOCOL_VERSION,
+  OFFICIAL_ROOM_ID,
   type AnimCode,
   type ClientMsg,
+  type OfficialStatus,
   type PublicRoomInfo,
   type ServerMsg,
   decodeMsg,
@@ -83,6 +85,25 @@ export class NetClient {
     return { roomId: data.roomId, wsPath: data.wsPath };
   }
 
+  async getOfficialStatus(): Promise<OfficialStatus> {
+    const res = await fetch(`${this.httpBase}/api/official`);
+    if (!res.ok) throw new Error(`官方服不可用 (${res.status})`);
+    const data = (await res.json()) as Partial<OfficialStatus>;
+    if (!data.roomId && !data.wsPath) throw new Error('官方服响应无效');
+    return {
+      roomId: data.roomId || OFFICIAL_ROOM_ID,
+      wsPath: data.wsPath || `/ws?room=${encodeURIComponent(OFFICIAL_ROOM_ID)}`,
+      playerCount: data.playerCount ?? 0,
+      maxPlayers: data.maxPlayers ?? 8,
+      seed: data.seed ?? 0,
+      palIdx: data.palIdx ?? 0,
+      planetName: data.planetName || '官方星域',
+      live: data.live !== false,
+      mode: 'official',
+      editChunks: data.editChunks,
+    };
+  }
+
   async connect(wsPath: string): Promise<void> {
     this.disconnect();
     this.closed = false;
@@ -132,7 +153,10 @@ export class NetClient {
     });
   }
 
-  sendHello(role: 'host' | 'guest', world?: { seed: number; palIdx: number; planetName: string; time: number }): void {
+  sendHello(
+    role: 'host' | 'guest' | 'player',
+    world?: { seed: number; palIdx: number; planetName: string; time: number },
+  ): void {
     const msg: ClientMsg = {
       t: 'hello',
       v: MP_PROTOCOL_VERSION,

@@ -2,9 +2,21 @@ name = "voxel-horizon-mp"
 main = "src/index.ts"
 compatibility_date = "2025-04-07"
 compatibility_flags = ["nodejs_compat"]
+# First account (Lemonhub) — Worker + DO.
+# R2 lives on second account; secrets provide S3 access (Worker acts as reverse proxy).
+account_id = "e28c02029d0b99ca5d7f0baf95de7519"
 
 [dev]
 port = 8787
+
+[vars]
+# Second-account private bucket for official world JSON
+R2_BUCKET = "mzhub-storage"
+
+# Secrets (wrangler secret put):
+#   R2_ACCOUNT_ID
+#   R2_ACCESS_KEY_ID
+#   R2_SECRET_ACCESS_KEY
 
 [[durable_objects.bindings]]
 name = "PLANET_ROOM"
@@ -14,6 +26,10 @@ class_name = "PlanetRoom"
 name = "ROOM_DIRECTORY"
 class_name = "RoomDirectory"
 
+[[durable_objects.bindings]]
+name = "OFFICIAL_ROOM"
+class_name = "OfficialRoom"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["PlanetRoom"]
@@ -21,3 +37,7 @@ new_sqlite_classes = ["PlanetRoom"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["RoomDirectory"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["OfficialRoom"]

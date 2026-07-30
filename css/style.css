@@ -383,6 +383,10 @@ body.touch-device .touch-show{display:grid}
 .mp-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 10px}
 .mp-sec-title{font-family:var(--fh);font-size:12px;letter-spacing:3px;opacity:.7}
 .mp-sec-title em{font-style:normal;opacity:.45;margin-left:8px;letter-spacing:2px}
+.mp-official{margin:4px 0 18px;padding-bottom:14px;border-bottom:1px solid var(--line2)}
+.mp-official .mp-slot{margin:8px 0 12px;cursor:default}
+.mp-official .mp-slot.official{border-color:rgba(102,217,232,.35);background:rgba(102,217,232,.06)}
+.mp-official-btn{width:100%}
 .mp-list{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px}
 .mp-slot{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--line2);cursor:pointer;transition:border-color .15s,background .15s;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
 .mp-slot:hover:not(.full){border-color:var(--acc);background:rgba(255,138,92,.06)}

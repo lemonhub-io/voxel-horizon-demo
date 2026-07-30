@@ -1,10 +1,28 @@
-/** Mirror of src/net/protocol.ts — host-local authority; CF lists + relays only. */
+/** Mirror of src/net/protocol.ts — host-local relay + official DO authority. */
 
 export const MP_PROTOCOL_VERSION = 2;
 export const MP_MAX_PLAYERS = 8;
 export const MP_HOST_STALE_MS = 12_000;
 
+/** Fixed official server room id (DO name + WS query). */
+export const OFFICIAL_ROOM_ID = 'official-main';
+
+/** Default world identity when R2 has no archive yet. */
+export const OFFICIAL_DEFAULT = {
+  seed: 0x0ff1c1a1,
+  palIdx: 0,
+  planetName: '官方星域',
+  time: 0.28,
+} as const;
+
+export const WORLD_CHUNK = 16;
+export const WORLD_H = 64;
+export const WORLD_REACH = 6;
+export const R2_FLUSH_MS = 15_000;
+export const R2_WORLD_KEY = 'worlds/official-main/world.json';
+
 export type AnimCode = 0 | 1 | 2 | 3 | 4 | 5;
+export type SessionMode = 'host-local' | 'official';
 
 export interface PlayerSnap {
   id: string;
@@ -24,11 +42,24 @@ export interface EditEntry {
   id: number;
 }
 
+/** Persistent world blob in R2 (+ DO SQLite mirror). */
+export interface WorldSaveV1 {
+  v: 1;
+  seed: number;
+  palIdx: number;
+  planetName: string;
+  time: number;
+  /** chunkKey "cx,cz" → flat [idx, id, idx, id, ...] */
+  edits: Record<string, number[]>;
+  updatedAt: number;
+}
+
 export type ClientMsg =
   | {
       t: 'hello';
       v: number;
-      role: 'host' | 'guest';
+      /** host/guest = player-hosted room; player = official server client */
+      role: 'host' | 'guest' | 'player';
       seed?: number;
       palIdx?: number;
       planetName?: string;
@@ -61,6 +92,7 @@ export type ServerMsg =
       isHost: boolean;
       hostId: string | null;
       playerCount: number;
+      mode?: SessionMode;
     }
   | { t: 'peer_join'; id: string }
   | { t: 'peer_leave'; id: string }
@@ -78,6 +110,7 @@ export type ServerMsg =
       edits: EditEntry[];
       players: PlayerSnap[];
       hostId: string;
+      mode?: SessionMode;
     }
   | { t: 'pong'; n: number }
   | { t: 'error'; reason: string };
@@ -104,4 +137,18 @@ export interface PublicRoomInfo {
   palIdx: number;
   planetName: string;
   live: boolean;
+  /** official rooms are DO-backed and always listed when API is up */
+  mode?: SessionMode;
+}
+
+export interface OfficialStatus {
+  roomId: string;
+  wsPath: string;
+  playerCount: number;
+  maxPlayers: number;
+  seed: number;
+  palIdx: number;
+  planetName: string;
+  live: boolean;
+  mode: 'official';
 }

@@ -4,16 +4,19 @@ import { NetClient, type HostInboxMsg } from './NetClient';
 import { RemotePlayer } from './RemotePlayer';
 import {
   MP_HOST_HEARTBEAT_S,
+  OFFICIAL_ROOM_ID,
   animFromKey,
   type AnimCode,
   type EditEntry,
   type PlayerSnap,
   type ServerMsg,
+  type SessionMode,
 } from './protocol';
 
 /**
- * Host-local multiplayer: world + player data lives on the host browser.
- * Cloudflare only publishes the room list and relays WebSocket messages.
+ * Multiplayer session:
+ * - host-local: world on host browser; CF lists + relays
+ * - official: DO authority + R2 world archive
  */
 export class MultiplayerSession {
   readonly net = new NetClient();
@@ -25,12 +28,18 @@ export class MultiplayerSession {
   private heartbeatT = 0;
   active = false;
   isHost = false;
+  /** 'official' when on the DO-backed public server */
+  mode: SessionMode = 'host-local';
   myId = '';
   roomId = '';
   hostId: string | null = null;
 
   bind(game: Game): void {
     this.game = game;
+  }
+
+  get isOfficial(): boolean {
+    return this.mode === 'official';
   }
 
   /**
@@ -45,6 +54,7 @@ export class MultiplayerSession {
 
     const { roomId, wsPath } = await this.net.createRoom();
     this.roomId = roomId;
+    this.mode = 'host-local';
     await this.net.connect(wsPath);
     this.net.sendHello('host', {
       seed: game.seed,
@@ -66,8 +76,29 @@ export class MultiplayerSession {
 
     const snapPromise = this.waitSnapshot(20000);
     this.roomId = roomId;
+    this.mode = 'host-local';
     await this.net.connect(`/ws?room=${encodeURIComponent(roomId)}`);
     this.net.sendHello('guest');
+    this.active = true;
+    this.isHost = false;
+    return snapPromise;
+  }
+
+  /**
+   * Join the official DO server; snapshot (world + edits) comes from the server / R2.
+   */
+  async joinOfficial(game: Game): Promise<Extract<ServerMsg, { t: 'state_snapshot' }>> {
+    this.bind(game);
+    this.clearRemotes();
+    this.unsub?.();
+    this.unsub = this.net.onMessage((msg) => this.onMessage(msg));
+
+    const status = await this.net.getOfficialStatus();
+    const snapPromise = this.waitSnapshot(25000);
+    this.roomId = status.roomId || OFFICIAL_ROOM_ID;
+    this.mode = 'official';
+    await this.net.connect(status.wsPath);
+    this.net.sendHello('player');
     this.active = true;
     this.isHost = false;
     return snapPromise;
@@ -118,6 +149,7 @@ export class MultiplayerSession {
   leave(): void {
     this.active = false;
     this.isHost = false;
+    this.mode = 'host-local';
     this.unsub?.();
     this.unsub = null;
     this.net.disconnect();
@@ -204,20 +236,23 @@ export class MultiplayerSession {
         this.roomId = msg.roomId;
         this.isHost = msg.isHost;
         this.hostId = msg.hostId;
+        if (msg.mode === 'official') this.mode = 'official';
         break;
 
       case 'peer_join':
         if (msg.id !== this.myId) {
-          g.hud?.notify?.('有玩家加入了房间', 'info');
+          g.hud?.notify?.(this.isOfficial ? '有旅人抵达官方星域' : '有玩家加入了房间', 'info');
         }
         break;
 
       case 'peer_leave':
         this.removeRemote(msg.id);
-        g.hud?.notify?.('有玩家离开了房间', 'info');
+        g.hud?.notify?.(this.isOfficial ? '有旅人离开了官方星域' : '有玩家离开了房间', 'info');
         break;
 
       case 'host_left':
+        // Official server has no player host; ignore if we somehow receive this.
+        if (this.isOfficial) break;
         g.hud?.notify?.('房主已离开，联机结束', 'danger');
         this.leave();
         break;
@@ -384,12 +419,12 @@ export class MultiplayerSession {
   }
 
   /**
-   * Host: apply locally then broadcast.
-   * Guest: predict then request host authority.
+   * Host-local host: apply locally then broadcast.
+   * Guest / official: predict then request server/host authority.
    */
   submitBlock(x: number, y: number, z: number, id: number, prevId: number): void {
     if (!this.active || !this.net.connected) return;
-    if (this.isHost) {
+    if (this.isHost && !this.isOfficial) {
       this.net.sendBlockApply(x, y, z, id, this.myId || 'host');
       return;
     }

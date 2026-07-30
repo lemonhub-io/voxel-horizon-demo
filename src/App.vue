@@ -5,6 +5,7 @@
     :has-save="hasSave"
     @new-game="onNewGame"
     @continue="onContinue"
+    @official-mp="onOfficialMp"
     @public-mp="openMpLobby"
     @saves="showSaves = true"
     @help="showHelp = true"
@@ -31,6 +32,7 @@
     :joining="mpBusy"
     @back="showMpLobby = false"
     @join="onMpJoin"
+    @join-official="onOfficialMp"
   />
 
   <LoadingScreen
@@ -55,6 +57,7 @@
     v-if="game.state === 'pause'"
     :multiplayer="isMultiplayer"
     :is-host="isMpHost"
+    :official="isMpOfficial"
     @resume="onResume"
     @save="onSave"
     @host-mp="onHostMp"
@@ -122,7 +125,6 @@ const engineLoading = ref(false);
 const engineLoadingText = ref('正在准备星球渲染器');
 const engineLoadingSub = ref('INITIALIZING RENDERER');
 const mpBusy = ref(false);
-const mpName = ref('远行者');
 const mpRoomLabel = ref('');
 const damageFlash = ref(false);
 const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
@@ -131,6 +133,9 @@ const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
 
 const isMultiplayer = computed(() => !!getEngine()?.multiplayer);
 const isMpHost = computed(() => !!getEngine()?.mp?.isHost);
+const isMpOfficial = computed(
+  () => !!getEngine()?.mp?.isOfficial || getEngine()?.mp?.mode === 'official',
+);
 
 onMounted(async () => {
   hasSave.value = await Save.hasSave();
@@ -185,6 +190,29 @@ async function onMpJoin(payload: { roomId: string }): Promise<void> {
     const msg = e instanceof Error ? e.message : '加入联机失败';
     hud.addNotification(msg, 'danger');
     console.warn('public multiplayer failed', e);
+  } finally {
+    mpBusy.value = false;
+    engineLoading.value = false;
+    engineLoadingText.value = '正在准备星球渲染器';
+    engineLoadingSub.value = 'INITIALIZING RENDERER';
+  }
+}
+
+async function onOfficialMp(): Promise<void> {
+  if (engineLoading.value || mpBusy.value) return;
+  mpBusy.value = true;
+  engineLoading.value = true;
+  engineLoadingText.value = '正在连接官方星域';
+  engineLoadingSub.value = 'OFFICIAL SERVER';
+  try {
+    const engine = await loadGame();
+    await engine.joinOfficialMultiplayer?.();
+    mpRoomLabel.value = engine.mp?.roomId || 'official-main';
+    showMpLobby.value = false;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '加入官方星域失败';
+    hud.addNotification(msg, 'danger');
+    console.warn('official multiplayer failed', e);
   } finally {
     mpBusy.value = false;
     engineLoading.value = false;

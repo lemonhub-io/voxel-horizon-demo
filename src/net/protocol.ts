@@ -1,12 +1,17 @@
-/** Multiplayer protocol — host-local authority, CF only lists + relays. */
+/** Multiplayer protocol — host-local relay + official DO authority. */
 
 export const MP_PROTOCOL_VERSION = 2;
 export const MP_MAX_PLAYERS = 8;
 export const MP_POSE_HZ = 15;
 export const MP_HOST_HEARTBEAT_S = 4;
 
+/** Fixed official server room id. */
+export const OFFICIAL_ROOM_ID = 'official-main';
+
 export type AnimCode = 0 | 1 | 2 | 3 | 4 | 5;
 // 0 idle, 1 walk, 2 run, 3 jump, 4 jumpIdle, 5 death
+
+export type SessionMode = 'host-local' | 'official';
 
 export interface PlayerSnap {
   id: string;
@@ -26,12 +31,13 @@ export interface EditEntry {
   id: number;
 }
 
-/** Messages from browser → DO (relay / host control). */
+/** Messages from browser → DO (relay / host control / official). */
 export type ClientMsg =
   | {
       t: 'hello';
       v: number;
-      role: 'host' | 'guest';
+      /** host/guest = player-hosted; player = official server client */
+      role: 'host' | 'guest' | 'player';
       /** Host only: world identity for the public list + late join. */
       seed?: number;
       palIdx?: number;
@@ -40,9 +46,9 @@ export type ClientMsg =
     }
   | { t: 'host_heartbeat'; playerCount: number; planetName: string; seed: number; palIdx: number }
   | { t: 'pose'; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
-  /** Guest predictive request; host applies and replies with block_apply. */
+  /** Guest / official predictive request; authority replies with block_apply. */
   | { t: 'block_set'; x: number; y: number; z: number; id: number; seq: number }
-  /** Host authority apply (broadcast). */
+  /** Host authority apply (host-local only). */
   | { t: 'block_apply'; x: number; y: number; z: number; id: number; by: string }
   | { t: 'block_reject'; to: string; x: number; y: number; z: number; id: number; reason: string; seq: number }
   | { t: 'state_req' }
@@ -68,11 +74,11 @@ export type ServerMsg =
       isHost: boolean;
       hostId: string | null;
       playerCount: number;
+      mode?: SessionMode;
     }
   | { t: 'peer_join'; id: string }
   | { t: 'peer_leave'; id: string }
   | { t: 'host_left' }
-  /** Relayed peer pose */
   | { t: 'pose'; id: string; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; anim: AnimCode; flags: number }
   | { t: 'block_apply'; x: number; y: number; z: number; id: number; by: string }
   | { t: 'block_reject'; x: number; y: number; z: number; id: number; reason: string; seq: number }
@@ -86,6 +92,7 @@ export type ServerMsg =
       edits: EditEntry[];
       players: PlayerSnap[];
       hostId: string;
+      mode?: SessionMode;
     }
   | { t: 'pong'; n: number }
   | { t: 'error'; reason: string };
@@ -97,8 +104,21 @@ export interface PublicRoomInfo {
   seed: number;
   palIdx: number;
   planetName: string;
-  /** Host still heartbeating */
   live: boolean;
+  mode?: SessionMode;
+}
+
+export interface OfficialStatus {
+  roomId: string;
+  wsPath: string;
+  playerCount: number;
+  maxPlayers: number;
+  seed: number;
+  palIdx: number;
+  planetName: string;
+  live: boolean;
+  mode: 'official';
+  editChunks?: number;
 }
 
 export function encodeMsg(msg: ClientMsg | ServerMsg): string {

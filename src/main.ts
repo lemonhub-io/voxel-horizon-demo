@@ -221,39 +221,76 @@ export class Game {
     multiplayer.bind(this);
     try {
       const snap = await multiplayer.joinAsGuest(this, roomId);
-      this.pendingMpEdits = snap.edits;
-      this.pendingMpTime = typeof snap.time === 'number' ? snap.time : null;
-      this.pendingMpPlayers = snap.players || [];
-      const hostSnap =
-        snap.players.find((p) => p.id === snap.hostId) ||
-        snap.players.find((p) => p.id !== multiplayer.myId) ||
-        null;
-      this.pendingMpSpawn = hostSnap
-        ? { x: hostSnap.x, y: hostSnap.y, z: hostSnap.z, yaw: hostSnap.yaw }
-        : null;
-      this.planetName = snap.planetName;
-      this.beginLoad(snap.seed, snap.palIdx, null);
-      this.stores.hud.addNotification(`已加入 · ${multiplayer.roomId} · ${snap.planetName}`, 'success');
+      this.applyMpSnapshot(snap, `已加入 · ${multiplayer.roomId} · ${snap.planetName}`);
     } catch (e) {
       this.multiplayer = false;
       this.mp = null;
       multiplayer.leave();
-      this.pendingMpEdits = null;
-      this.pendingMpTime = null;
-      this.pendingMpSpawn = null;
-      this.pendingMpPlayers = null;
+      this.clearPendingMp();
       throw e;
     }
+  }
+
+  /**
+   * Join the official DO server (R2-backed world). Map edits persist in the cloud.
+   */
+  async joinOfficialMultiplayer(): Promise<void> {
+    this.audio.ensure();
+    this.audio.initLoops();
+    this.multiplayer = true;
+    this.mp = multiplayer;
+    multiplayer.bind(this);
+    try {
+      const snap = await multiplayer.joinOfficial(this);
+      this.applyMpSnapshot(snap, `已进入官方星域 · ${snap.planetName}`);
+    } catch (e) {
+      this.multiplayer = false;
+      this.mp = null;
+      multiplayer.leave();
+      this.clearPendingMp();
+      throw e;
+    }
+  }
+
+  private applyMpSnapshot(
+    snap: {
+      edits: import('./net/protocol').EditEntry[];
+      time: number;
+      players: import('./net/protocol').PlayerSnap[];
+      hostId: string;
+      planetName: string;
+      seed: number;
+      palIdx: number;
+    },
+    notify: string,
+  ): void {
+    this.pendingMpEdits = snap.edits;
+    this.pendingMpTime = typeof snap.time === 'number' ? snap.time : null;
+    this.pendingMpPlayers = snap.players || [];
+    const hostSnap =
+      snap.players.find((p) => p.id === snap.hostId && p.id !== 'server') ||
+      snap.players.find((p) => p.id !== multiplayer.myId) ||
+      null;
+    this.pendingMpSpawn = hostSnap
+      ? { x: hostSnap.x, y: hostSnap.y, z: hostSnap.z, yaw: hostSnap.yaw }
+      : null;
+    this.planetName = snap.planetName;
+    this.beginLoad(snap.seed, snap.palIdx, null);
+    this.stores.hud.addNotification(notify, 'success');
+  }
+
+  private clearPendingMp(): void {
+    this.pendingMpEdits = null;
+    this.pendingMpTime = null;
+    this.pendingMpSpawn = null;
+    this.pendingMpPlayers = null;
   }
 
   leaveMultiplayer(): void {
     multiplayer.leave();
     this.mp = null;
     this.multiplayer = false;
-    this.pendingMpEdits = null;
-    this.pendingMpTime = null;
-    this.pendingMpSpawn = null;
-    this.pendingMpPlayers = null;
+    this.clearPendingMp();
   }
 
   /** Clear run progress so a second new-game / load does not inherit prior inventory, quests, etc. */
@@ -598,10 +635,16 @@ export class Game {
       // Public co-op: skip typewriter intro and drop into play.
       if (this.mp) this.mp.bind(this);
       this.startPlay();
-      s.hud.addNotification(
-        this.mp?.isHost ? '已开放联机 · 本机托管地图' : '已从房主同步地图 · 云端不存档',
-        'info',
-      );
+      {
+        const mpMode = multiplayer.mode;
+        const tip =
+          mpMode === 'official'
+            ? '官方星域 · DO 权威 · 地图存档于云端'
+            : this.mp?.isHost
+              ? '已开放联机 · 本机托管地图'
+              : '已从房主同步地图 · 云端不存档';
+        s.hud.addNotification(tip, 'info');
+      }
     } else if (!saveData) this.playIntro();
     else this.startPlay();
   }

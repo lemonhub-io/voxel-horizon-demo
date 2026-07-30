@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { animFromKey, animToKey, decodeMsg, encodeMsg, MP_PROTOCOL_VERSION } from '../../net/protocol';
+import {
+  animFromKey,
+  animToKey,
+  decodeMsg,
+  encodeMsg,
+  MP_PROTOCOL_VERSION,
+  OFFICIAL_ROOM_ID,
+} from '../../net/protocol';
 
 describe('mp protocol', () => {
   it('round-trips pose message', () => {
@@ -55,6 +62,23 @@ describe('mp protocol', () => {
       hostId: 'host-1',
       edits: [{ cx: 0, cz: 0, idx: 12, id: 3 }],
     });
+  });
+
+  it('supports official welcome + snapshot mode', () => {
+    const welcome = decodeMsg(
+      encodeMsg({
+        t: 'welcome',
+        v: MP_PROTOCOL_VERSION,
+        roomId: OFFICIAL_ROOM_ID,
+        you: 'p1',
+        isHost: false,
+        hostId: null,
+        playerCount: 2,
+        mode: 'official',
+      }),
+    );
+    expect(welcome).toMatchObject({ t: 'welcome', mode: 'official', roomId: OFFICIAL_ROOM_ID });
+    expect(OFFICIAL_ROOM_ID).toBe('official-main');
   });
 
   it('rejects garbage', () => {

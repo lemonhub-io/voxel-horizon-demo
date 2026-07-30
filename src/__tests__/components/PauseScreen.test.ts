@@ -26,6 +26,14 @@ describe('PauseScreen', () => {
     expect(wrapper.text()).toContain('房主本机托管');
   });
 
+  it('shows official banner', () => {
+    const wrapper = mount(PauseScreen, {
+      props: { multiplayer: true, isHost: false, official: true },
+    });
+    expect(wrapper.text()).toContain('官方星域');
+    expect(wrapper.text()).toContain('R2');
+  });
+
   it('shows open multiplayer when offline', () => {
     const wrapper = mount(PauseScreen, { props: { multiplayer: false } });
     expect(wrapper.text()).toContain('开放联机');
