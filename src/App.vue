@@ -83,15 +83,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref } from 'vue';
 import { useGameStore } from './stores/gameStore';
 import { usePlayerStore } from './stores/playerStore';
 import { useInventoryStore } from './stores/inventoryStore';
 import { useShipStore } from './stores/shipStore';
 import { useHudStore } from './stores/hudStore';
-import { Save } from './save';
-import { loadGame } from './engine-loader';
-import type { Game, SaveSlotMeta } from './types';
+import { useGameFlow } from './composables/useGameFlow';
 
 import TitleScreen from './components/TitleScreen.vue';
 import LoadingScreen from './components/LoadingScreen.vue';
@@ -115,247 +113,48 @@ const player = usePlayerStore();
 const inv = useInventoryStore();
 const ship = useShipStore();
 const hud = useHudStore();
-
-const hasSave = ref(false);
-const showSettings = ref(false);
-const showHelp = ref(false);
-const showSaves = ref(false);
-const showMpLobby = ref(false);
-const engineLoading = ref(false);
-const engineLoadingText = ref('正在准备星球渲染器');
-const engineLoadingSub = ref('INITIALIZING RENDERER');
-const mpBusy = ref(false);
-const mpRoomLabel = ref('');
 const damageFlash = ref(false);
-const saveSlots = ref<(SaveSlotMeta | null)[]>([]);
-const currentSlot = ref(0);
 const titleRef = ref<InstanceType<typeof TitleScreen> | null>(null);
-
-const isMultiplayer = computed(() => !!getEngine()?.multiplayer);
-const isMpHost = computed(() => !!getEngine()?.mp?.isHost);
-const isMpOfficial = computed(
-  () => !!getEngine()?.mp?.isOfficial || getEngine()?.mp?.mode === 'official',
-);
-
-onMounted(async () => {
-  hasSave.value = await Save.hasSave();
-  saveSlots.value = await Save.listSlots();
-  currentSlot.value = Save.getCurrentSlot();
-});
-
-async function refreshSlots() {
-  saveSlots.value = await Save.listSlots();
-  hasSave.value = saveSlots.value.some(s => s !== null);
-}
-
-function getEngine(): Game | undefined {
-  return window.game;
-}
-
-function openMpLobby(): void {
-  showSaves.value = false;
-  showMpLobby.value = true;
-}
-
-async function onNewGame() {
-  if (engineLoading.value) return;
-  engineLoading.value = true;
-  engineLoadingText.value = '正在准备星球渲染器';
-  engineLoadingSub.value = 'INITIALIZING RENDERER';
-  try {
-    // Prefer an empty slot so "新游戏" does not silently overwrite an existing one.
-    const slot = await Save.pickSlotForNewGame();
-    Save.setCurrentSlot(slot);
-    currentSlot.value = slot;
-    const engine = await loadGame();
-    const seed = titleRef.value?.seed || '';
-    engine.newGame(seed);
-  } finally {
-    engineLoading.value = false;
-  }
-}
-
-async function onMpJoin(payload: { roomId: string }): Promise<void> {
-  if (engineLoading.value || mpBusy.value) return;
-  mpBusy.value = true;
-  engineLoading.value = true;
-  engineLoadingText.value = '正在从房主同步世界';
-  engineLoadingSub.value = 'JOINING HOST SESSION';
-  try {
-    const engine = await loadGame();
-    await engine.joinPublicMultiplayer?.(payload.roomId);
-    mpRoomLabel.value = engine.mp?.roomId || payload.roomId;
-    showMpLobby.value = false;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '加入联机失败';
-    hud.addNotification(msg, 'danger');
-    console.warn('public multiplayer failed', e);
-  } finally {
-    mpBusy.value = false;
-    engineLoading.value = false;
-    engineLoadingText.value = '正在准备星球渲染器';
-    engineLoadingSub.value = 'INITIALIZING RENDERER';
-  }
-}
-
-async function onOfficialMp(): Promise<void> {
-  if (engineLoading.value || mpBusy.value) return;
-  mpBusy.value = true;
-  engineLoading.value = true;
-  engineLoadingText.value = '正在连接官方星域';
-  engineLoadingSub.value = 'OFFICIAL SERVER';
-  try {
-    const engine = await loadGame();
-    await engine.joinOfficialMultiplayer?.();
-    mpRoomLabel.value = engine.mp?.roomId || 'official-main';
-    showMpLobby.value = false;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '加入官方星域失败';
-    hud.addNotification(msg, 'danger');
-    console.warn('official multiplayer failed', e);
-  } finally {
-    mpBusy.value = false;
-    engineLoading.value = false;
-    engineLoadingText.value = '正在准备星球渲染器';
-    engineLoadingSub.value = 'INITIALIZING RENDERER';
-  }
-}
-
-async function onHostMp(): Promise<void> {
-  const engine = getEngine();
-  if (!engine || mpBusy.value) return;
-  mpBusy.value = true;
-  try {
-    await engine.hostPublicMultiplayer?.();
-    mpRoomLabel.value = engine.mp?.roomId || '';
-    hud.addNotification('房间已公开到联机列表', 'success');
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '开放联机失败';
-    hud.addNotification(msg, 'danger');
-  } finally {
-    mpBusy.value = false;
-  }
-}
-async function onContinue() {
-  if (engineLoading.value) return;
-  engineLoading.value = true;
-  try {
-    const engine = await loadGame();
-    await engine.continueGame();
-  } finally {
-    engineLoading.value = false;
-  }
-}
-async function onLoadSlot(slot: number) {
-  Save.setCurrentSlot(slot);
-  currentSlot.value = slot;
-  const data = await Save.load(slot);
-  if (data) {
-    showSaves.value = false;
-    await onContinue();
-  } else {
-    // Empty slot — start a new game bound to this slot
-    showSaves.value = false;
-    engineLoading.value = true;
-    try {
-      const engine = await loadGame();
-      const seed = titleRef.value?.seed || '';
-      engine.newGame(seed);
-    } finally {
-      engineLoading.value = false;
-    }
-  }
-}
-async function onDeleteSlot(slot: number) {
-  if (confirm(`确定删除存档 ${slot + 1}？`)) {
-    await Save.deleteSlot(slot);
-    await refreshSlots();
-  }
-}
-function onIntroSkip() {
-  const engine = getEngine();
-  engine?.finishLoad(null);
-}
-function onContinueWithFailedModels() {
-  getEngine()?.continueWithFailedModels();
-}
-function onReportModelFailure() {
-  const issueUrl = new URL('https://github.com/lemonhub-io/voxel-horizon-demo/issues/new');
-  issueUrl.searchParams.set('title', '模型资源加载失败');
-  issueUrl.searchParams.set('body', `自动生成的错误报告：\n\n- ${game.modelLoadFailures.join('\n- ')}\n\n浏览器：${navigator.userAgent}`);
-  window.location.assign(issueUrl.toString());
-}
-function onCloseInv() { inv.open = false; }
-function onUseItem(id: string) {
-  const engine = getEngine();
-  if (engine) {
-    engine.inv.useItem(id);
-    engine.inv.syncStore();
-  }
-}
-function onCraft(recipe: { id: string; req: [string, number][]; out: number }) {
-  const engine = getEngine();
-  if (engine) {
-    engine.inv.craft(recipe);
-    engine.inv.syncStore();
-  }
-}
-function onCloseShip() {
-  const engine = getEngine();
-  engine?.ship.closePanel();
-}
-function onRepair(key: string) {
-  const engine = getEngine();
-  engine?.ship.repair(key);
-}
-function onRefuel() {
-  const engine = getEngine();
-  engine?.ship.refuel();
-}
-function onLaunch() {
-  const engine = getEngine();
-  engine?.ship.closePanel();
-  engine?.ship.enter();
-}
-function onResume() {
-  const engine = getEngine();
-  engine?.togglePause(false);
-}
-async function onSave() {
-  const engine = getEngine();
-  if (!engine) return;
-  if (engine.multiplayer) {
-    hud.addNotification('公开联机不托管存档，进度仅会话内有效', 'warn');
-    return;
-  }
-  const ok = await Save.save(engine);
-  await refreshSlots();
-  hud.addNotification(ok ? '进度已保存' : '存档失败，请重试', ok ? 'success' : 'danger');
-  if (ok) onResume();
-}
-async function onQuit() {
-  const engine = getEngine();
-  if (engine?.multiplayer) {
-    engine.leaveMultiplayer?.();
-    location.reload();
-    return;
-  }
-  if (engine) {
-    const ok = await Save.save(engine);
-    if (!ok) {
-      hud.addNotification('存档失败，仍将退出', 'warn');
-      await new Promise(r => setTimeout(r, 400));
-    }
-  }
-  location.reload();
-}
-function onRespawn() {
-  const engine = getEngine();
-  engine?.respawn();
-}
-async function onWipe() {
-  if (confirm('确定清除全部存档？')) { await Save.clear(); location.reload(); }
-}
+const {
+  hasSave,
+  saveSlots,
+  currentSlot,
+  showSettings,
+  showHelp,
+  showSaves,
+  showMpLobby,
+  engineLoading,
+  engineLoadingText,
+  engineLoadingSub,
+  mpBusy,
+  mpRoomLabel,
+  isMultiplayer,
+  isMpHost,
+  isMpOfficial,
+  openMpLobby,
+  onNewGame,
+  onContinue,
+  onLoadSlot,
+  onDeleteSlot,
+  onMpJoin,
+  onOfficialMp,
+  onHostMp,
+  onIntroSkip,
+  onContinueWithFailedModels,
+  onReportModelFailure,
+  onCloseInv,
+  onUseItem,
+  onCraft,
+  onCloseShip,
+  onRepair,
+  onRefuel,
+  onLaunch,
+  onResume,
+  onSave,
+  onQuit,
+  onRespawn,
+  onWipe,
+} = useGameFlow(titleRef);
 
 function triggerDamageFlash() {
   damageFlash.value = true;

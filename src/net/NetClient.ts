@@ -1,15 +1,13 @@
 import {
   MP_POSE_HZ,
   MP_PROTOCOL_VERSION,
-  OFFICIAL_ROOM_ID,
   type AnimCode,
   type ClientMsg,
-  type OfficialStatus,
-  type PublicRoomInfo,
   type ServerMsg,
   decodeMsg,
   encodeMsg,
 } from './protocol';
+import { defaultMultiplayerApiBase } from './MultiplayerApi';
 
 export type NetHandler = (msg: ServerMsg | HostInboxMsg) => void;
 
@@ -17,17 +15,6 @@ export type NetHandler = (msg: ServerMsg | HostInboxMsg) => void;
 export type HostInboxMsg =
   | { t: 'block_set'; x: number; y: number; z: number; id: number; seq: number; from: string }
   | ServerMsg;
-
-const DEFAULT_PROD_MP = 'https://voxel-api.mzhub.space';
-
-function defaultHttpBase(): string {
-  const env = import.meta.env.VITE_MP_HTTP_URL as string | undefined;
-  if (env) return env.replace(/\/$/, '');
-  if (import.meta.env.DEV && typeof location !== 'undefined') {
-    return `${location.protocol}//${location.host}/mp`;
-  }
-  return DEFAULT_PROD_MP;
-}
 
 function wsUrlFromHttp(httpBase: string, wsPath: string): string {
   const envWs = import.meta.env.VITE_MP_WS_URL as string | undefined;
@@ -59,7 +46,8 @@ export class NetClient {
   connected = false;
   roomId = '';
   playerId = '';
-  httpBase = defaultHttpBase();
+
+  constructor(readonly httpBase = defaultMultiplayerApiBase()) {}
 
   onMessage(handler: NetHandler): () => void {
     this.handlers.add(handler);
@@ -68,40 +56,6 @@ export class NetClient {
 
   private emit(msg: HostInboxMsg): void {
     for (const h of this.handlers) h(msg);
-  }
-
-  async listPublicRooms(): Promise<PublicRoomInfo[]> {
-    const res = await fetch(`${this.httpBase}/api/public/rooms`);
-    if (!res.ok) throw new Error(`联机服务不可用 (${res.status})`);
-    const data = (await res.json()) as { rooms?: PublicRoomInfo[] };
-    return Array.isArray(data.rooms) ? data.rooms : [];
-  }
-
-  async createRoom(): Promise<{ roomId: string; wsPath: string }> {
-    const res = await fetch(`${this.httpBase}/api/public/create`);
-    if (!res.ok) throw new Error(`无法创建房间 (${res.status})`);
-    const data = (await res.json()) as { ok?: boolean; roomId?: string; wsPath?: string; reason?: string };
-    if (!data.roomId || !data.wsPath) throw new Error(data.reason || '创建房间失败');
-    return { roomId: data.roomId, wsPath: data.wsPath };
-  }
-
-  async getOfficialStatus(): Promise<OfficialStatus> {
-    const res = await fetch(`${this.httpBase}/api/official`);
-    if (!res.ok) throw new Error(`官方服不可用 (${res.status})`);
-    const data = (await res.json()) as Partial<OfficialStatus>;
-    if (!data.roomId && !data.wsPath) throw new Error('官方服响应无效');
-    return {
-      roomId: data.roomId || OFFICIAL_ROOM_ID,
-      wsPath: data.wsPath || `/ws?room=${encodeURIComponent(OFFICIAL_ROOM_ID)}`,
-      playerCount: data.playerCount ?? 0,
-      maxPlayers: data.maxPlayers ?? 8,
-      seed: data.seed ?? 0,
-      palIdx: data.palIdx ?? 0,
-      planetName: data.planetName || '官方星域',
-      live: data.live !== false,
-      mode: 'official',
-      editChunks: data.editChunks,
-    };
   }
 
   async connect(wsPath: string): Promise<void> {

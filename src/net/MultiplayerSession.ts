@@ -1,6 +1,7 @@
 import type { Game } from '../types';
 import { CFG } from '../config';
 import { NetClient, type HostInboxMsg } from './NetClient';
+import { MultiplayerApi } from './MultiplayerApi';
 import { RemotePlayer } from './RemotePlayer';
 import {
   MP_HOST_HEARTBEAT_S,
@@ -19,7 +20,8 @@ import {
  * - official: DO authority + R2 world archive
  */
 export class MultiplayerSession {
-  readonly net = new NetClient();
+  readonly api = new MultiplayerApi();
+  readonly net = new NetClient(this.api.httpBase);
   private game: Game | null = null;
   private remotes = new Map<string, RemotePlayer>();
   private unsub: (() => void) | null = null;
@@ -52,7 +54,7 @@ export class MultiplayerSession {
     this.unsub?.();
     this.unsub = this.net.onMessage((msg) => this.onMessage(msg));
 
-    const { roomId, wsPath } = await this.net.createRoom();
+    const { roomId, wsPath } = await this.api.createRoom();
     this.roomId = roomId;
     this.mode = 'host-local';
     await this.net.connect(wsPath);
@@ -93,7 +95,7 @@ export class MultiplayerSession {
     this.unsub?.();
     this.unsub = this.net.onMessage((msg) => this.onMessage(msg));
 
-    const status = await this.net.getOfficialStatus();
+    const status = await this.api.getOfficialStatus();
     const snapPromise = this.waitSnapshot(25000);
     this.roomId = status.roomId || OFFICIAL_ROOM_ID;
     this.mode = 'official';

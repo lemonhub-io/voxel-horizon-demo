@@ -6,9 +6,12 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import { registerServiceWorker } from './pwa';
+import { getActiveGame } from './runtime/game-runtime';
 
 const pinia = createPinia();
 const app = createApp(App);
+// The engine is lazy-loaded, but it publishes state into Pinia as soon as it
+// exists, so the store must be installed before any gameplay can be requested.
 app.use(pinia);
 app.mount('#vue-app');
 
@@ -20,12 +23,14 @@ app.mount('#vue-app');
   document.body.classList.toggle('touch-device', isTouch);
 }
 
-// Progressive Web App (production builds only)
+// Dev HMR and a caching service worker would otherwise serve different module
+// versions, so registration is delegated to the production-aware helper.
 void registerServiceWorker();
 
-// Save on page unload (fire-and-forget, auto-save covers most cases)
+// This is only a last chance: browsers may cancel async work during unload, so
+// normal progress relies on the engine's earlier autosaves.
 import { Save } from './save';
 addEventListener('beforeunload', () => {
-  const game = window.game;
+  const game = getActiveGame();
   if (game?.state === 'play') Save.save(game).catch(() => {});
 });

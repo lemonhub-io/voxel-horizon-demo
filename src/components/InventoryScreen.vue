@@ -111,6 +111,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useMilestonesStore } from '../stores/milestonesStore';
 import { ITEMS, RECIPES, MILESTONE_DEFS } from '../config';
 import type { SlotItem, MilestoneDef } from '../types';
+import { getGameIcon } from '../runtime/game-runtime';
 
 const emit = defineEmits(['close', 'use-item', 'craft']);
 
@@ -135,7 +136,7 @@ const tabs = [
   { key: 'disc', label: '发现', en: 'DISCOVERIES' }
 ];
 
-function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
+function icon(id: string) { return getGameIcon(id); }
 function tier(def: MilestoneDef, val: number) { let t = 0; for (const th of def.tiers) if (val >= th) t++; return t; }
 
 // --- Detail panel selection (right side) ---

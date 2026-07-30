@@ -7,6 +7,8 @@
 </template>
 
 <script setup lang="ts">
+import { getGameIcon } from '../runtime/game-runtime';
+
 defineProps<{ toasts: { id: string; itemId: string; name: string; n: number }[] }>();
-function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
+function icon(id: string) { return getGameIcon(id); }
 </script>

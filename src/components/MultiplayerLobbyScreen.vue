@@ -94,9 +94,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { OFFICIAL_ROOM_ID, type OfficialStatus, type PublicRoomInfo } from '../net/protocol';
-import { NetClient } from '../net/NetClient';
+import { computed } from 'vue';
+import { useMultiplayerLobby } from '../composables/useMultiplayerLobby';
 
 const props = defineProps<{
   joining?: boolean;
@@ -108,30 +107,24 @@ const emit = defineEmits<{
   'join-official': [];
 }>();
 
-const rooms = ref<PublicRoomInfo[]>([]);
-const official = ref<OfficialStatus | null>(null);
-const loading = ref(false);
-const loadingOfficial = ref(false);
-const error = ref('');
-const officialError = ref('');
-const selectedId = ref('');
-const joinKind = ref<'host' | 'official' | null>(null);
-
 const joining = computed(() => !!props.joining);
-const joiningOfficial = computed(() => joining.value && joinKind.value === 'official');
-const joiningHost = computed(() => joining.value && joinKind.value === 'host');
-
-const officialFull = computed(() => {
-  const o = official.value;
-  return !!o && o.playerCount >= o.maxPlayers;
-});
-
-const hostRooms = computed(() => rooms.value.filter((room) => room.mode !== 'official' && room.roomId !== OFFICIAL_ROOM_ID));
-
-const canJoinSelected = computed(() => {
-  const r = hostRooms.value.find((x) => x.roomId === selectedId.value);
-  return !!r && r.playerCount < r.maxPlayers && r.live !== false;
-});
+const {
+  official,
+  loading,
+  loadingOfficial,
+  error,
+  officialError,
+  selectedId,
+  joiningOfficial,
+  joiningHost,
+  officialFull,
+  hostRooms,
+  canJoinSelected,
+  selectRoom,
+  refresh,
+  prepareHostJoin,
+  prepareOfficialJoin,
+} = useMultiplayerLobby(joining);
 
 function shortId(roomId: string): string {
   const m = /^room-(.+)$/i.exec(roomId);
@@ -142,74 +135,12 @@ function shortSeed(seed: number): string {
   return (seed >>> 0).toString(16).toUpperCase().padStart(8, '0').slice(0, 6);
 }
 
-function selectRoom(room: PublicRoomInfo): void {
-  if (room.mode === 'official' || room.roomId === OFFICIAL_ROOM_ID || room.playerCount >= room.maxPlayers) return;
-  selectedId.value = room.roomId;
-}
-
-async function refreshOfficial(): Promise<void> {
-  loadingOfficial.value = true;
-  officialError.value = '';
-  try {
-    const client = new NetClient();
-    official.value = await client.getOfficialStatus();
-  } catch (e) {
-    // The public-list endpoint also carries the official entry. Preserve that
-    // fallback if the dedicated status request is temporarily unavailable.
-    if (!official.value) {
-      officialError.value = e instanceof Error ? e.message : '无法连接官方服';
-      official.value = null;
-    }
-  } finally {
-    loadingOfficial.value = false;
-  }
-}
-
-async function refresh(): Promise<void> {
-  loading.value = true;
-  error.value = '';
-  try {
-    const client = new NetClient();
-    rooms.value = await client.listPublicRooms();
-    const listedOfficial = rooms.value.find((room) => room.mode === 'official' || room.roomId === OFFICIAL_ROOM_ID);
-    if (listedOfficial && !official.value) {
-      official.value = {
-        ...listedOfficial,
-        wsPath: `/ws?room=${encodeURIComponent(listedOfficial.roomId)}`,
-        mode: 'official',
-      };
-      officialError.value = '';
-    }
-    if (selectedId.value) {
-      const still = hostRooms.value.find((r) => r.roomId === selectedId.value && r.playerCount < r.maxPlayers);
-      if (!still) selectedId.value = '';
-    }
-    if (!selectedId.value) {
-      const prefer = hostRooms.value.find((r) => r.playerCount > 0 && r.playerCount < r.maxPlayers);
-      if (prefer) selectedId.value = prefer.roomId;
-    }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '无法拉取公开房间';
-    rooms.value = [];
-  } finally {
-    loading.value = false;
-  }
-}
-
 function joinSelected(): void {
-  if (joining.value || !canJoinSelected.value) return;
-  joinKind.value = 'host';
-  emit('join', { roomId: selectedId.value });
+  const roomId = prepareHostJoin();
+  if (roomId) emit('join', { roomId });
 }
 
 function joinOfficial(): void {
-  if (joining.value || officialFull.value || officialError.value) return;
-  joinKind.value = 'official';
-  emit('join-official');
+  if (prepareOfficialJoin()) emit('join-official');
 }
-
-onMounted(() => {
-  void refreshOfficial();
-  void refresh();
-});
 </script>

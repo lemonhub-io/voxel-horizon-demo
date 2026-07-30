@@ -11,10 +11,11 @@
 <script setup lang="ts">
 import type { SlotItem } from '../types';
 import { useInventoryStore } from '../stores/inventoryStore';
+import { getGameIcon } from '../runtime/game-runtime';
 
 defineProps<{ items: (SlotItem | null)[]; sel: number }>();
 const inventory = useInventoryStore();
 
-function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
+function icon(id: string) { return getGameIcon(id); }
 function selectSlot(index: number) { inventory.sel = index; }
 </script>

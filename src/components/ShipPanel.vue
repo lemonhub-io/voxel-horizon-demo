@@ -32,9 +32,10 @@
 import { useShipStore } from '../stores/shipStore';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { ITEMS } from '../config';
+import { getGameIcon } from '../runtime/game-runtime';
 
 defineEmits(['close', 'repair', 'refuel', 'launch']);
 const ship = useShipStore();
 const inventory = useInventoryStore();
-function icon(id: string) { return window.game?.atlas.icon(id) || ''; }
+function icon(id: string) { return getGameIcon(id); }
 </script>
