@@ -540,7 +540,12 @@ export class Player {
     const cam = g.camera;
     cam.position.copy(this.eyePos());
     const moving = wishStrength > 0.03;
-    const bob = this.onGround && moving ? Math.sin(g.time * (sprint ? 13 : 9.5)) * 0.045 : 0;
+    const bobPhase = g.time * (sprint ? 13 : 9.5);
+    // Stronger locomotion cues make sustained movement readable without
+    // touching the separate impact shake used by damage and landings.
+    const bob = this.onGround && moving ? Math.sin(bobPhase) * (sprint ? 0.085 : 0.065) : 0;
+    const moveSwayX = this.onGround && moving ? Math.cos(bobPhase) * (sprint ? 0.032 : 0.024) : 0;
+    const moveSwayRoll = this.onGround && moving ? Math.sin(bobPhase) * (sprint ? 0.018 : 0.012) : 0;
     // Idle sway — subtle breathing motion when standing still
     const idleSwayX = this.onGround && !moving ? Math.sin(g.time * 1.1) * 0.008 : 0;
     const idleSwayY = this.onGround && !moving ? Math.sin(g.time * 0.7) * 0.005 : 0;
@@ -559,7 +564,8 @@ export class Player {
 
     cam.position.y += bob + idleSwayY + jumpCamY - landDip;
     cam.position.x += idleSwayX;
-    cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    cam.rotation.set(this.pitch, this.yaw, moveSwayRoll, 'YXZ');
+    if (moveSwayX !== 0) cam.translateX(moveSwayX);
 
     this.vm.position.y = -0.3 + bob * 0.6 + (this.mining ? Math.sin(g.time * 40) * 0.006 : 0);
     this.vm.rotation.x = this.mining ? 0.02 : 0;

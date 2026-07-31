@@ -85,6 +85,38 @@ export function findAnimationClip(
   return null;
 }
 
+/** Lift fauna shadow detail without making the model independent of scene light. */
+export function styleCC0Fauna(root: THREE.Object3D): void {
+  root.traverse((child) => {
+    const mesh = child as THREE.Object3D & {
+      material?: THREE.Material | THREE.Material[];
+    };
+    const mats = mesh.material
+      ? Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material]
+      : [];
+    for (const mat of mats) {
+      const m = mat as THREE.Material & {
+        map?: THREE.Texture | null;
+        color?: THREE.Color;
+        emissive?: THREE.Color;
+        emissiveMap?: THREE.Texture | null;
+        emissiveIntensity?: number;
+        needsUpdate?: boolean;
+      };
+      if (m.map && m.emissiveMap !== undefined) {
+        // Use the same atlas for a restrained ambient lift so shaded voxel
+        // faces remain readable while direct light and shadows still show.
+        m.emissiveMap = m.map;
+        if (m.emissive) m.emissive.setRGB(1, 1, 1);
+        if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0.16;
+        if (m.needsUpdate !== undefined) m.needsUpdate = true;
+      }
+    }
+  });
+}
+
 /** Clone a prepared template (skinned-safe). */
 export function cloneCC0Scene(source: THREE.Object3D): THREE.Group {
   const root = cloneSkinned(source) as THREE.Group;
@@ -134,6 +166,12 @@ function prepareCC0Scene(root: THREE.Object3D): void {
         depthWrite?: boolean;
         needsUpdate?: boolean;
         fog?: boolean;
+        toneMapped?: boolean;
+        emissive?: THREE.Color;
+        emissiveIntensity?: number;
+        metalness?: number;
+        roughness?: number;
+        envMapIntensity?: number;
       };
       if (m.map) {
         m.map.colorSpace = THREE.SRGBColorSpace;
@@ -148,6 +186,15 @@ function prepareCC0Scene(root: THREE.Object3D): void {
       }
       if (m.depthWrite !== undefined) m.depthWrite = true;
       if (m.fog !== undefined) m.fog = true;
+      // Imported fauna should follow the same scene lights as terrain. Some
+      // exporters leave emission/metalness defaults that make the animal look
+      // detached from the current day/night environment.
+      if (m.toneMapped !== undefined) m.toneMapped = true;
+      if (m.emissive) m.emissive.setRGB(0, 0, 0);
+      if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0;
+      if (m.metalness !== undefined) m.metalness = 0;
+      if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.82);
+      if (m.envMapIntensity !== undefined) m.envMapIntensity = 0;
       m.needsUpdate = true;
     }
   });
