@@ -392,24 +392,24 @@ export class GpuMeshExtractKernel {
   readonly faceDetails: StorageBufferNode<'uint'>;
   readonly draw: StorageBufferNode<'uint'>;
   readonly overflow: StorageBufferNode<'uint'>;
-  readonly slot: StorageBufferNode<'uint'>;
   readonly blockTable: StorageBufferNode<'uint'>;
   readonly extractNode: ComputeNode;
 
   constructor() {
-    const dummyVoxels = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_WORD_COUNT), 1);
+    // The final word stores the batch slot for this resource. Keeping the
+    // metadata in the per-chunk voxel binding avoids rebinding a second small
+    // storage buffer between consecutive dispatches of the shared kernel.
+    const dummyVoxels = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_WORD_COUNT + 1), 1);
     const dummyFaces = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES * 2), 2);
     const dummyFaceDetails = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES), 1);
     const dummyDraw = new THREE.IndirectStorageBufferAttribute(new Uint32Array(GPU_MESH_DRAW_ARG_COUNT), 1);
     const dummyOverflow = new THREE.StorageBufferAttribute(new Uint32Array(1), 1);
-    const dummySlot = new THREE.StorageBufferAttribute(new Uint32Array(1), 1);
     const dummyTable = new THREE.StorageBufferAttribute(createGpuOpaqueBlockTable(), 1);
-    this.voxels = storage(dummyVoxels, 'uint', GPU_MESH_WORD_COUNT).toReadOnly();
+    this.voxels = storage(dummyVoxels, 'uint', GPU_MESH_WORD_COUNT + 1).toReadOnly();
     this.faceRecords = storage(dummyFaces, 'uvec2', GPU_MESH_MAX_FACES);
     this.faceDetails = storage(dummyFaceDetails, 'uint', GPU_MESH_MAX_FACES);
     this.draw = storage(dummyDraw, 'uint', GPU_MESH_DRAW_ARG_COUNT).toAtomic();
     this.overflow = storage(dummyOverflow, 'uint', 1).toAtomic();
-    this.slot = storage(dummySlot, 'uint', 1).toReadOnly();
     this.blockTable = storage(dummyTable, 'uint', BLOCK_DEF.length).toReadOnly();
 
     const voxelWords = this.voxels;
@@ -417,10 +417,9 @@ export class GpuMeshExtractKernel {
     const faceDetails = this.faceDetails;
     const draw = this.draw;
     const overflow = this.overflow;
-    const slot = this.slot;
     const blockTable = this.blockTable;
     this.extractNode = Fn(() => {
-      const batchSlot = slot.element(uint(0));
+      const batchSlot = voxelWords.element(uint(GPU_MESH_WORD_COUNT));
       const drawBase = batchSlot.mul(uint(GPU_MESH_DRAW_ARG_COUNT));
       const faceBase = batchSlot.mul(uint(GPU_MESH_MAX_FACES));
       const index = instanceIndex;
@@ -479,7 +478,6 @@ export class GpuMeshExtractKernel {
     this.faceDetails.value = resource.batch.faceDetails;
     this.draw.value = resource.batch.drawArgs;
     this.overflow.value = resource.batch.overflow;
-    this.slot.value = resource.slot;
     this.blockTable.value = resource.batch.blockTable;
   }
 }
@@ -489,20 +487,20 @@ export class GpuMeshExtractKernel {
  * extracted faces are written into a shared batch for a single render object.
  */
 export class GpuMeshChunkCompute {
-  readonly voxels = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_WORD_COUNT), 1);
-  readonly slot: THREE.StorageBufferAttribute;
+  readonly voxels = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_WORD_COUNT + 1), 1);
   readonly extractNode: ComputeNode;
   private _disposed = false;
 
   constructor(readonly batch: GpuMeshBatch, readonly batchSlot: number, readonly kernel = new GpuMeshExtractKernel()) {
-    this.slot = new THREE.StorageBufferAttribute(new Uint32Array([batchSlot]), 1);
     this.extractNode = kernel.extractNode;
   }
 
   upload(payload: Uint32Array): void {
     if (this._disposed) throw new Error('GPU mesh chunk has been disposed');
     if (payload.length !== GPU_MESH_WORD_COUNT) throw new RangeError(`expected ${GPU_MESH_WORD_COUNT} GPU mesh words, got ${payload.length}`);
-    (this.voxels.array as Uint32Array).set(payload);
+    const words = this.voxels.array as Uint32Array;
+    words.set(payload);
+    words[GPU_MESH_WORD_COUNT] = this.batchSlot;
     this.voxels.needsUpdate = true;
   }
 
@@ -562,7 +560,6 @@ export class GpuMeshChunkCompute {
     if (this._disposed) return;
     this._disposed = true;
     this.voxels.dispose();
-    this.slot.dispose();
     this.batch.release(this.batchSlot);
   }
 }

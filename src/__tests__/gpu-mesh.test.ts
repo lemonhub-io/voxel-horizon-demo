@@ -5,6 +5,7 @@ import {
   GPU_MESH_HEIGHT,
   GPU_MESH_BATCH_SIZE,
   GPU_MESH_MAX_BATCH_SIZE,
+  GPU_MESH_WORD_COUNT,
   GPU_MESH_VOXEL_COUNT,
   GPU_MESH_WIDTH,
   GpuMeshBatch,
@@ -113,12 +114,15 @@ describe('GPU mesh data contract', () => {
     const secondSlot = batch.allocate(1, 0);
     const first = new GpuMeshChunkCompute(batch, firstSlot);
     const second = new GpuMeshChunkCompute(batch, secondSlot);
+    const emptyPayload = new Uint32Array(GPU_MESH_WORD_COUNT);
+    first.upload(emptyPayload);
+    second.upload(emptyPayload);
     expect(batch.batchSize).toBe(2);
     const origins = batch.origins.array as Int32Array;
     expect(origins[firstSlot * 2]).toBe(0);
     expect(origins[secondSlot * 2]).toBe(16);
-    expect(Array.from(first.slot.array as Uint32Array)).toEqual([firstSlot]);
-    expect(Array.from(second.slot.array as Uint32Array)).toEqual([secondSlot]);
+    expect((first.voxels.array as Uint32Array)[GPU_MESH_WORD_COUNT]).toBe(firstSlot);
+    expect((second.voxels.array as Uint32Array)[GPU_MESH_WORD_COUNT]).toBe(secondSlot);
     expect(batch.mesh.geometry.getIndirect()).toBe(batch.drawArgs);
     expect(batch.mesh.geometry.boundingSphere?.center.toArray()).toEqual([16, 32, 8]);
     first.dispose();
