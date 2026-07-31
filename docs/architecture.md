@@ -22,11 +22,18 @@ App.vue / components → composables → engine-loader.ts → Game (main.ts)
 - `components/`：纯视图及事件转发；复杂交互优先移至 `composables/`。
 - `runtime/game-runtime.ts`：浏览器全局引擎的唯一边界，供 UI 与低层输入模块窄化依赖。
 
+## 飞行状态与 HUD
+
+- `ship.ts` 只负责飞船的输入、飞行动力学、起降和组件状态；飞行帧结束后通过 `Ship.syncStore()` 写入 `shipStore`。
+- `HudOverlay.vue` 从 Pinia 读取速度、油门和飞行状态并渲染飞行 HUD。引擎代码不得通过 `document.getElementById()` 更新 HUD，也不得依赖已经移除的旧版 DOM 节点。
+- 起飞按钮由 `useGameFlow` 调用 `ship.closePanel()` 和 `ship.enter()`；键盘输入仍由 `Input` 统一收集，飞行中的 `W/S` 调整油门，鼠标或触控输入调整航向与俯仰。
+- 修改飞行状态或 HUD 字段时，应同步更新 `shipStore` 并在 `src/__tests__/ship.test.ts` 增加无 DOM 依赖的回归测试。
+
 ## 渲染与资产
 
 引擎从 `three/webgpu` 导入 Three.js r185；WebGPU 不可用时降级 WebGL2。世界、纹理、音频和名称由种子生成。仅 `public/models/cc0/` 保存可选的 CC0 glTF/GLB 模型，许可见该目录的 `ASSETS.md`。PWA 入口在 `src/pwa.ts`；`public/sw.js` 负责版本化的离线壳和运行时缓存。
 
-`gpu-mesh.ts` 保留了原生 WebGPU 的实验性路径：`world.ts` 会把每个区块的 CPU 体素数据连同一格边界上传，计算着色器只提取不透明方块可见面，并把紧凑面记录交给间接实例绘制。它默认关闭，因为兼容设备上的实际帧时间必须优于成熟 CPU 网格才值得启用；可在 `CFG.GPU_MESH.mode` 设为 `auto` 或 `force` 进行设备测试。镂空方块与水面仍使用 CPU 网格，以保留现有的 alpha 裁切和透明排序。WebGL2、后端检测失败或 GPU 调度错误均会恢复 CPU 不透明网格，不影响碰撞、射线检测、存档和联机——这些状态始终以 CPU 区块数据为准。
+`gpu-mesh.ts` 保留了原生 WebGPU 的路径：`world.ts` 会把每个区块的 CPU 体素数据连同一格边界上传，计算着色器只提取不透明方块可见面，并把紧凑面记录交给间接实例绘制。支持 WebGPU 的设备默认启用；能力检测失败、使用 WebGL2 或 GPU 调度异常时恢复 CPU 不透明网格，不影响碰撞、射线检测、存档和联机——这些状态始终以 CPU 区块数据为准。镂空方块与水面仍使用 CPU 网格，以保留现有的 alpha 裁切和透明排序。
 
 ## 联机架构
 
