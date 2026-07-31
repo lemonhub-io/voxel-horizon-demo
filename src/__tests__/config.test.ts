@@ -56,9 +56,11 @@ describe('CFG constants', () => {
     expect(CFG.POM.minViewZ).toBeGreaterThan(0);
     expect(CFG.POM.atlasCells).toBe(8);
   });
-  it('keeps GPU mesh extraction opt-in until it beats the CPU path', () => {
-    expect(CFG.GPU_MESH.mode).toBe('off');
+  it('enables GPU mesh extraction by default with a positive dispatch budget', () => {
+    expect(CFG.GPU_MESH.mode).toBe('auto');
     expect(CFG.GPU_MESH.maxJobsPerFrame).toBeGreaterThan(0);
+    expect(CFG.GPU_MESH.diagnosticSampleLimit).toBe(0);
+    expect(DEFAULT_SETTINGS.gpuMesh).toBe(true);
   });
   it('has cinematic post-processing config', () => {
     expect(CFG.POST.enabled).toBe(true);
@@ -82,6 +84,23 @@ describe('Block types (B)', () => {
 });
 
 describe('BLOCK_DEF', () => {
+  it('drops matching placeable items for ordinary construction blocks', () => {
+    const expected: Array<[number, string]> = [
+      [B.GRASS, 'b_dirt'],
+      [B.DIRT, 'b_dirt'],
+      [B.STONE, 'b_stone'],
+      [B.SAND, 'b_sand'],
+      [B.LOG, 'b_log'],
+      [B.PLANKS, 'b_planks'],
+      [B.GLASS, 'b_glass'],
+      [B.ALLOY, 'b_alloy'],
+      [B.LAMP, 'b_lamp'],
+    ];
+    for (const [blockId, itemId] of expected) {
+      expect(BLOCK_DEF[blockId].drops?.map(drop => drop.id)).toContain(itemId);
+    }
+  });
+
   it('has entry for every block type', () => {
     for (const key of Object.values(B)) {
       expect(BLOCK_DEF[key as number]).toBeDefined();
@@ -102,6 +121,10 @@ describe('BLOCK_DEF', () => {
 });
 
 describe('ITEMS', () => {
+  it('gives biomass a dedicated inventory icon', () => {
+    expect(ITEMS.biomass.glyph).toBe('bio');
+  });
+
   it('has name and desc for every item', () => {
     for (const [id, def] of Object.entries(ITEMS)) {
       expect(def.name, `item ${id} missing name`).toBeTruthy();

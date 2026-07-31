@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { Fn, If, atomicAdd, atomicOr, float, instanceIndex, positionGeometry, storage, texture, uint, uvec2, vec2, vec3 } from 'three/tsl';
+import { Fn, If, atomicAdd, atomicOr, float, fract, instanceIndex, positionGeometry, storage, texture, transformNormalToView, uint, vec2, vec3 } from 'three/tsl';
 import type Node from 'three/src/nodes/core/Node.js';
+import type StorageBufferNode from 'three/src/nodes/accessors/StorageBufferNode.js';
+import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
 import { BLOCK_DEF, CFG } from './config';
 
 /**
@@ -22,9 +24,11 @@ export const GPU_MESH_MAX_FACES = CFG.CHUNK * CFG.CHUNK * CFG.WORLD_H * 6;
 export const GPU_MESH_DRAW_ARG_COUNT = 4;
 /**
  * WebGPU only permits non-zero indirect firstInstance when an optional feature
- * is enabled, so one draw-owned slot keeps every supported browser valid.
+ * is enabled. This is the conservative fallback for devices without it.
  */
 export const GPU_MESH_BATCH_SIZE = 1;
+/** Keep batches bounded so frustum bounds and storage allocations stay manageable. */
+export const GPU_MESH_MAX_BATCH_SIZE = 8;
 
 export type GpuMeshFace = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -39,6 +43,8 @@ export interface GpuMeshFaceRecord {
   ao: number;
   /** Keep the binary layout stable as GPU-only material effects are added. */
   flags: number;
+  width: number;
+  height: number;
 }
 
 export interface GpuMeshChunkCoord {
@@ -124,6 +130,8 @@ export function packGpuMeshFace(record: GpuMeshFaceRecord): readonly [number, nu
   assertRange('blockId', record.blockId, BLOCK_MASK);
   assertRange('ao', record.ao, AO_MASK);
   assertRange('flags', record.flags, FLAGS_MASK);
+  assertRange('width', record.width, 0xff);
+  assertRange('height', record.height, 0xff);
 
   const header =
     record.x |
@@ -132,7 +140,7 @@ export function packGpuMeshFace(record: GpuMeshFaceRecord): readonly [number, nu
     (record.face << 14) |
     (record.tile << 17) |
     (record.blockId << 23);
-  return [header >>> 0, (record.ao | (record.flags << 8)) >>> 0] as const;
+  return [header >>> 0, (record.ao | (record.flags << 8) | (record.width << 16) | (record.height << 24)) >>> 0] as const;
 }
 
 export function unpackGpuMeshFace(header: number, detail: number): GpuMeshFaceRecord {
@@ -145,6 +153,8 @@ export function unpackGpuMeshFace(header: number, detail: number): GpuMeshFaceRe
     blockId: (header >>> 23) & BLOCK_MASK,
     ao: detail & AO_MASK,
     flags: (detail >>> 8) & FLAGS_MASK,
+    width: (detail >>> 16) & 0xff,
+    height: (detail >>> 24) & 0xff,
   };
 }
 
@@ -158,6 +168,24 @@ export function detectGpuMeshCapability(renderer: unknown): GpuMeshCapability {
     return { supported: false, reason: '当前渲染器未使用 WebGPU 后端' };
   }
   return { supported: true, reason: null };
+}
+
+/**
+ * Non-zero indirect firstInstance is optional in WebGPU. Use larger batches
+ * only when the active device advertises the feature; the one-slot path remains
+ * the portable fallback.
+ */
+export function detectGpuMeshBatchSize(renderer: unknown): number {
+  const backend = (renderer as {
+    backend?: {
+      isWebGPUBackend?: boolean;
+      device?: { features?: { has?: (feature: string) => boolean } };
+    };
+  } | null)?.backend;
+  if (!backend?.isWebGPUBackend || backend.device?.features?.has?.('indirect-first-instance') !== true) {
+    return GPU_MESH_BATCH_SIZE;
+  }
+  return GPU_MESH_MAX_BATCH_SIZE;
 }
 
 /**
@@ -179,34 +207,59 @@ export function createGpuOpaqueBlockTable(): Uint32Array {
   return table;
 }
 
-/**
- * Sharing records, material, geometry, and indirect arguments prevents every
- * visible chunk from multiplying pipeline compilation and bind work.
- */
+/** A bounded indirect batch keeps pipeline and draw overhead predictable. */
 export class GpuMeshBatch {
-  readonly faces = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES * GPU_MESH_BATCH_SIZE * 2), 2);
-  readonly drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array(GPU_MESH_BATCH_SIZE * GPU_MESH_DRAW_ARG_COUNT), 1);
-  readonly origins = new THREE.StorageBufferAttribute(new Int32Array(GPU_MESH_BATCH_SIZE * 2), 2);
-  readonly overflow = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_BATCH_SIZE), 1);
+  readonly faces: THREE.StorageBufferAttribute;
+  readonly faceDetails: THREE.StorageBufferAttribute;
+  readonly drawArgs: THREE.IndirectStorageBufferAttribute;
+  readonly origins: THREE.StorageBufferAttribute;
+  readonly overflow: THREE.StorageBufferAttribute;
   readonly blockTable = new THREE.StorageBufferAttribute(createGpuOpaqueBlockTable(), 1);
   readonly mesh: THREE.Mesh;
-  private readonly _freeSlots = Array.from({ length: GPU_MESH_BATCH_SIZE }, (_, index) => index);
+  private readonly _freeSlots: number[];
+  private readonly _slotCoords: Array<GpuMeshChunkCoord | null>;
+  readonly batchSize: number;
   private _usedSlots = 0;
 
-  constructor(atlas: THREE.Texture) {
+  constructor(atlas: THREE.Texture, batchSize = GPU_MESH_BATCH_SIZE) {
+    if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > GPU_MESH_MAX_BATCH_SIZE) {
+      throw new RangeError(`GPU mesh batch size must be an integer in 1..${GPU_MESH_MAX_BATCH_SIZE}`);
+    }
+    this.batchSize = batchSize;
+    this.faces = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES * batchSize * 2), 2);
+    this.faceDetails = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES * batchSize), 1);
+    this.drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array(batchSize * GPU_MESH_DRAW_ARG_COUNT), 1);
+    this.origins = new THREE.StorageBufferAttribute(new Int32Array(batchSize * 2), 2);
+    this.overflow = new THREE.StorageBufferAttribute(new Uint32Array(batchSize), 1);
+    this._freeSlots = Array.from({ length: batchSize }, (_, index) => index);
+    this._slotCoords = Array.from({ length: batchSize }, () => null);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
       // Preserve the CPU face winding so FrontSide keeps the exterior visible.
       0, 0, 0, 1, 0, 0, 1, 1, 0,
       0, 0, 0, 1, 1, 0, 0, 1, 0,
     ]), 3));
-    geometry.setIndirect(this.drawArgs, Array.from({ length: GPU_MESH_BATCH_SIZE }, (_, slot) => slot * 16));
+    geometry.setIndirect(this.drawArgs, Array.from({ length: batchSize }, (_, slot) => slot * 16));
 
-    const faceRecords = storage(this.faces, 'uvec2', GPU_MESH_MAX_FACES * GPU_MESH_BATCH_SIZE).toReadOnly();
-    const origins = storage(this.origins, 'ivec2', GPU_MESH_BATCH_SIZE).toReadOnly();
+    const faceRecords = storage(this.faces, 'uvec2', GPU_MESH_MAX_FACES * batchSize).toReadOnly();
+    const faceDetails = storage(this.faceDetails, 'uint', GPU_MESH_MAX_FACES * batchSize).toReadOnly();
+    const origins = storage(this.origins, 'ivec2', batchSize).toReadOnly();
     const header = () => faceRecords.element(instanceIndex).x;
     const face = () => header().shiftRight(uint(14)).bitAnd(uint(FACE_MASK));
-    const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.72, metalness: 0.05 });
+    // This pass contains opaque blocks only. Do not let the atlas alpha channel
+    // turn transparent gutter/cutout samples into blended terrain.
+    const material = new THREE.MeshStandardNodeMaterial({
+      roughness: 0.72,
+      metalness: 0.05,
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      alphaTest: 0,
+      // The six face branches are reconstructed in the vertex shader. Keep
+      // the GPU path consistent with the CPU terrain material so a backend
+      // specific front-face convention cannot cull one whole direction.
+      side: THREE.DoubleSide,
+    });
 
     material.positionNode = Fn(() => {
       const packed = header();
@@ -216,14 +269,18 @@ export class GpuMeshBatch {
       const y = float(packed.shiftRight(uint(4)).bitAnd(uint(Y_MASK)));
       const z = float(packed.shiftRight(uint(10)).bitAnd(uint(Z_MASK))).add(float(origin.y));
       const q = positionGeometry;
-      // Each branch follows the CPU face order, keeping front-face culling on
-      // without relying on the costly double-sided fallback.
-      const top = vec3(x.add(q.x), y.add(1), z.add(float(1).sub(q.y)));
-      const bottom = vec3(x.add(q.x), y, z.add(q.y));
-      const east = vec3(x.add(1), y.add(q.y), z.add(float(1).sub(q.x)));
-      const west = vec3(x, y.add(q.y), z.add(q.x));
-      const south = vec3(x.add(q.x), y.add(q.y), z.add(1));
-      const north = vec3(x.add(float(1).sub(q.x)), y.add(q.y), z);
+      const detail = faceDetails.element(instanceIndex);
+      const width = float(detail.shiftRight(uint(16)).bitAnd(uint(0xff)));
+      const height = float(detail.shiftRight(uint(24)).bitAnd(uint(0xff)));
+      // Each branch follows the CPU face order. DoubleSide above is deliberate:
+      // the mesh is shader-reconstructed and must not lose a direction when a
+      // WebGPU backend applies a different front-face convention.
+      const top = vec3(x.add(q.x.mul(width)), y.add(1), z.add(height.sub(q.y.mul(height))));
+      const bottom = vec3(x.add(q.x.mul(width)), y, z.add(q.y.mul(height)));
+      const east = vec3(x.add(1), y.add(q.y.mul(height)), z.add(width.sub(q.x.mul(width))));
+      const west = vec3(x, y.add(q.y.mul(height)), z.add(q.x.mul(width)));
+      const south = vec3(x.add(q.x.mul(width)), y.add(q.y.mul(height)), z.add(1));
+      const north = vec3(x.add(width.sub(q.x.mul(width))), y.add(q.y.mul(height)), z);
       return direction.equal(uint(0)).select(top,
         direction.equal(uint(1)).select(bottom,
           direction.equal(uint(2)).select(east,
@@ -232,22 +289,31 @@ export class GpuMeshBatch {
     })();
     material.normalNode = Fn(() => {
       const direction = face();
-      return direction.equal(uint(0)).select(vec3(0, 1, 0),
+      const localNormal = direction.equal(uint(0)).select(vec3(0, 1, 0),
         direction.equal(uint(1)).select(vec3(0, -1, 0),
           direction.equal(uint(2)).select(vec3(1, 0, 0),
             direction.equal(uint(3)).select(vec3(-1, 0, 0),
               direction.equal(uint(4)).select(vec3(0, 0, 1), vec3(0, 0, -1))))));
+      // NodeMaterial.normalNode is consumed as a view-space normal. The face
+      // table stores object/world-axis directions, so passing them through
+      // unchanged makes lighting and CSM bias camera-dependent and can make a
+      // fixed direction appear to disappear on only part of the terrain.
+      return transformNormalToView(localNormal);
     })();
     material.colorNode = texture(atlas, Fn(() => {
       const tile = header().shiftRight(uint(17)).bitAnd(uint(TILE_MASK));
       const tileX = float(tile.mod(uint(8)));
       const tileY = float(tile.div(uint(8)));
       const q = positionGeometry;
+      const detail = faceDetails.element(instanceIndex);
+      const width = float(detail.shiftRight(uint(16)).bitAnd(uint(0xff)));
+      const height = float(detail.shiftRight(uint(24)).bitAnd(uint(0xff)));
+      const local = fract(vec2(q.x.mul(width), q.y.mul(height)));
       return vec2(
-        tileX.mul(34).add(1.5).add(q.x.mul(31)).div(272),
-        float(1).sub(tileY.mul(34).add(32.5).div(272)).add(q.y.mul(31).div(272)),
+        tileX.mul(34).add(1.5).add(local.x.mul(31)).div(272),
+        float(1).sub(tileY.mul(34).add(32.5).sub(local.y.mul(31)).div(272)),
       );
-    })());
+    })()).rgb;
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.matrixAutoUpdate = false;
     // A per-chunk world-space bound preserves culling without losing shader-offset faces.
@@ -266,11 +332,9 @@ export class GpuMeshBatch {
     const origins = this.origins.array as Int32Array;
     origins[slot * 2] = cx * CFG.CHUNK;
     origins[slot * 2 + 1] = cz * CFG.CHUNK;
-    this.mesh.geometry.boundingSphere = new THREE.Sphere(
-      new THREE.Vector3(cx * CFG.CHUNK + CFG.CHUNK / 2, CFG.WORLD_H / 2, cz * CFG.CHUNK + CFG.CHUNK / 2),
-      Math.hypot(CFG.CHUNK / 2, CFG.WORLD_H / 2, CFG.CHUNK / 2),
-    );
     this.origins.needsUpdate = true;
+    this._slotCoords[slot] = { cx, cz };
+    this._updateBounds();
     return slot;
   }
 
@@ -281,10 +345,34 @@ export class GpuMeshBatch {
     const draw = this.drawArgs.array as Uint32Array;
     draw[slot * GPU_MESH_DRAW_ARG_COUNT + 1] = 0;
     this.drawArgs.needsUpdate = true;
+    this._slotCoords[slot] = null;
+    this._updateBounds();
+  }
+
+  private _updateBounds(): void {
+    const active = this._slotCoords.filter((coord): coord is GpuMeshChunkCoord => coord !== null);
+    if (active.length === 0) {
+      this.mesh.geometry.boundingSphere = null;
+      return;
+    }
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+    for (const coord of active) {
+      minX = Math.min(minX, coord.cx * CFG.CHUNK);
+      minZ = Math.min(minZ, coord.cz * CFG.CHUNK);
+      maxX = Math.max(maxX, (coord.cx + 1) * CFG.CHUNK);
+      maxZ = Math.max(maxZ, (coord.cz + 1) * CFG.CHUNK);
+    }
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    this.mesh.geometry.boundingSphere = new THREE.Sphere(
+      new THREE.Vector3(centerX, CFG.WORLD_H / 2, centerZ),
+      Math.hypot((maxX - minX) / 2, CFG.WORLD_H / 2, (maxZ - minZ) / 2),
+    );
   }
 
   dispose(): void {
     this.faces.dispose();
+    this.faceDetails.dispose();
     this.drawArgs.dispose();
     this.origins.dispose();
     this.overflow.dispose();
@@ -295,57 +383,120 @@ export class GpuMeshBatch {
 }
 
 /**
+ * Reuse one shader node so Three.js can reuse its compute pipeline; only the
+ * storage bindings change between chunks, which avoids compiling WGSL per job.
+ */
+export class GpuMeshExtractKernel {
+  readonly voxels: StorageBufferNode<'uint'>;
+  readonly faceRecords: StorageBufferNode<'uvec2'>;
+  readonly faceDetails: StorageBufferNode<'uint'>;
+  readonly draw: StorageBufferNode<'uint'>;
+  readonly overflow: StorageBufferNode<'uint'>;
+  readonly slot: StorageBufferNode<'uint'>;
+  readonly blockTable: StorageBufferNode<'uint'>;
+  readonly extractNode: ComputeNode;
+
+  constructor() {
+    const dummyVoxels = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_WORD_COUNT), 1);
+    const dummyFaces = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES * 2), 2);
+    const dummyFaceDetails = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_MAX_FACES), 1);
+    const dummyDraw = new THREE.IndirectStorageBufferAttribute(new Uint32Array(GPU_MESH_DRAW_ARG_COUNT), 1);
+    const dummyOverflow = new THREE.StorageBufferAttribute(new Uint32Array(1), 1);
+    const dummySlot = new THREE.StorageBufferAttribute(new Uint32Array(1), 1);
+    const dummyTable = new THREE.StorageBufferAttribute(createGpuOpaqueBlockTable(), 1);
+    this.voxels = storage(dummyVoxels, 'uint', GPU_MESH_WORD_COUNT).toReadOnly();
+    this.faceRecords = storage(dummyFaces, 'uvec2', GPU_MESH_MAX_FACES);
+    this.faceDetails = storage(dummyFaceDetails, 'uint', GPU_MESH_MAX_FACES);
+    this.draw = storage(dummyDraw, 'uint', GPU_MESH_DRAW_ARG_COUNT).toAtomic();
+    this.overflow = storage(dummyOverflow, 'uint', 1).toAtomic();
+    this.slot = storage(dummySlot, 'uint', 1).toReadOnly();
+    this.blockTable = storage(dummyTable, 'uint', BLOCK_DEF.length).toReadOnly();
+
+    const voxelWords = this.voxels;
+    const faceRecords = this.faceRecords;
+    const faceDetails = this.faceDetails;
+    const draw = this.draw;
+    const overflow = this.overflow;
+    const slot = this.slot;
+    const blockTable = this.blockTable;
+    this.extractNode = Fn(() => {
+      const batchSlot = slot.element(uint(0));
+      const drawBase = batchSlot.mul(uint(GPU_MESH_DRAW_ARG_COUNT));
+      const faceBase = batchSlot.mul(uint(GPU_MESH_MAX_FACES));
+      const index = instanceIndex;
+      const x = index.mod(uint(CFG.CHUNK));
+      const z = index.div(uint(CFG.CHUNK)).mod(uint(CFG.CHUNK));
+      const y = index.div(uint(CFG.CHUNK * CFG.CHUNK));
+      const voxelAt = (sampleX: UintNode, sampleY: UintNode, sampleZ: UintNode) => {
+        const padded = sampleX.add(sampleZ.mul(uint(GPU_MESH_WIDTH))).add(sampleY.mul(uint(GPU_MESH_WIDTH * GPU_MESH_WIDTH)));
+        return voxelWords.element(padded.div(uint(4))).shiftRight(padded.mod(uint(4)).mul(uint(8))).bitAnd(uint(0xff));
+      };
+      const paddedX = x.add(uint(1));
+      const paddedY = y.add(uint(1));
+      const paddedZ = z.add(uint(1));
+      const id = voxelAt(paddedX, paddedY, paddedZ);
+      const data = blockTable.element(id);
+      If(data.bitAnd(uint(1)).equal(uint(1)), () => {
+        const tileForFace = (face: number) => face === 0
+          ? data.shiftRight(uint(1)).bitAnd(uint(0x3f))
+          : face === 1
+            ? data.shiftRight(uint(13)).bitAnd(uint(0x3f))
+            : data.shiftRight(uint(7)).bitAnd(uint(0x3f));
+        const offset = (value: UintNode, delta: number) => delta < 0
+          ? value.sub(uint(-delta))
+          : delta > 0
+            ? value.add(uint(delta))
+            : value;
+        const emit = (face: number, dx: number, dy: number, dz: number): void => {
+          const neighbor = voxelAt(offset(paddedX, dx), offset(paddedY, dy), offset(paddedZ, dz));
+          If(blockTable.element(neighbor).bitAnd(uint(1)).equal(uint(1)).not(), () => {
+            const localSlot = atomicAdd<'uint'>(draw.element(drawBase.add(uint(1))), uint(1)).toVar();
+            If(localSlot.lessThan(uint(GPU_MESH_MAX_FACES)), () => {
+              const header = x.bitOr(y.shiftLeft(uint(4))).bitOr(z.shiftLeft(uint(10))).bitOr(uint(face).shiftLeft(uint(14))).bitOr(tileForFace(face).shiftLeft(uint(17))).bitOr(id.shiftLeft(uint(23)));
+              // A face remains attached to its owning voxel; avoiding cross-cell
+              // expansion prevents isolated trunks from producing orphan planes.
+              const detail = uint(1).shiftLeft(uint(16)).bitOr(uint(1).shiftLeft(uint(24)));
+              faceRecords.element(faceBase.add(localSlot)).x.assign(header);
+              faceDetails.element(faceBase.add(localSlot)).assign(detail);
+            }).Else(() => {
+              atomicOr(overflow.element(batchSlot), uint(1));
+            });
+          });
+        };
+        emit(0, 0, 1, 0);
+        emit(1, 0, -1, 0);
+        emit(2, 1, 0, 0);
+        emit(3, -1, 0, 0);
+        emit(4, 0, 0, 1);
+        emit(5, 0, 0, -1);
+      });
+    })().compute(CFG.CHUNK * CFG.CHUNK * CFG.WORLD_H, [64]);
+  }
+
+  bind(resource: GpuMeshChunkCompute): void {
+    this.voxels.value = resource.voxels;
+    this.faceRecords.value = resource.batch.faces;
+    this.faceDetails.value = resource.batch.faceDetails;
+    this.draw.value = resource.batch.drawArgs;
+    this.overflow.value = resource.batch.overflow;
+    this.slot.value = resource.slot;
+    this.blockTable.value = resource.batch.blockTable;
+  }
+}
+
+/**
  * Per-chunk voxel uploads stay isolated because edits are local, while their
  * extracted faces are written into a shared batch for a single render object.
  */
 export class GpuMeshChunkCompute {
   readonly voxels = new THREE.StorageBufferAttribute(new Uint32Array(GPU_MESH_WORD_COUNT), 1);
-  readonly extractNode;
+  readonly slot: THREE.StorageBufferAttribute;
+  readonly extractNode: ComputeNode;
   private _disposed = false;
 
-  constructor(readonly batch: GpuMeshBatch, readonly batchSlot: number) {
-    const voxelWords = storage(this.voxels, 'uint', GPU_MESH_WORD_COUNT).toReadOnly();
-    const faceRecords = storage(batch.faces, 'uvec2', GPU_MESH_MAX_FACES * GPU_MESH_BATCH_SIZE);
-    const draw = storage(batch.drawArgs, 'uint', GPU_MESH_BATCH_SIZE * GPU_MESH_DRAW_ARG_COUNT).toAtomic();
-    const overflow = storage(batch.overflow, 'uint', GPU_MESH_BATCH_SIZE).toAtomic();
-    const blockTable = storage(batch.blockTable, 'uint', BLOCK_DEF.length).toReadOnly();
-    const drawBase = uint(batchSlot * GPU_MESH_DRAW_ARG_COUNT);
-    const faceBase = uint(batchSlot * GPU_MESH_MAX_FACES);
-    const overflowSlot = uint(batchSlot);
-
-    this.extractNode = Fn(() => {
-      const index = instanceIndex;
-      const x = index.mod(uint(CFG.CHUNK)).toVar();
-      const z = index.div(uint(CFG.CHUNK)).mod(uint(CFG.CHUNK)).toVar();
-      const y = index.div(uint(CFG.CHUNK * CFG.CHUNK)).toVar();
-      const voxelAt = (sampleX: UintNode, sampleY: UintNode, sampleZ: UintNode) => {
-        const padded = sampleX.add(sampleZ.mul(uint(GPU_MESH_WIDTH))).add(sampleY.mul(uint(GPU_MESH_WIDTH * GPU_MESH_WIDTH)));
-        return voxelWords.element(padded.div(uint(4))).shiftRight(padded.mod(uint(4)).mul(uint(8))).bitAnd(uint(0xff));
-      };
-      const paddedX = x.add(uint(1)), paddedY = y.add(uint(1)), paddedZ = z.add(uint(1));
-      const id = voxelAt(paddedX, paddedY, paddedZ).toVar();
-      const data = blockTable.element(id).toVar();
-      If(data.bitAnd(uint(1)).equal(uint(1)), () => {
-        const tileForFace = (face: number) => face === 0
-          ? data.shiftRight(uint(1)).bitAnd(uint(0x3f))
-          : face === 1 ? data.shiftRight(uint(13)).bitAnd(uint(0x3f)) : data.shiftRight(uint(7)).bitAnd(uint(0x3f));
-        const emit = (face: number, dx: number, dy: number, dz: number): void => {
-          const offset = (value: UintNode, delta: number) => delta < 0 ? value.sub(uint(-delta)) : delta > 0 ? value.add(uint(delta)) : value;
-          const neighbor = voxelAt(offset(paddedX, dx), offset(paddedY, dy), offset(paddedZ, dz));
-          If(blockTable.element(neighbor).bitAnd(uint(1)).equal(uint(1)).not(), () => {
-            const localSlot = atomicAdd(draw.element(drawBase.add(uint(1))), uint(1)).toVar();
-            If(localSlot.lessThan(uint(GPU_MESH_MAX_FACES)), () => {
-              const header = x.bitOr(y.shiftLeft(uint(4))).bitOr(z.shiftLeft(uint(10))).bitOr(uint(face).shiftLeft(uint(14))).bitOr(tileForFace(face).shiftLeft(uint(17))).bitOr(id.shiftLeft(uint(23)));
-              faceRecords.element(faceBase.add(localSlot)).assign(uvec2(header, uint(0)));
-            }).Else(() => {
-              atomicOr(overflow.element(overflowSlot), uint(1));
-            });
-          });
-        };
-        emit(0, 0, 1, 0); emit(1, 0, -1, 0); emit(2, 1, 0, 0);
-        emit(3, -1, 0, 0); emit(4, 0, 0, 1); emit(5, 0, 0, -1);
-      });
-    })().compute(CFG.CHUNK * CFG.CHUNK * CFG.WORLD_H, [64]);
+  constructor(readonly batch: GpuMeshBatch, readonly batchSlot: number, readonly kernel = new GpuMeshExtractKernel()) {
+    this.slot = new THREE.StorageBufferAttribute(new Uint32Array([batchSlot]), 1);
+    this.extractNode = kernel.extractNode;
   }
 
   upload(payload: Uint32Array): void {
@@ -375,6 +526,7 @@ export class GpuMeshChunkCompute {
   dispatch(renderer: THREE.WebGPURenderer): void {
     if (this._disposed) return;
     this.resetCounters();
+    this.kernel.bind(this);
     renderer.compute(this.extractNode);
   }
 
@@ -386,20 +538,23 @@ export class GpuMeshChunkCompute {
     if (this._disposed) return;
     const drawOffset = this.batchSlot * GPU_MESH_DRAW_ARG_COUNT * 4;
     const faceOffset = this.batchSlot * GPU_MESH_MAX_FACES * 8;
-    const [drawBuffer, overflowBuffer, faceBuffer] = await Promise.all([
+    const detailOffset = this.batchSlot * GPU_MESH_MAX_FACES * 4;
+    const [drawBuffer, overflowBuffer, faceBuffer, detailBuffer] = await Promise.all([
       renderer.getArrayBufferAsync(this.batch.drawArgs, null, drawOffset, GPU_MESH_DRAW_ARG_COUNT * 4),
       renderer.getArrayBufferAsync(this.batch.overflow, null, this.batchSlot * 4, 4),
       renderer.getArrayBufferAsync(this.batch.faces, null, faceOffset, 8),
+      renderer.getArrayBufferAsync(this.batch.faceDetails, null, detailOffset, 4),
     ]);
     const draw = new Uint32Array(drawBuffer);
     const overflow = new Uint32Array(overflowBuffer)[0];
     const face = new Uint32Array(faceBuffer);
+    const detail = new Uint32Array(detailBuffer)[0];
     console.warn('[gpu-mesh] dispatch readback', {
       label,
       slot: this.batchSlot,
       draw: { vertexCount: draw[0], instanceCount: draw[1], firstVertex: draw[2], firstInstance: draw[3] },
       overflow,
-      firstFace: { header: face[0], detail: face[1] },
+      firstFace: { header: face[0], detail: face[1], separateDetail: detail },
     });
   }
 
@@ -407,6 +562,7 @@ export class GpuMeshChunkCompute {
     if (this._disposed) return;
     this._disposed = true;
     this.voxels.dispose();
+    this.slot.dispose();
     this.batch.release(this.batchSlot);
   }
 }

@@ -108,13 +108,15 @@ export const CFG = Object.freeze({
     edgeInset: 0.006,
   }),
   /**
-   * Keep the experimental renderer opt-in until its per-device cost is lower
-   * than the established CPU mesh path; compatibility alone is not enough.
+   * Prefer GPU extraction on capable devices; World still gates the path by
+   * the active WebGPU backend and falls back to CPU data when unavailable.
    */
   GPU_MESH: Object.freeze({
-    mode: 'off' as 'off' | 'auto' | 'force',
+    mode: 'auto' as 'off' | 'auto' | 'force',
     maxJobsPerFrame: 2,
-    diagnosticSampleLimit: 12,
+    // Readbacks serialize the GPU queue; diagnostics stay opt-in so normal
+    // gameplay never pays a synchronization cost during chunk streaming.
+    diagnosticSampleLimit: 0,
   }),
   /**
    * Bloom — only hot emissives (lamps / crystals / laser tips).
@@ -207,16 +209,16 @@ export const T = {
 
 export const BLOCK_DEF: BlockDef[] = [];
 BLOCK_DEF[B.AIR] = { name: '空气', solid: false };
-BLOCK_DEF[B.GRASS] = { name: '苔原', solid: true, tiles: { top: T.GRASS_TOP, side: T.GRASS_SIDE, bottom: T.DIRT }, hard: 0.4, snd: 'grass', drops: [{ id: 'carbon', n: [1, 2] }] };
-BLOCK_DEF[B.DIRT] = { name: '泥土', solid: true, tiles: { all: T.DIRT }, hard: 0.4, snd: 'grass', drops: [{ id: 'carbon', n: [1, 1] }] };
-BLOCK_DEF[B.STONE] = { name: '岩石', solid: true, tiles: { all: T.STONE }, hard: 1.4, snd: 'stone', drops: [{ id: 'ferrite', n: [1, 3] }] };
-BLOCK_DEF[B.SAND] = { name: '沙地', solid: true, tiles: { all: T.SAND }, hard: 0.38, snd: 'sand', drops: [{ id: 'sodium', n: [1, 2], p: 0.35 }] };
-BLOCK_DEF[B.LOG] = { name: '原木', solid: true, tiles: { top: T.LOG_TOP, side: T.LOG, bottom: T.LOG_TOP }, hard: 1.1, snd: 'wood', drops: [{ id: 'carbon', n: [2, 4] }] };
+BLOCK_DEF[B.GRASS] = { name: '苔原', solid: true, tiles: { top: T.GRASS_TOP, side: T.GRASS_SIDE, bottom: T.DIRT }, hard: 0.4, snd: 'grass', drops: [{ id: 'b_dirt', n: [1, 1] }] };
+BLOCK_DEF[B.DIRT] = { name: '泥土', solid: true, tiles: { all: T.DIRT }, hard: 0.4, snd: 'grass', drops: [{ id: 'b_dirt', n: [1, 1] }] };
+BLOCK_DEF[B.STONE] = { name: '岩石', solid: true, tiles: { all: T.STONE }, hard: 1.4, snd: 'stone', drops: [{ id: 'b_stone', n: [1, 1] }] };
+BLOCK_DEF[B.SAND] = { name: '沙地', solid: true, tiles: { all: T.SAND }, hard: 0.38, snd: 'sand', drops: [{ id: 'b_sand', n: [1, 1] }] };
+BLOCK_DEF[B.LOG] = { name: '原木', solid: true, tiles: { top: T.LOG_TOP, side: T.LOG, bottom: T.LOG_TOP }, hard: 1.1, snd: 'wood', drops: [{ id: 'b_log', n: [1, 1] }] };
 BLOCK_DEF[B.LEAVES] = { name: '树叶', solid: true, cutout: true, tiles: { all: T.LEAVES }, hard: 0.2, snd: 'grass', drops: [{ id: 'oxygen', n: [1, 2], p: 0.45 }] };
-BLOCK_DEF[B.PLANKS] = { name: '木板', solid: true, tiles: { all: T.PLANKS }, hard: 0.55, snd: 'wood', drops: [{ id: 'carbon', n: [1, 2] }] };
-BLOCK_DEF[B.GLASS] = { name: '玻璃', solid: true, glass: true, tiles: { all: T.GLASS }, hard: 0.3, snd: 'glass', drops: [{ id: 'sodium', n: [1, 1] }] };
-BLOCK_DEF[B.ALLOY] = { name: '合金板', solid: true, tiles: { all: T.ALLOY }, hard: 2.8, snd: 'metal', drops: [{ id: 'ferrite', n: [2, 4] }] };
-BLOCK_DEF[B.LAMP] = { name: '照明灯', solid: true, emissive: true, tiles: { all: T.LAMP }, hard: 0.4, snd: 'glass', drops: [{ id: 'sodium', n: [1, 2] }] };
+BLOCK_DEF[B.PLANKS] = { name: '木板', solid: true, tiles: { all: T.PLANKS }, hard: 0.55, snd: 'wood', drops: [{ id: 'b_planks', n: [1, 1] }] };
+BLOCK_DEF[B.GLASS] = { name: '玻璃', solid: true, glass: true, tiles: { all: T.GLASS }, hard: 0.3, snd: 'glass', drops: [{ id: 'b_glass', n: [1, 1] }] };
+BLOCK_DEF[B.ALLOY] = { name: '合金板', solid: true, tiles: { all: T.ALLOY }, hard: 2.8, snd: 'metal', drops: [{ id: 'b_alloy', n: [1, 1] }] };
+BLOCK_DEF[B.LAMP] = { name: '照明灯', solid: true, emissive: true, tiles: { all: T.LAMP }, hard: 0.4, snd: 'glass', drops: [{ id: 'b_lamp', n: [1, 1] }] };
 BLOCK_DEF[B.WATER] = { name: '水', solid: false, water: true, tiles: { all: T.WATER } };
 BLOCK_DEF[B.TUFT] = { name: '草丛', solid: false, cross: true, tiles: { all: T.TUFT }, hard: 0.12, snd: 'grass', drops: [{ id: 'oxygen', n: [1, 1], p: 0.5 }], flora: true };
 BLOCK_DEF[B.PLANT] = { name: '呼吸红花', solid: false, cross: true, tiles: { all: T.PLANT }, hard: 0.15, snd: 'grass', drops: [{ id: 'oxygen', n: [1, 3] }], flora: true, scan: 'o2' };
@@ -238,7 +240,7 @@ export const ITEMS: Record<string, ItemDef> = {
   dihydrogen:  { name: '双氢', type: '元素', sym: 'H₂', col: '#6aaaf4', stack: 99, desc: '蓝色晶体燃料前驱体。' },
   oxygen:      { name: '氧', type: '元素', sym: 'O₂', col: '#ff8a7a', stack: 99, desc: '红色呼吸花提取物。', use: 'ls', useAmt: 22 },
   copper:      { name: '铜', type: '元素', sym: 'Cu', col: '#7de8c3', stack: 99, desc: '导电金属，来源于铜矿。' },
-  biomass:     { name: '生物质', type: '有机物', col: '#6aaa5a', stack: 64, desc: '外星生物组织样本。' },
+  biomass:     { name: '生物质', type: '有机物', col: '#6aaa5a', stack: 64, desc: '外星生物组织样本。', glyph: 'bio' },
 
   // --- Refined Materials (Tier 1 crafted) ---
   metal_plate: { name: '金属镀层', type: '材料', col: '#c8cdd4', stack: 32, desc: '铁尘压制而成的装甲板。', glyph: 'plate' },
@@ -369,7 +371,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dist: 4,
   invert: false,
   touchSens: 100,
-  gpuMesh: false,
+  gpuMesh: true,
   postFx: true,
   showFps: false,
   showCrosshair: true,

@@ -3,12 +3,15 @@
 // ============================================================
 
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, normalMap, positionViewDirection, texture, uv, vec2, vec3, vertexColor } from 'three/tsl';
+import { Fn, If, Loop, attribute, float, fract, int, normalMap, positionGeometry, positionViewDirection, sin, texture, time, uv, vec2, vec3, vertexColor } from 'three/tsl';
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import { U, SimplexNoise } from './utils';
 import { CFG, B, BLOCK_DEF } from './config';
-import { buildGpuMeshChunkPayload, detectGpuMeshCapability, GpuMeshBatch, GpuMeshChunkCompute } from './gpu-mesh';
+import { buildGpuMeshChunkPayload, detectGpuMeshBatchSize, detectGpuMeshCapability, GpuMeshBatch, GpuMeshChunkCompute, GpuMeshExtractKernel } from './gpu-mesh';
+import { buildGreedyQuads, greedyQuadPositions } from './greedy-mesh';
+import type { GreedyFace } from './greedy-mesh';
 import type { Game, Palette, RaycastResult, ScanTarget, MeshBuffers } from './types';
+import type Node from 'three/src/nodes/core/Node.js';
 
 export class Chunk {
   cx: number;
@@ -44,6 +47,7 @@ export class World {
   private _gpuMeshQueueSet: Set<Chunk>;
   private _gpuMeshes: Map<Chunk, GpuMeshChunkCompute>;
   private _gpuMeshBatches: GpuMeshBatch[];
+  private _gpuMeshKernel: GpuMeshExtractKernel | null;
   private _gpuMeshDisabled: boolean;
   private _gpuMeshRequested: boolean;
   private _gpuMeshDiagnosticRemaining: number;
@@ -59,8 +63,8 @@ export class World {
   offA!: number;
   lamps!: number[][];
   matOpaque!: THREE.MeshStandardNodeMaterial;
-  matCutout!: THREE.MeshStandardMaterial;
-  matWater!: THREE.MeshStandardMaterial;
+  matCutout!: THREE.MeshStandardNodeMaterial;
+  matWater!: THREE.MeshStandardNodeMaterial;
   private _waterTSLMat: THREE.Material | null = null;
   waterCamPos: THREE.Vector3 | null = null;
   cullFrame: number;
@@ -79,6 +83,7 @@ export class World {
     this._gpuMeshQueueSet = new Set();
     this._gpuMeshes = new Map();
     this._gpuMeshBatches = [];
+    this._gpuMeshKernel = null;
     this._gpuMeshDisabled = false;
     this._gpuMeshRequested = game.settings.gpuMesh;
     this._gpuMeshDiagnosticRemaining = CFG.GPU_MESH.diagnosticSampleLimit;
@@ -112,8 +117,10 @@ export class World {
     const normalTexture = this.g.atlas.normalTexture;
     if (this.matOpaque) {
       this.matOpaque.map = tex; this.matCutout.map = tex; this.matWater.map = tex;
-      this.matOpaque.normalMap = normalTexture;
-      this._configureTerrainDetail(tex, normalTexture);
+       this.matOpaque.normalMap = normalTexture;
+       this._configureTerrainDetail(tex, normalTexture);
+       this._configureTiledMaterial(this.matCutout, tex);
+       this._configureTiledMaterial(this.matWater, tex);
       this.matOpaque.needsUpdate = this.matCutout.needsUpdate = this.matWater.needsUpdate = true;
       return;
     }
@@ -126,26 +133,63 @@ export class World {
     // Stronger normals read better under cinematic lighting / CSM.
     this.matOpaque.normalScale.set(0.42, 0.42);
     this._configureTerrainDetail(tex, normalTexture);
-    this.matCutout = new THREE.MeshStandardMaterial({
+    this.matCutout = new THREE.MeshStandardNodeMaterial({
       vertexColors: true, alphaTest: 0.45, side: THREE.DoubleSide,
       alphaToCoverage: true, roughness: 0.8, metalness: 0.02
     });
-    this.matWater = new THREE.MeshStandardMaterial({
+    this.matWater = new THREE.MeshStandardNodeMaterial({
       vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false,
       roughness: 0.1, metalness: 0.3
     });
     this.matOpaque.map = tex;
     this.matCutout.map = tex;
     this.matWater.map = tex;
+    this._configureTiledMaterial(this.matCutout, tex);
+    this._configureTiledMaterial(this.matWater, tex);
+    this._configureVegetationWind(this.matCutout);
+  }
+
+  /** Convert local repeated UVs plus a tile id into atlas UVs. */
+  private _createTiledUv(localUv: Node<'vec2'> = uv(), tileNode: Node<'float'> = attribute('tile', 'float') as Node<'float'>) {
+    const local = fract(localUv);
+    const tileX = tileNode.mod(float(this.g.atlas.size));
+    const tileY = tileNode.div(float(this.g.atlas.size)).floor();
+    const atlasPx = float(this.g.atlas.canvas.width);
+    const stride = float(this.g.atlas.stride);
+    const tilePx = float(this.g.atlas.px);
+    return vec2(
+      tileX.mul(stride).add(float(1.5)).add(local.x.mul(float(this.g.atlas.px - 1))).div(atlasPx),
+      float(1).sub(tileY.mul(stride).add(tilePx).add(float(0.5)).sub(local.y.mul(float(this.g.atlas.px - 1))).div(atlasPx)),
+    );
+  }
+
+  private _configureTiledMaterial(material: THREE.MeshStandardNodeMaterial, albedo: THREE.Texture | null): void {
+    if (!albedo) return;
+    const texel = texture(albedo, this._createTiledUv());
+    // Feed atlas alpha through opacity explicitly so alpha-test discards the
+    // transparent plant pixels instead of shading them as black fragments.
+    material.colorNode = texel.rgb.mul(vertexColor());
+    material.opacityNode = texel.a;
+  }
+
+  private _configureVegetationWind(material: THREE.MeshStandardNodeMaterial): void {
+    const sway = attribute('sway', 'float') as Node<'float'>;
+    material.positionNode = Fn(() => {
+      const p = positionGeometry;
+      // Layered phases break up synchronized rows while keeping the vertex
+      // shader cheaper than a noise texture lookup for every plant vertex.
+      const phase = time.mul(1.55).add(p.x.mul(0.22)).add(p.z.mul(0.31)).add(p.y.mul(0.08));
+      const gust = sin(phase).mul(0.1).add(sin(time.mul(0.67).add(phase.mul(0.37))).mul(0.035));
+      const bend = gust.mul(sway);
+      return vec3(p.x.add(bend), p.y, p.z.add(bend.mul(0.55)));
+    })();
   }
 
   /** Keep parallax rays inside one atlas cell so depth detail cannot borrow a neighbour's texture. */
   private _createPomUv(albedo: THREE.Texture) {
     const pom = CFG.POM;
-    const sourceUv = uv();
-    const cells = float(pom.atlasCells);
-    const cellMin = sourceUv.mul(cells).floor().div(cells).add(float(pom.edgeInset));
-    const cellMax = cellMin.add(float(1).div(cells).sub(float(pom.edgeInset * 2)));
+    const sourceUv = fract(uv()) as Node<'vec2'>;
+    const tileNode = attribute('tile', 'float') as Node<'float'>;
     const layerDepth = float(1).div(float(pom.layers));
 
     return Fn(() => {
@@ -155,14 +199,14 @@ export class World {
       const rayStep = positionViewDirection.xy.div(safeViewZ).mul(float(pom.heightScale / pom.layers));
 
       Loop({ start: int(0), end: int(pom.layers), type: 'int', condition: '<' }, () => {
-        const sampleHeight = texture(albedo, rayUv).rgb.dot(vec3(0.2126, 0.7152, 0.0722));
+        const sampleHeight = texture(albedo, this._createTiledUv(rayUv, tileNode)).rgb.dot(vec3(0.2126, 0.7152, 0.0722));
         If(rayDepth.lessThan(sampleHeight), () => {
-          rayUv.assign(rayUv.sub(rayStep).max(cellMin).min(cellMax));
+          rayUv.assign(rayUv.sub(rayStep).max(float(pom.edgeInset)).min(float(1 - pom.edgeInset)));
           rayDepth.addAssign(layerDepth);
         });
       });
 
-      return rayUv;
+      return this._createTiledUv(rayUv, tileNode);
     })();
   }
 
@@ -402,7 +446,7 @@ export class World {
     if (!this._gpuMeshRequested || this._gpuMeshDisabled) return false;
     const capability = detectGpuMeshCapability(this.g.renderer);
     if (capability.supported) {
-      if (this._gpuMeshDiagnosticRemaining === CFG.GPU_MESH.diagnosticSampleLimit) {
+      if (CFG.GPU_MESH.diagnosticSampleLimit > 0 && this._gpuMeshDiagnosticRemaining === CFG.GPU_MESH.diagnosticSampleLimit) {
         console.warn('[gpu-mesh] capability', { supported: true, backend: 'WebGPU' });
       }
       return true;
@@ -480,35 +524,107 @@ export class World {
   buildMesh(chunk: Chunk): void {
     for (const m of chunk.meshes) { this.group.remove(m); m.geometry.dispose(); }
     chunk.meshes = [];
-    const opaque: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [] };
-    const cutout: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [], sway: [] };
-    const water: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [] };
+    const opaque: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [], tile: [] };
+    const cutout: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [], tile: [], sway: [] };
+    const water: MeshBuffers = { pos: [], nor: [], uv: [], col: [], idx: [], tile: [] };
     const ox = chunk.cx * 16, oz = chunk.cz * 16;
     const useGpuOpaque = this._gpuMeshEnabled() && this.g.atlas.texture !== null;
+    // GPU uploads touch every voxel in the halo; direct chunk reads avoid a
+    // world-map lookup for the overwhelmingly common interior samples.
+    const sampleChunk = (gx: number, gy: number, gz: number): number => {
+      if (gy < 0 || gy >= CFG.WORLD_H) return B.AIR;
+      if (gx >= ox && gx < ox + CFG.CHUNK && gz >= oz && gz < oz + CFG.CHUNK) {
+        return chunk.get(gx - ox, gy, gz - oz);
+      }
+      return this.getBlock(gx, gy, gz);
+    };
     const gb = (x: number, y: number, z: number): number => {
-      if (x >= 0 && x < 16 && z >= 0 && z < 16 && y >= 0 && y < CFG.WORLD_H) return chunk.get(x, y, z);
-      return this.getBlock(ox + x, y, oz + z);
+      return sampleChunk(ox + x, y, oz + z);
     };
     const solidAt = (x: number, y: number, z: number): boolean => { const b = gb(x, y, z); const d = BLOCK_DEF[b]; return d.solid && !d.cutout && !d.glass; };
 
-    const FACES = [
-      { dir: [0, 1, 0], corners: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], shade: 1.0, tk: 'top' },
-      { dir: [0, -1, 0], corners: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], shade: 0.55, tk: 'bottom' },
-      { dir: [1, 0, 0], corners: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], shade: 0.8, tk: 'side' },
-      { dir: [-1, 0, 0], corners: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], shade: 0.8, tk: 'side' },
-      { dir: [0, 0, 1], corners: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], shade: 0.88, tk: 'side' },
-      { dir: [0, 0, -1], corners: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], shade: 0.7, tk: 'side' }
+    const FACES: Array<{
+      face: GreedyFace;
+      dir: [number, number, number];
+      corners: number[][];
+      shade: number;
+      tk: 'top' | 'bottom' | 'side';
+    }> = [
+      { face: 0, dir: [0, 1, 0], corners: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], shade: 1.0, tk: 'top' },
+      { face: 1, dir: [0, -1, 0], corners: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], shade: 0.55, tk: 'bottom' },
+      { face: 2, dir: [1, 0, 0], corners: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], shade: 0.8, tk: 'side' },
+      { face: 3, dir: [-1, 0, 0], corners: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], shade: 0.8, tk: 'side' },
+      { face: 4, dir: [0, 0, 1], corners: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], shade: 0.88, tk: 'side' },
+      { face: 5, dir: [0, 0, -1], corners: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], shade: 0.7, tk: 'side' }
     ];
     const aoLevel = [1.0, 0.78, 0.62, 0.48];
+    const isOpaqueBlock = (def: typeof BLOCK_DEF[number]): boolean => def.solid && !def.cutout && !def.glass && !def.water;
+    const opaqueQuads = useGpuOpaque ? [] : buildGreedyQuads({
+      width: 16,
+      height: CFG.WORLD_H,
+      depth: 16,
+      getCell: (x, y, z, face): import('./greedy-mesh').GreedyCell | null => {
+        const id = gb(x, y, z);
+        const def = BLOCK_DEF[id];
+        if (id === B.AIR || !isOpaqueBlock(def)) return null;
+        const faceDef = FACES[face];
+        const [dx, dy, dz] = faceDef.dir;
+        const nb = gb(x + dx, y + dy, z + dz);
+        if (isOpaqueBlock(BLOCK_DEF[nb])) return null;
+        const tiles = def.tiles!;
+        const tile = tiles.all !== undefined ? tiles.all : faceDef.tk === 'top' ? tiles.top! : faceDef.tk === 'bottom' ? tiles.bottom! : tiles.side!;
+        const brightness: number[] = [];
+        for (const c of faceDef.corners) {
+          let ao = 0;
+          if (!def.emissive) {
+            const px = x + dx, py = y + dy, pz = z + dz;
+            let s1: boolean, s2: boolean, cn: boolean;
+            if (dy !== 0) {
+              const ex = c[0] === 0 ? -1 : 1, ez = c[2] === 0 ? -1 : 1;
+              s1 = solidAt(px + ex, py, pz); s2 = solidAt(px, py, pz + ez); cn = solidAt(px + ex, py, pz + ez);
+            } else if (dx !== 0) {
+              const ey = c[1] === 0 ? -1 : 1, ez = c[2] === 0 ? -1 : 1;
+              s1 = solidAt(px, py + ey, pz); s2 = solidAt(px, py, pz + ez); cn = solidAt(px, py + ey, pz + ez);
+            } else {
+              const ey = c[1] === 0 ? -1 : 1, ex = c[0] === 0 ? -1 : 1;
+              s1 = solidAt(px, py + ey, pz); s2 = solidAt(px + ex, py, pz); cn = solidAt(px + ex, py + ey, pz);
+            }
+            ao = (s1 && s2) ? 3 : (s1 ? 1 : 0) + (s2 ? 1 : 0) + (cn ? 1 : 0);
+          }
+          brightness.push(faceDef.shade * aoLevel[ao] * (def.emissive ? 1.6 : 1));
+        }
+        const br = brightness as [number, number, number, number];
+        return { key: `${id}:${tile}:${br.join(',')}`, tile, blockId: id, brightness: br };
+      },
+    });
+
+    const appendGreedyQuad = (dat: MeshBuffers, quad: (typeof opaqueQuads)[number]): void => {
+      const { width, height, face } = quad;
+      const positions = greedyQuadPositions(quad);
+      const normals: number[] = face === 0 ? [0, 1, 0] : face === 1 ? [0, -1, 0] : face === 2 ? [1, 0, 0] : face === 3 ? [-1, 0, 0] : face === 4 ? [0, 0, 1] : [0, 0, -1];
+      const localUv = [[0, 0], [width, 0], [width, height], [0, height]];
+      const i0 = dat.pos.length / 3;
+      for (let i = 0; i < 4; i++) {
+        dat.pos.push(...positions[i]);
+        dat.nor.push(...normals);
+        dat.uv.push(...localUv[i]);
+        dat.col.push(quad.brightness[i], quad.brightness[i], quad.brightness[i]);
+        dat.tile!.push(quad.tile);
+      }
+      dat.idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
+    };
+
+    for (const quad of opaqueQuads) appendGreedyQuad(opaque, quad);
 
     for (let y = 0; y < CFG.WORLD_H; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       const id = chunk.get(x, y, z);
       if (id === B.AIR) continue;
       const def = BLOCK_DEF[id];
 
+      if (isOpaqueBlock(def)) continue;
+
       if (def.cross) {
         const t = def.tiles!.all!;
-        const [u0, v0, u1, v1] = this.g.atlas.uv(t);
         const quads = [
           [[x + 0.08, y, z + 0.08], [x + 0.92, y, z + 0.92]],
           [[x + 0.92, y, z + 0.08], [x + 0.08, y, z + 0.92]]
@@ -517,7 +633,8 @@ export class World {
           const i0 = cutout.pos.length / 3;
           cutout.pos.push(a[0], y, a[2], b2[0], y, b2[2], b2[0], y + 1, b2[2], a[0], y + 1, a[2]);
           cutout.nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
-          cutout.uv.push(u0, v0, u1, v0, u1, v1, u0, v1);
+          cutout.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+          cutout.tile!.push(t, t, t, t);
           for (let i = 0; i < 4; i++) cutout.col.push(1, 1, 1);
           cutout.sway!.push(0, 0, 1, 1);
           cutout.idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
@@ -528,12 +645,12 @@ export class World {
       if (def.water) {
         if (gb(x, y + 1, z) === B.WATER) continue;
         const t = def.tiles!.all!;
-        const [u0, v0, u1, v1] = this.g.atlas.uv(t);
         const i0 = water.pos.length / 3;
         const yy = y + 0.88;
         water.pos.push(x, yy, z + 1, x + 1, yy, z + 1, x + 1, yy, z, x, yy, z);
         water.nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
-        water.uv.push(u0, v0, u1, v0, u1, v1, u0, v1);
+        water.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+        water.tile!.push(t, t, t, t);
         for (let i = 0; i < 4; i++) water.col.push(1, 1, 1);
         water.idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
         water.idx.push(i0 + 2, i0 + 1, i0, i0 + 3, i0 + 2, i0);
@@ -541,6 +658,9 @@ export class World {
       }
 
       const target = (def.glass || def.cutout) ? cutout : opaque;
+      // GPU extraction owns opaque faces; rebuilding their CPU vertices and AO
+      // would duplicate the hottest part of mesh generation and erase the gain.
+      if (target === opaque && useGpuOpaque) continue;
       for (const face of FACES) {
         const [dx, dy, dz] = face.dir;
         const nb = gb(x + dx, y + dy, z + dz);
@@ -553,15 +673,14 @@ export class World {
         const tiles = def.tiles!;
         if (tiles.all !== undefined) t = tiles.all;
         else t = face.tk === 'top' ? tiles.top! : face.tk === 'bottom' ? tiles.bottom! : tiles.side!;
-        const [u0, v0, u1, v1] = this.g.atlas.uv(t);
         const i0 = target.pos.length / 3;
-        const uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
         const aos: number[] = [];
         for (let ci = 0; ci < 4; ci++) {
           const c = face.corners[ci];
           target.pos.push(x + c[0], y + c[1], z + c[2]);
           target.nor.push(dx, dy, dz);
-          target.uv.push(uvs[ci][0], uvs[ci][1]);
+          target.uv.push(ci === 0 || ci === 3 ? 0 : 1, ci < 2 ? 0 : 1);
+          target.tile!.push(t);
           let ao = 0;
           if (!def.emissive) {
             const px = x + dx, py = y + dy, pz = z + dz;
@@ -581,7 +700,7 @@ export class World {
           aos.push(ao);
           const br = face.shade * aoLevel[ao] * (def.emissive ? 1.6 : 1);
           target.col.push(br, br, br);
-          if (target === cutout) cutout.sway!.push(0);
+          if (target === cutout) cutout.sway!.push(def.cutout && !def.glass && c[1] > 0 ? 1 : 0);
         }
         if (aos[0] + aos[2] > aos[1] + aos[3]) target.idx.push(i0 + 1, i0 + 2, i0 + 3, i0 + 1, i0 + 3, i0);
         else target.idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
@@ -595,11 +714,13 @@ export class World {
       geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(dat.nor), 3));
       geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(dat.uv), 2));
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(dat.col), 3));
+      if (dat.tile) geo.setAttribute('tile', new THREE.BufferAttribute(new Float32Array(dat.tile), 1));
       if (dat.sway) geo.setAttribute('sway', new THREE.BufferAttribute(new Float32Array(dat.sway), 1));
       geo.setIndex(dat.idx);
-      // Do this once at build time because WebGPU has no fixed-function
-      // tessellation, while the configured cap keeps terrain detail affordable.
-      const renderGeo = mat === this.matOpaque && this._terrainTessellator
+      // Greedy quads already represent the complete flat voxel surface. Running
+      // TessellateModifier afterward would split every merged edge again and
+      // erase the draw/vertex reduction without adding visible displacement.
+      const renderGeo = mat === this.matOpaque && !dat.tile && this._terrainTessellator
         ? this._terrainTessellator.modify(geo)
         : geo;
       if (renderGeo !== geo) geo.dispose();
@@ -617,14 +738,15 @@ export class World {
       if (!resource) {
         let batch = this._gpuMeshBatches.find(candidate => candidate.hasCapacity);
         if (!batch) {
-          batch = new GpuMeshBatch(this.g.atlas.texture!);
+          batch = new GpuMeshBatch(this.g.atlas.texture!, detectGpuMeshBatchSize(this.g.renderer));
           this._gpuMeshBatches.push(batch);
           this.group.add(batch.mesh);
         }
-        resource = new GpuMeshChunkCompute(batch, batch.allocate(chunk.cx, chunk.cz));
+        this._gpuMeshKernel ??= new GpuMeshExtractKernel();
+        resource = new GpuMeshChunkCompute(batch, batch.allocate(chunk.cx, chunk.cz), this._gpuMeshKernel);
         this._gpuMeshes.set(chunk, resource);
       }
-      resource.upload(buildGpuMeshChunkPayload(chunk, (x, y, z) => this.getBlock(x, y, z)));
+      resource.upload(buildGpuMeshChunkPayload(chunk, sampleChunk));
       this._queueGpuMesh(chunk);
     } else {
       this._releaseGpuMesh(chunk);
@@ -800,6 +922,7 @@ export class World {
     this.meshQueueSet.clear();
     this._gpuMeshQueue = [];
     this._gpuMeshQueueSet.clear();
+    this._gpuMeshKernel = null;
     this.heightCache = new Map();
     for (const pl of this.lampPool) pl.visible = false;
     this.lamps = [];

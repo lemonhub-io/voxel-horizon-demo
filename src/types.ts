@@ -166,6 +166,7 @@ export interface RaycastResult {
 }
 
 export interface CreatureSpec {
+  kind: CreatureKind;
   seed: number;
   name: string;
   col: string;
@@ -177,15 +178,31 @@ export interface CreatureSpec {
   speed: number;
 }
 
+export type CreatureKind = 'wolf' | 'raccoon' | 'sheep';
+export type CreatureState = 'idle' | 'wander' | 'graze' | 'flee' | 'return' | 'investigate';
+
 export interface Creature {
   grp: THREE.Group;
   sp: CreatureSpec;
   legs: THREE.Mesh[];
   tail: THREE.Mesh | null;
   shadow: THREE.Mesh;
-  state: string;
+  mixer: THREE.AnimationMixer | null;
+  actions: Map<string, THREE.AnimationAction>;
+  action: THREE.AnimationAction | null;
+  animKey: string;
+  state: CreatureState;
   stateT: number;
   dir: number;
+  targetX: number;
+  targetZ: number;
+  homeX: number;
+  homeZ: number;
+  velocityX: number;
+  velocityZ: number;
+  thinkT: number;
+  stuckT: number;
+  aiSeed: number;
   hp: number;
   phase: number;
   panic: number;
@@ -325,6 +342,7 @@ export interface MeshBuffers {
   uv: number[];
   col: number[];
   idx: number[];
+  tile?: number[];
   sway?: number[];
 }
 
@@ -527,6 +545,7 @@ declare global {
 export interface TextureAtlas {
   size: number;
   px: number;
+  stride: number;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture | null;
@@ -628,8 +647,8 @@ export interface World {
   offA: number;
   lamps: number[][];
   matOpaque: THREE.Material;
-  matCutout: THREE.MeshStandardMaterial;
-  matWater: THREE.MeshStandardMaterial;
+  matCutout: THREE.MeshStandardNodeMaterial;
+  matWater: THREE.MeshStandardNodeMaterial;
   setPlanet(seed: number, pal: Palette): void;
   buildMaterials(): void;
   key(cx: number, cz: number): string;

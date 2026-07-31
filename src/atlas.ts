@@ -347,6 +347,23 @@ export class TextureAtlas {
       } else if (g === 'med') {
         x.strokeRect(10, 14, 28, 22);
         x.fillRect(21, 19, 6, 12); x.fillRect(18, 22, 12, 6);
+      } else if (g === 'bio') {
+        // Dedicated biomass icon: a stylized organic leaf/cell with a vein.
+        x.beginPath();
+        x.moveTo(24, 5);
+        x.bezierCurveTo(39, 8, 45, 19, 38, 32);
+        x.bezierCurveTo(33, 42, 22, 45, 10, 41);
+        x.bezierCurveTo(8, 28, 12, 14, 24, 5);
+        x.closePath();
+        x.fillStyle = col + '33';
+        x.fill();
+        x.stroke();
+        x.beginPath();
+        x.moveTo(12, 39); x.quadraticCurveTo(23, 27, 34, 14);
+        x.moveTo(18, 33); x.lineTo(12, 29);
+        x.moveTo(23, 27); x.lineTo(18, 21);
+        x.moveTo(28, 21); x.lineTo(26, 14);
+        x.stroke();
       }
     }
     const url = c.toDataURL();
