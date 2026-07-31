@@ -57,19 +57,16 @@ describe('Ship', () => {
     });
 
     it('does not auto-land during takeoff grace', () => {
-      const el = { textContent: '' };
-      vi.spyOn(document, 'getElementById').mockReturnValue(el as HTMLElement);
       ship.flying = true;
       ship.landing = false;
       ship.flyTime = 0;
       ship.group.position.set(0, 35, 0);
       ship.speed = 0;
       ship.throttle = 0.5;
-      ship.update(0.05);
+      expect(() => ship.update(0.05)).not.toThrow();
       expect(ship.flying).toBe(true);
       expect(ship.landing).toBe(false);
       expect(ship.flyTime).toBeCloseTo(0.05);
-      vi.restoreAllMocks();
     });
   });
 

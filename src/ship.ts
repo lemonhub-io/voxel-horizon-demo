@@ -262,9 +262,9 @@ export class Ship {
     look.y += 1.5;
     cam.lookAt(look);
 
-    document.getElementById('fd-speed')!.textContent = String(Math.round(this.speed));
-    document.getElementById('fd-alt')!.textContent = String(Math.max(0, Math.round(pos.y - groundY + 4)));
-    document.getElementById('fd-warp')!.textContent = String(g.inv.count('warp_cell'));
+    // The flight HUD is rendered by Vue from Pinia; do not touch legacy DOM
+    // nodes here because they are not present in the current HUD template.
+    this.syncStore();
   }
 
   enter(): void {
