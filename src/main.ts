@@ -128,6 +128,8 @@ export class Game {
   private _prevZ = 0;
   private _syncFrame = 0;
   private _worldUpdateT = 0;
+  private _fpsFrames = 0;
+  private _fpsTimer = 0;
   private pendingLoad: {
     seed: number;
     palIdx: number;
@@ -165,6 +167,7 @@ export class Game {
   constructor() {
     this.state = 'title';
     this.settings = Save.loadSettings();
+    this.stores.game.settings = { ...this.settings };
     this.audio = new AudioEngine();
     this.time = 0;
     this.playTime = 0;
@@ -442,6 +445,7 @@ export class Game {
       if (this.sky) this.sky.updateCsmFrustums();
     });
     this.clock = new THREE.Timer();
+    this.applySettings();
   }
 
   applySettings(): void {
@@ -455,7 +459,11 @@ export class Game {
     }
     // FOV / render-distance changes affect cascade splits and maxFar.
     if (this.sky) this.sky.updateCsmFrustums();
+    if (this.postProc?.setEnabled) this.postProc.setEnabled(this.settings.postFx !== false);
     if (this.postProc?.applySettings) this.postProc.applySettings();
+    if (this.world) this.world.setGpuMeshEnabled(this.settings.gpuMesh);
+    // Keep Pinia settings in sync for HUD-bound options (FPS, crosshair, …).
+    this.stores.game.settings = { ...this.settings };
   }
 
   uiOpen(): boolean {
@@ -468,7 +476,11 @@ export class Game {
     if (this.state === 'play' && !this.uiOpen()) {
       const canvas = document.getElementById('game-canvas');
       if (canvas instanceof HTMLCanvasElement) {
-        try { canvas.requestPointerLock(); } catch { /* requires user gesture */ }
+        try {
+          // Browsers reject this Promise when the call is outside a user gesture;
+          // the next real canvas click will retry through onMouseDown().
+          void canvas.requestPointerLock().catch(() => {});
+        } catch { /* older browsers may throw synchronously */ }
       }
     }
   }
@@ -745,7 +757,6 @@ export class Game {
     this.audio.setLoop('wind', true, 0.35, 2);
     this.audio.startMusic('game');
     this.missions.updateCard();
-    this.requestPointerLock();
     document.addEventListener('pointerlockchange', () => {
       if (!Input.isTouchDevice && !document.pointerLockElement && this.state === 'play' && !this.uiOpen()) {
         this.togglePause(true);
@@ -972,6 +983,21 @@ export class Game {
     this.time += dt;
     this.timeUniform.value = this.time;
 
+    // Sample FPS roughly once per second when the counter is enabled.
+    if (this.settings.showFps) {
+      this._fpsFrames++;
+      this._fpsTimer += dt;
+      if (this._fpsTimer >= 0.5) {
+        this.stores.hud.fps = Math.round(this._fpsFrames / this._fpsTimer);
+        this._fpsFrames = 0;
+        this._fpsTimer = 0;
+      }
+    } else if (this.stores.hud.fps !== 0) {
+      this.stores.hud.fps = 0;
+      this._fpsFrames = 0;
+      this._fpsTimer = 0;
+    }
+
     if (this.state === 'play' || this.state === 'warp' || this.state === 'dead' || this.state === 'pause') {
       if (this.state === 'play') {
         this.playTime += dt;
@@ -988,12 +1014,15 @@ export class Game {
         this.milestones.tickTime(dt);
         this.missionT = (this.missionT || 0) - dt;
         if (this.missionT <= 0) { this.missionT = 0.5; this.missions.tick(); }
-        this.autoSaveT += dt;
-        if (!this.multiplayer && this.autoSaveT > 60) {
-          this.autoSaveT = 0;
-          Save.save(this).then(ok => {
-            if (ok) this.stores.hud.addNotification('自动存档完成', 'info');
-          }).catch(() => {});
+        if (this.settings.autoSave !== false) {
+          this.autoSaveT += dt;
+          const interval = Math.max(30, Math.min(300, this.settings.autoSaveSec || 60));
+          if (!this.multiplayer && this.autoSaveT > interval) {
+            this.autoSaveT = 0;
+            Save.save(this).then(ok => {
+              if (ok) this.stores.hud.addNotification('自动存档完成', 'info');
+            }).catch(() => {});
+          }
         }
         if (this.mp?.active) this.mp.update(dt);
         // Sync to Pinia every 3 frames to reduce reactive setter overhead

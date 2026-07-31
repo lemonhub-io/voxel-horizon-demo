@@ -108,12 +108,13 @@ export const CFG = Object.freeze({
     edgeInset: 0.006,
   }),
   /**
-   * Let native WebGPU remove CPU mesh churn where its command model is
-   * available, while every other backend retains the established CPU path.
+   * Keep the experimental renderer opt-in until its per-device cost is lower
+   * than the established CPU mesh path; compatibility alone is not enough.
    */
   GPU_MESH: Object.freeze({
-    mode: 'auto' as 'off' | 'auto' | 'force',
+    mode: 'off' as 'off' | 'auto' | 'force',
     maxJobsPerFrame: 2,
+    diagnosticSampleLimit: 12,
   }),
   /**
    * Bloom — only hot emissives (lamps / crystals / laser tips).
@@ -359,4 +360,19 @@ export const MILESTONE_DEFS: MilestoneDef[] = [
   { key: 'survive', name: '不灭者', unit: '秒', tiers: [120, 600, 1800, 5400], subs: ['存活两分钟', '十分钟', '半小时坚守', '与星球共存'] },
 ];
 
-export const DEFAULT_SETTINGS: Settings = { master: 80, music: 60, sfx: 90, sens: 100, fov: 78, dist: 4, invert: false, touchSens: 100 };
+export const DEFAULT_SETTINGS: Settings = {
+  master: 80,
+  music: 60,
+  sfx: 90,
+  sens: 100,
+  fov: 78,
+  dist: 4,
+  invert: false,
+  touchSens: 100,
+  gpuMesh: false,
+  postFx: true,
+  showFps: false,
+  showCrosshair: true,
+  autoSave: true,
+  autoSaveSec: 60,
+};

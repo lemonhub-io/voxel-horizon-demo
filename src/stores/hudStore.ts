@@ -22,6 +22,8 @@ export const useHudStore = defineStore('hud', () => {
   const missionCur = ref(0);
   const missionMax = ref(0);
   const markers = ref<MarkerData[]>([]);
+  /** Smoothed FPS sample for the optional HUD counter. */
+  const fps = ref(0);
 
   function addToast(itemId: string, n: number) {
     const existing = toasts.value.find(t => t.itemId === itemId);
@@ -82,7 +84,7 @@ export const useHudStore = defineStore('hud', () => {
   return {
     alertText, alertOn, flightHudOn, interactKey, interactText, interactProgress,
     toasts, notifications, milestones, planetCardInfo,
-    missionTitle, missionDesc, missionCur, missionMax, markers,
+    missionTitle, missionDesc, missionCur, missionMax, markers, fps,
     addToast, removeToast, addNotification, removeNotification,
     pushMilestone, showPlanetCard, addMarker, removeMarker, clearMarkers
   };

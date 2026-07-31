@@ -7,7 +7,7 @@ import { Fn, If, Loop, float, int, normalMap, positionViewDirection, texture, uv
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import { U, SimplexNoise } from './utils';
 import { CFG, B, BLOCK_DEF } from './config';
-import { buildGpuMeshChunkPayload, detectGpuMeshCapability, GpuMeshChunkCompute } from './gpu-mesh';
+import { buildGpuMeshChunkPayload, detectGpuMeshCapability, GpuMeshBatch, GpuMeshChunkCompute } from './gpu-mesh';
 import type { Game, Palette, RaycastResult, ScanTarget, MeshBuffers } from './types';
 
 export class Chunk {
@@ -43,7 +43,10 @@ export class World {
   private _gpuMeshQueue: Chunk[];
   private _gpuMeshQueueSet: Set<Chunk>;
   private _gpuMeshes: Map<Chunk, GpuMeshChunkCompute>;
+  private _gpuMeshBatches: GpuMeshBatch[];
   private _gpuMeshDisabled: boolean;
+  private _gpuMeshRequested: boolean;
+  private _gpuMeshDiagnosticRemaining: number;
   lampLights: THREE.PointLight[];
   lampPool: THREE.PointLight[];
   heightCache: Map<string, number>;
@@ -75,7 +78,10 @@ export class World {
     this._gpuMeshQueue = [];
     this._gpuMeshQueueSet = new Set();
     this._gpuMeshes = new Map();
+    this._gpuMeshBatches = [];
     this._gpuMeshDisabled = false;
+    this._gpuMeshRequested = game.settings.gpuMesh;
+    this._gpuMeshDiagnosticRemaining = CFG.GPU_MESH.diagnosticSampleLimit;
     this.lampLights = [];
     this.lampPool = [];
     this.heightCache = new Map();
@@ -393,12 +399,24 @@ export class World {
    * feature gate checks the active backend before CPU opaque meshes are hidden.
    */
   private _gpuMeshEnabled(): boolean {
-    if (CFG.GPU_MESH.mode === 'off' || this._gpuMeshDisabled) return false;
+    if (!this._gpuMeshRequested || this._gpuMeshDisabled) return false;
     const capability = detectGpuMeshCapability(this.g.renderer);
-    if (capability.supported) return true;
+    if (capability.supported) {
+      if (this._gpuMeshDiagnosticRemaining === CFG.GPU_MESH.diagnosticSampleLimit) {
+        console.warn('[gpu-mesh] capability', { supported: true, backend: 'WebGPU' });
+      }
+      return true;
+    }
     this._gpuMeshDisabled = true;
-    if (CFG.GPU_MESH.mode === 'force') console.warn(`GPU 网格生成已回退：${capability.reason}`);
+    console.warn(`GPU 网格生成已回退：${capability.reason}`);
     return false;
+  }
+
+  setGpuMeshEnabled(enabled: boolean): void {
+    if (this._gpuMeshRequested === enabled) return;
+    this._gpuMeshRequested = enabled;
+    this._gpuMeshDisabled = false;
+    for (const chunk of this.chunks.values()) if (chunk.built) this.remesh(chunk.cx, chunk.cz);
   }
 
   /**
@@ -418,10 +436,15 @@ export class World {
   private _releaseGpuMesh(chunk: Chunk): void {
     const resource = this._gpuMeshes.get(chunk);
     if (!resource) return;
-    if (resource.renderMesh) this.group.remove(resource.renderMesh);
+    const batch = resource.batch;
     resource.dispose();
     this._gpuMeshes.delete(chunk);
     this._gpuMeshQueueSet.delete(chunk);
+    if (batch.empty) {
+      this.group.remove(batch.mesh);
+      batch.dispose();
+      this._gpuMeshBatches = this._gpuMeshBatches.filter(candidate => candidate !== batch);
+    }
   }
 
   private _dispatchGpuMeshes(): void {
@@ -434,6 +457,12 @@ export class World {
       if (!resource) continue;
       try {
         resource.dispatch(this.g.renderer);
+        if (this._gpuMeshDiagnosticRemaining > 0) {
+          this._gpuMeshDiagnosticRemaining--;
+          void resource.readbackDiagnostics(this.g.renderer, `chunk:${chunk.cx},${chunk.cz}`).catch(error => {
+            console.warn('[gpu-mesh] readback failed', error);
+          });
+        }
         jobs++;
       } catch (error) {
         this._releaseGpuMesh(chunk);
@@ -586,13 +615,15 @@ export class World {
     if (useGpuOpaque) {
       let resource = this._gpuMeshes.get(chunk);
       if (!resource) {
-        resource = new GpuMeshChunkCompute();
+        let batch = this._gpuMeshBatches.find(candidate => candidate.hasCapacity);
+        if (!batch) {
+          batch = new GpuMeshBatch(this.g.atlas.texture!);
+          this._gpuMeshBatches.push(batch);
+          this.group.add(batch.mesh);
+        }
+        resource = new GpuMeshChunkCompute(batch, batch.allocate(chunk.cx, chunk.cz));
         this._gpuMeshes.set(chunk, resource);
       }
-      const mesh = resource.createRenderMesh(this.g.atlas.texture!);
-      mesh.position.set(ox, 0, oz);
-      mesh.updateMatrix();
-      if (mesh.parent !== this.group) this.group.add(mesh);
       resource.upload(buildGpuMeshChunkPayload(chunk, (x, y, z) => this.getBlock(x, y, z)));
       this._queueGpuMesh(chunk);
     } else {

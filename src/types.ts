@@ -125,6 +125,17 @@ export interface Settings {
   dist: number;
   invert: boolean;
   touchSens: number;
+  gpuMesh: boolean;
+  /** Cinematic post-processing (bloom / AO / DOF pipeline). */
+  postFx: boolean;
+  /** Show frames-per-second counter on the HUD. */
+  showFps: boolean;
+  /** Show the mining crosshair reticle. */
+  showCrosshair: boolean;
+  /** Enable periodic OPFS autosave while playing offline. */
+  autoSave: boolean;
+  /** Autosave interval in seconds (30–300). */
+  autoSaveSec: number;
 }
 
 // --- Game subsystem types ---

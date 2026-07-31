@@ -1,14 +1,16 @@
 <template>
   <div id="title-screen">
     <canvas id="title-stars" ref="starsCanvas"></canvas>
-    <div class="title-planet"></div>
-    <div class="title-haze"></div>
+    <div class="title-planet" aria-hidden="true"></div>
+    <div class="title-haze" aria-hidden="true"></div>
+
     <div class="title-content">
       <div class="t-kicker">远征协议 0x2F // EXPEDITION</div>
       <h1>方界<span>深空</span></h1>
       <div class="t-sub">VOXEL HORIZON — 体素星球 · 无尽苍穹</div>
+
       <div class="t-menu">
-        <button class="btn t-btn" @click="$emit('new-game')">新的旅程</button>
+        <button class="btn t-btn primary-cta" @click="$emit('new-game')">新的旅程</button>
         <button v-if="hasSave" class="btn t-btn" @click="$emit('continue')">继续旅程</button>
         <button class="btn t-btn" @click="$emit('official-mp')">官方星域</button>
         <button class="btn t-btn" @click="$emit('public-mp')">公开联机</button>
@@ -16,7 +18,11 @@
         <button class="btn t-btn" @click="$emit('help')">操作手册</button>
         <button class="btn t-btn" @click="$emit('settings')">系统设置</button>
       </div>
-      <div class="t-seed"><label>星球种子(可选)</label><input v-model="seed" maxlength="16" placeholder="随机"></div>
+
+      <div class="t-seed">
+        <label for="title-seed">星球种子(可选)</label>
+        <input id="title-seed" v-model="seed" maxlength="16" placeholder="随机" autocomplete="off">
+      </div>
       <div class="t-mp-hint">官方星域 · 云端权威存档 · 公开联机为房主本机托管</div>
     </div>
   </div>
@@ -45,7 +51,15 @@ onMounted(() => {
     cvs.height = Math.round(innerHeight * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     stars.length = 0;
-    for (let i = 0; i < 240; i++) stars.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: Math.random() * 1.4 + 0.3, p: Math.random() * 6.28, s: 0.5 + Math.random() * 2 });
+    for (let i = 0; i < 220; i++) {
+      stars.push({
+        x: Math.random() * innerWidth,
+        y: Math.random() * innerHeight,
+        r: Math.random() * 1.3 + 0.25,
+        p: Math.random() * 6.28,
+        s: 0.45 + Math.random() * 1.8,
+      });
+    }
   };
   resizeStars();
   addEventListener('resize', resizeStars);
@@ -53,7 +67,7 @@ onMounted(() => {
     ctx.clearRect(0, 0, innerWidth, innerHeight);
     const t = performance.now() / 1000;
     for (const s of stars) {
-      const a = 0.35 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
+      const a = 0.3 + 0.5 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
       ctx.fillStyle = `rgba(220,238,248,${a})`;
       ctx.fillRect(s.x, s.y, s.r, s.r);
     }

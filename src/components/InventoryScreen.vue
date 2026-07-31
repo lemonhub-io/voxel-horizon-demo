@@ -2,7 +2,15 @@
   <div id="inv-screen" class="screen" @mousedown.self="$emit('close')">
     <div class="inv-frame panel">
       <div class="inv-tabs">
-        <div v-for="t in tabs" :key="t.key" class="inv-tab" :class="{ active: store.tab === t.key }" @click="store.tab = t.key">{{ t.label }} <em>{{ t.en }}</em></div>
+        <div
+          v-for="t in tabs"
+          :key="t.key"
+          class="inv-tab"
+          :class="{ active: store.tab === t.key }"
+          @click="store.tab = t.key"
+        >
+          {{ t.label }} <em>{{ t.en }}</em>
+        </div>
         <div class="inv-close">Tab / Esc 关闭</div>
       </div>
 

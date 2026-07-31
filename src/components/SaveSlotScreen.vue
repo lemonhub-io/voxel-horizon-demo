@@ -3,7 +3,13 @@
     <div class="save-frame panel">
       <div class="p-kicker">存档管理 // SAVE SLOTS</div>
       <div class="save-list">
-        <div v-for="(slot, i) in slots" :key="i" class="save-slot" :class="{ active: i === currentSlot, empty: !slot }" @click="$emit('load', i)">
+        <div
+          v-for="(slot, i) in slots"
+          :key="i"
+          class="save-slot"
+          :class="{ active: i === currentSlot, empty: !slot }"
+          @click="$emit('load', i)"
+        >
           <div class="save-id">{{ i + 1 }}</div>
           <template v-if="slot">
             <div class="save-info">
@@ -23,6 +29,7 @@
         </div>
       </div>
       <div class="set-actions">
+        <span></span>
         <button class="btn sm" @click="$emit('back')">返回</button>
       </div>
     </div>

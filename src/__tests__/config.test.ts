@@ -56,8 +56,8 @@ describe('CFG constants', () => {
     expect(CFG.POM.minViewZ).toBeGreaterThan(0);
     expect(CFG.POM.atlasCells).toBe(8);
   });
-  it('enables GPU mesh extraction only on a compatible renderer', () => {
-    expect(CFG.GPU_MESH.mode).toBe('auto');
+  it('keeps GPU mesh extraction opt-in until it beats the CPU path', () => {
+    expect(CFG.GPU_MESH.mode).toBe('off');
     expect(CFG.GPU_MESH.maxJobsPerFrame).toBeGreaterThan(0);
   });
   it('has cinematic post-processing config', () => {

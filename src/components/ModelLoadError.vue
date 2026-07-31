@@ -1,5 +1,11 @@
 <template>
-  <div id="model-load-error" class="screen" role="alertdialog" aria-modal="true" aria-labelledby="model-load-error-title">
+  <div
+    id="model-load-error"
+    class="screen"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="model-load-error-title"
+  >
     <div class="model-load-error__panel panel">
       <div class="pc-kicker">REMOTE ASSET CHECK FAILED</div>
       <h2 id="model-load-error-title">远程模型加载失败</h2>

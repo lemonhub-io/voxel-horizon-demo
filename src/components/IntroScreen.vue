@@ -1,7 +1,15 @@
 <template>
   <div id="intro-screen" @click="$emit('skip')">
     <div id="intro-lines">
-      <div v-for="(line, i) in lines" :key="i" class="il" :class="line.cls">{{ line.text }}</div>
+      <div
+        v-for="(line, i) in lines"
+        :key="i"
+        class="il"
+        :class="line.cls"
+        :style="{ animationDelay: i * 0.18 + 's' }"
+      >
+        {{ line.text }}
+      </div>
     </div>
     <div class="intro-skip">单击跳过</div>
   </div>

@@ -1,7 +1,9 @@
 <template>
   <div id="toasts">
     <div v-for="t in toasts" :key="t.id" class="toast" :class="{ fade: false }">
-      <img :src="icon(t.itemId)"><span>{{ t.name }}</span><span class="tc">+{{ t.n }}</span>
+      <img :src="icon(t.itemId)" alt="">
+      <span>{{ t.name }}</span>
+      <span class="tc">+{{ t.n }}</span>
     </div>
   </div>
 </template>

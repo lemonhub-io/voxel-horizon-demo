@@ -167,9 +167,14 @@ function isSaveSlotMeta(value: unknown): value is SaveSlotMeta {
 
 function isPartialSettings(value: unknown): value is Partial<Settings> {
   if (!isRecord(value)) return false;
-  const numericKeys: (keyof Omit<Settings, 'invert'>)[] = ['master', 'music', 'sfx', 'sens', 'fov', 'dist', 'touchSens'];
+  const numericKeys: (keyof Settings)[] = [
+    'master', 'music', 'sfx', 'sens', 'fov', 'dist', 'touchSens', 'autoSaveSec',
+  ];
+  const boolKeys: (keyof Settings)[] = [
+    'invert', 'gpuMesh', 'postFx', 'showFps', 'showCrosshair', 'autoSave',
+  ];
   return numericKeys.every(key => value[key] === undefined || typeof value[key] === 'number')
-    && (value.invert === undefined || typeof value.invert === 'boolean');
+    && boolKeys.every(key => value[key] === undefined || typeof value[key] === 'boolean');
 }
 
 async function readJson(dir: FileSystemDirectoryHandle, name: string): Promise<unknown | null> {

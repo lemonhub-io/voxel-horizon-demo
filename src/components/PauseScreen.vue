@@ -11,7 +11,7 @@
               : '访客模式 · 地图由房主同步'
         }}
       </div>
-      <button class="btn t-btn" @click="$emit('resume')">继续探索</button>
+      <button class="btn t-btn primary-cta" @click="$emit('resume')">继续探索</button>
       <button v-if="!multiplayer" class="btn t-btn" @click="$emit('save')">保存进度</button>
       <button v-if="!multiplayer" class="btn t-btn" @click="$emit('host-mp')">开放联机</button>
       <button class="btn t-btn" @click="$emit('help')">操作手册</button>

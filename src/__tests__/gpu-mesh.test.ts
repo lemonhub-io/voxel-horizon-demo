@@ -3,8 +3,10 @@ import * as THREE from 'three/webgpu';
 import { CFG } from '../config';
 import {
   GPU_MESH_HEIGHT,
+  GPU_MESH_BATCH_SIZE,
   GPU_MESH_VOXEL_COUNT,
   GPU_MESH_WIDTH,
+  GpuMeshBatch,
   GpuMeshChunkCompute,
   buildGpuMeshChunkPayload,
   createGpuOpaqueBlockTable,
@@ -54,12 +56,27 @@ describe('GPU mesh data contract', () => {
     expect(table[1] & 1).toBe(1);
   });
 
-  it('binds face records to a compact indirect render mesh', () => {
-    const resource = new GpuMeshChunkCompute();
-    const mesh = resource.createRenderMesh(new THREE.Texture());
-    expect(mesh.geometry.getIndirect()).toBe(resource.drawArgs);
-    expect(mesh.geometry.getAttribute('position').count).toBe(6);
-    expect((resource.drawArgs.array as Uint32Array)[1]).toBe(0);
+  it('batches chunk face records into one front-facing indirect mesh', () => {
+    const batch = new GpuMeshBatch(new THREE.Texture());
+    const slot = batch.allocate(2, -1);
+    const resource = new GpuMeshChunkCompute(batch, slot);
+    expect(batch.mesh.geometry.getIndirect()).toBe(batch.drawArgs);
+    const positions = batch.mesh.geometry.getAttribute('position');
+    expect(positions.count).toBe(6);
+    expect(Array.from(positions.array as Float32Array)).toEqual([
+      0, 0, 0, 1, 0, 0, 1, 1, 0,
+      0, 0, 0, 1, 1, 0, 0, 1, 0,
+    ]);
+    expect((batch.mesh.material as THREE.Material).side).toBe(THREE.FrontSide);
+    expect(batch.mesh.frustumCulled).toBe(true);
+    expect(batch.mesh.geometry.boundingSphere?.center.toArray()).toEqual([40, 32, -8]);
+    expect(batch.mesh.geometry.boundingSphere?.radius).toBeCloseTo(Math.hypot(8, 32, 8));
+    expect((batch.drawArgs.array as Uint32Array)[slot * 4 + 1]).toBe(0);
+    expect((batch.origins.array as Int32Array)[slot * 2]).toBe(2 * CFG.CHUNK);
+    expect((batch.origins.array as Int32Array)[slot * 2 + 1]).toBe(-CFG.CHUNK);
+    expect(GPU_MESH_BATCH_SIZE).toBe(1);
     resource.dispose();
+    expect(batch.empty).toBe(true);
+    batch.dispose();
   });
 });

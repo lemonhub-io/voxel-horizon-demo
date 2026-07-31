@@ -10,11 +10,12 @@
         <div id="hud-units"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 8 10-8 10L4 12z"/><path d="m12 7 4 5-4 5-4-5z"/></svg><span>{{ inventory.units }}</span></div>
         <div id="hud-planet">{{ game.planetName }}</div>
         <div id="hud-env"><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg><span>{{ envLabel }}</span></div>
+        <div v-if="game.settings.showFps" id="hud-fps">{{ hud.fps || '—' }} FPS</div>
       </div>
     </div>
     <div id="alert-center" :class="{ hidden: !hud.alertOn }"><svg class="alert-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5m0 3h.01"/></svg><span>{{ hud.alertText }}</span></div>
 
-    <div id="crosshair" :class="{ hidden: hud.flightHudOn }">
+    <div id="crosshair" :class="{ hidden: hud.flightHudOn || game.settings.showCrosshair === false }">
       <svg id="mine-ring" width="56" height="56" viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="24"/><circle class="ring-fg" cx="28" cy="28" r="24" :style="mineRingStyle"/></svg>
       <div id="ch-dot"></div>
       <div id="heat-wrap"><div id="heat-bar" :style="heatStyle"></div></div>
@@ -44,7 +45,12 @@
       <div id="mission-kind">任务</div>
       <div id="mission-title">{{ hud.missionTitle }}</div>
       <div id="mission-desc">{{ hud.missionDesc }}</div>
-      <div v-if="hud.missionMax > 0" id="mission-prog-wrap"><div class="bar slim"><div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div></div><span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span></div>
+      <div v-if="hud.missionMax > 0" id="mission-prog-wrap">
+        <div class="bar slim">
+          <div class="bar-fill acc" :style="{ width: Math.min(100, hud.missionCur / hud.missionMax * 100) + '%' }"></div>
+        </div>
+        <span>{{ Math.min(hud.missionCur, hud.missionMax) }} / {{ hud.missionMax }}</span>
+      </div>
     </div>
 
     <div id="visor-overlay" class="hidden">

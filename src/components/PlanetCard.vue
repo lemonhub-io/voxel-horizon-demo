@@ -9,7 +9,16 @@
         <div class="pc-item"><label>动物</label><span>{{ info.fauna }}</span></div>
         <div class="pc-item"><label>风暴</label><span>{{ info.storm }}</span></div>
       </div>
-      <div class="pc-res"><div v-for="r in info.res" :key="r" class="res-chip" :style="{ borderColor: ITEMS[r]?.col || '#fff', color: ITEMS[r]?.col || '#fff' }">{{ ITEMS[r]?.name }}</div></div>
+      <div class="pc-res">
+        <div
+          v-for="r in info.res"
+          :key="r"
+          class="res-chip"
+          :style="{ borderColor: ITEMS[r]?.col || '#fff', color: ITEMS[r]?.col || '#fff' }"
+        >
+          {{ ITEMS[r]?.name }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
